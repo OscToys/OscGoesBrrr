@@ -19,7 +19,7 @@ build_files:
     - echo "PACKAGE_URL=$CI_JOB_URL/artifacts/raw/OscGoesBrrr.$VERSION.zip" >> build.env
     - echo "ASAR_URL=$CI_JOB_URL/artifacts/raw/OscGoesBrrr.$VERSION.asar" >> build.env
   artifacts:
-    expire_in: never
+    expire_in: 1 week
     paths:
       - "*.zip"
       - "*.asar"
