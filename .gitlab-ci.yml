@@ -57,7 +57,7 @@ bump_autoupdater:
       --request PUT
       --data "url=$ASAR_URL"
       --header "JOB-TOKEN: $CI_JOB_TOKEN"
-      "https://gitlab.com/api/v4/projects/vrcfury%2foscgoesbrrr/releases/autoupdater/assets/links/858385"
+      "https://gitlab.com/api/v4/projects/vrcfury%2foscgoesbrrr/releases/autoupdater/assets/links/867462"
 
       curl
       --silent --show-error
