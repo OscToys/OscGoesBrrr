@@ -120,30 +120,38 @@ new OscConfigDeleter(oscLogger, configMap);
 setInterval(() => {
   if (!mainWindow) return;
 
+  const globalSources = bridge.getGlobalSources(true);
+
   let oscStatus = '';
   if (!oscConnection || !oscConnection.socketopen) {
     oscStatus = `OSC socket isn't open.\nIs something else using the OSC port?`;
   } else if (!oscConnection.lastReceiveTime || oscConnection.lastReceiveTime < Date.now() - 60_000) {
     oscStatus = `Haven't received OSC status recently.\nIs game open and active?\nIs OSC Enabled in the radial menu?`;
   } else {
-    const params = Array.from(oscConnection.entries());
-    params.sort((a,b) => a[0] > b[0] ? 1 : -1);
-    const status = params
-        .map(([k,v]) => `${k}=${v.get()}`)
-        .join('\n');
+    const gameDeviceStatuses = Array.from(bridge.getGameDevices())
+        .map(d => d.getStatus());
+    gameDeviceStatuses.sort();
+
+    const globalSourcesLines = globalSources
+        .map(source => source.deviceType+'.'+source.deviceName+'.'+source.featureName+'='+source.value);
+    globalSourcesLines.sort();
+
+    const rawOscParams = Array.from(oscConnection.entries())
+        .map(([k,v]) => `${k}=${v.get()}`);
+    rawOscParams.sort();
+
+    const status = gameDeviceStatuses.join('\n')+'\n\n'+globalSourcesLines.join('\n')+'\n\n'+rawOscParams.join('\n');
     oscStatus = status;
   }
   mainWindow.webContents.send('oscStatus', oscStatus);
 
   let bioStatus = '';
   if (butt.wsReady()) {
-    const devices = Array.from(butt.getDevices());
-    devices.sort((a,b) => a.id > b.id ? 1 : -1);
+    const devices = Array.from(bridge.getToys()).map(toy => toy.getStatus());
+    devices.sort();
     let devicesStr;
     if (devices.length) {
-      devicesStr = devices.map(device => {
-        return `${device.id} = ${Math.round(device.lastLevel*100)}%`;
-      }).join('\n');
+      devicesStr = devices.join('\n');
     } else {
       devicesStr = 'None';
     }
@@ -153,7 +161,7 @@ setInterval(() => {
   }
 
   mainWindow.webContents.send('bioStatus', bioStatus);
-}, 250);
+}, 100);
 
 ipcMain.handle('config:save', (_event, text) => {
   loadConfig(text);
