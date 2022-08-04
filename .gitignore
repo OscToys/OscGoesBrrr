@@ -1,0 +1,9 @@
+node_modules
+/.idea
+/config.txt
+/dist
+/app/main.js
+/app/main.js.map
+/app/preload.js
+/app/preload.js.map
+/app/version.txt

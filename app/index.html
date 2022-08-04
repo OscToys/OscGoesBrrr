@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <!-- https://developer.mozilla.org/en-US/docs/Web/HTTP/CSP -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'">
+    <link href="bootstrap.css" rel="stylesheet">
+    <link href="styles.css" rel="stylesheet">
+  </head>
+  <body>
+    <div style="display:flex; flex-direction: column; height: 100%">
+      <div style="text-align: center; padding: 5px;">
+        <h1>OSC Goes Brrr</h1>
+        Your avatar must be upgraded using the <a href="https://vrcfury.com/brrrupgrade" target="_blank">VRCFury OscGB Upgrade Tool</a><br/>
+        Your partner's avatar should be upgraded using the same tool, or be using Poiyomi Pro 8.1 TPS<br/>
+        For support, <a href="https://vrcfury.com/discord" target="_blank">click here to join the discord</a>.
+        <div style="display:none;" id="outdated">
+          <span style="background-color: red; color: black;">Outdated avatar detected!</span><br/>
+          It seems the avatar you are using did not use the latest OseGB upgrade tool!<br/>
+          OseGB features may be limited. Please update VRCFury, run the tool again, and re-upload.<br/>
+          If you are sure your avatar is updated already, be sure "Self Interact" is on in your vrc settings.
+        </div>
+      </div>
+      <div style="display:flex; flex: 1;">
+        <div style="display:flex; flex-direction: column; flex: 1; margin: 5px; text-align: center;">
+          <h3>Buttplug.io Status</h3>
+          <textarea style="flex:1;" id="bioStatus" readonly wrap="off"></textarea>
+        </div>
+        <div style="display:flex; flex-direction: column; flex: 1; margin: 5px; text-align: center;">
+          <h3>OSC Status</h3>
+          <textarea style="flex:1;" id="oscStatus" readonly wrap="off"></textarea>
+        </div>
+        <div style="display:flex; flex-direction: column; flex: 1; margin: 5px; text-align: center;">
+          <h3>Advanced Config <a href="https://vrcfury.com/brrradv" target="_blank">(?)</a></h3>
+          <textarea style="flex:1" id="advancedConfig" spellcheck="false"></textarea>
+          <div style="text-align: left">
+            <input type="button" value="Save" id="save"/>
+            <span id="saved" style="display: none">Saved</span>
+          </div>
+        </div>
+      </div>
+      <div style="display:flex; flex-basis: 300px;">
+        <div style="display:flex; flex-direction: column; flex: 1; margin: 5px; text-align: center;">
+          <h3>Buttplug.io Log</h3>
+          <textarea style="flex:1" id="bioLog"></textarea>
+        </div>
+        <div style="display:flex; flex-direction: column; flex: 1; margin: 5px; text-align: center;">
+          <h3>OSC Log</h3>
+          <textarea style="flex:1" id="oscLog"></textarea>
+        </div>
+      </div>
+    </div>
+
+  </body>
+</html>

@@ -1,0 +1,15 @@
+html,body {
+    height: 100%;
+}
+
+body {
+    background-color: #111;
+    color: white;
+    font-family: Arial, sans-serif;
+}
+
+textarea {
+    background-color: #111;
+    color: white;
+    resize: none;
+}

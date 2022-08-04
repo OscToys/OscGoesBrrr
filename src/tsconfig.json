@@ -1,0 +1,12 @@
+{
+  "extends": "@tsconfig/node18-strictest-esm/tsconfig.json",
+  "compilerOptions": {
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "moduleResolution": "node",
+    "noImplicitOverride": true,
+    "typeRoots": [
+      "./types"
+    ]
+  }
+}

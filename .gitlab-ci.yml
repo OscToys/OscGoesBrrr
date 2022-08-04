@@ -1,0 +1,68 @@
+workflow:
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+build_files:
+  needs: []
+  image:
+    name: electronuserland/builder:wine
+  script:
+    - npm install -g npm@8
+    - npm install
+    - VERSION="1.$(date +%Y%m%d.1%H%M%S)"
+    - echo "$VERSION" > app/version.txt
+    - npm run build
+    - npx electron-builder --win
+    - mv dist/osc-goes-brrr-1.0.0-win.zip OscGoesBrrr.$VERSION.zip
+    - mv dist/win-unpacked/resources/app.asar OscGoesBrrr.$VERSION.asar
+    - echo "VERSION=$VERSION" > build.env
+    - echo "PACKAGE_URL=$CI_JOB_URL/artifacts/raw/OscGoesBrrr.$VERSION.zip" >> build.env
+    - echo "ASAR_URL=$CI_JOB_URL/artifacts/raw/OscGoesBrrr.$VERSION.asar" >> build.env
+  artifacts:
+    expire_in: never
+    paths:
+      - "*.zip"
+      - "*.asar"
+    reports:
+      dotenv: build.env
+
+release:
+  image: registry.gitlab.com/gitlab-org/release-cli:latest
+  script:
+    - echo 'running release_job'
+  needs:
+    - job: build_files
+      artifacts: true
+  release:
+    name: 'OscGoesBrrr $VERSION'
+    description: This is a release of OscGoesBrrr. Click 'Download Windows Zip' above to download!
+    tag_name: '$VERSION'
+    assets:
+      links:
+        - name: 'Download Windows Zip'
+          url: '${PACKAGE_URL}'
+
+bump_autoupdater:
+  needs:
+    - job: build_files
+      artifacts: true
+    - release
+  image: curlimages/curl
+  script:
+    - >
+      echo "$ASAR_URL"
+
+      curl
+      --silent --show-error
+      --request PUT
+      --data "url=$ASAR_URL"
+      --header "JOB-TOKEN: $CI_JOB_TOKEN"
+      "https://gitlab.com/api/v4/projects/vrcfury%2foscgoesbrrr/releases/autoupdater/assets/links/858385"
+
+      curl
+      --silent --show-error
+      --header 'Content-Type: application/json'
+      --request PUT
+      --data '{ "description": "version='"$VERSION"'" }'
+      --header "JOB-TOKEN: $CI_JOB_TOKEN"
+      "https://gitlab.com/api/v4/projects/vrcfury%2foscgoesbrrr/releases/autoupdater"
