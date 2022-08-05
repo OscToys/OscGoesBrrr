@@ -208,11 +208,15 @@ export default class Buttplug extends (EventEmitter as new () => TypedEmitter<My
         let featureId = 0;
         const vibratorCount = d.DeviceMessages?.VibrateCmd?.FeatureCount ?? 0;
         for (let i = 0; i < vibratorCount; i++) {
-            this.addFeature(new DeviceFeature(id + '-' + featureId++, id, false, d.DeviceIndex, i, this));
+            this.addFeature(new DeviceFeature(id + '-' + featureId++, id, 'vibrate', d.DeviceIndex, i, this));
         }
         const linearCount = d.DeviceMessages?.LinearCmd?.FeatureCount ?? 0;
         for (let i = 0; i < linearCount; i++) {
-            this.addFeature(new DeviceFeature(id + '-' + featureId++, id, true, d.DeviceIndex, i, this));
+            this.addFeature(new DeviceFeature(id + '-' + featureId++, id, 'linear', d.DeviceIndex, i, this));
+        }
+        const rotateCount = d.DeviceMessages?.RotateCmd?.FeatureCount ?? 0;
+        for (let i = 0; i < rotateCount; i++) {
+            this.addFeature(new DeviceFeature(id + '-' + featureId++, id, 'rotate', d.DeviceIndex, i, this));
         }
     }
 
@@ -229,16 +233,16 @@ export default class Buttplug extends (EventEmitter as new () => TypedEmitter<My
 export class DeviceFeature {
     readonly id;
     readonly deviceId;
-    readonly linear;
+    readonly type;
     readonly bioDeviceIndex;
     private readonly bioSubIndex;
     private readonly parent;
     lastLevel = 0;
 
-    constructor(fullFeatureId: string, deviceId: string, linear: boolean, bioDeviceIndex: number, bioSubIndex: number, parent: Buttplug) {
+    constructor(fullFeatureId: string, deviceId: string, type: 'linear'|'vibrate'|'rotate', bioDeviceIndex: number, bioSubIndex: number, parent: Buttplug) {
         this.id = fullFeatureId;
         this.deviceId = deviceId;
-        this.linear = linear;
+        this.type = type;
         this.bioDeviceIndex = bioDeviceIndex;
         this.bioSubIndex = bioSubIndex;
         this.parent = parent;
@@ -246,11 +250,17 @@ export class DeviceFeature {
 
     setLevel(level: number) {
         this.lastLevel = level;
-        if (this.linear) {
+        if (this.type == 'linear') {
             this.parent.send({
                 type: 'LinearCmd',
                 DeviceIndex: this.bioDeviceIndex,
-                Vectors: [ { Index: this.bioSubIndex, Duration: 20, Position: level } ]
+                Vectors: [{Index: this.bioSubIndex, Duration: 20, Position: level}]
+            });
+        } else if (this.type == 'rotate') {
+            this.parent.send({
+                type: 'RotateCmd',
+                DeviceIndex: this.bioDeviceIndex,
+                Rotations: [{Index: this.bioSubIndex, Speed: Math.abs(level), Clockwise: level >= 0}]
             });
         } else {
             this.parent.send({

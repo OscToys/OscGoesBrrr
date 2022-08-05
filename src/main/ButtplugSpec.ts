@@ -8,7 +8,8 @@ export const Device = t.intersection([
     t.partial({
         DeviceMessages: t.partial({
             VibrateCmd: t.partial({ FeatureCount: t.number }),
-            LinearCmd: t.partial({ FeatureCount: t.number })
+            LinearCmd: t.partial({ FeatureCount: t.number }),
+            RotateCmd: t.partial({ FeatureCount: t.number }),
         })
     }),
 ]);
@@ -37,6 +38,14 @@ export const ButtplugMessage = t.partial({
             Index: t.number,
             Duration: t.number,
             Position: t.number,
+        }))
+    }),
+    RotateCmd: t.type({
+        DeviceIndex: t.number,
+        Rotations: t.array(t.type({
+            Index: t.number,
+            Speed: t.number,
+            Clockwise: t.boolean,
         }))
     }),
     RequestServerInfo: t.type({

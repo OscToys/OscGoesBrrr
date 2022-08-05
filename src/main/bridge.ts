@@ -169,7 +169,7 @@ class BridgeToy {
 
         const sources: BridgeSource[] = [];
         for (const source of globalSources) {
-            if (this.bioFeature.linear && source.deviceType == 'audio') continue;
+            if (this.bioFeature.type == 'linear' && source.deviceType == 'audio') continue;
             if (source.deviceType === 'pen' || source.deviceType === 'orf') {
                 if (source.deviceType === 'pen' && !bindPen) continue;
                 if (source.deviceType === 'orf' && !bindOrf) continue;
@@ -198,9 +198,10 @@ class BridgeToy {
 
         const sources = this.getRelevantSources(globalSources);
         let level = 0;
+        let motionBasedBackward = false;
         for (const source of sources) {
             const value = source.value;
-            if (this.bioFeature.linear) {
+            if (this.bioFeature.type == 'linear') {
                 level = Math.max(level, value);
             } else if (motionBased) {
                 const lastSource = this.lastSources.get(source.getUniqueKey());
@@ -208,7 +209,12 @@ class BridgeToy {
                 if (lastValue !== undefined) {
                     const delta = Math.abs(value - lastValue);
                     const diffPerSecond = delta / timeSinceLastPush * 1000;
-                    level = Math.max(level, diffPerSecond / 5);
+                    const intensity = diffPerSecond / 5;
+                    if (intensity > level) {
+                        level = intensity;
+                        motionBasedBackward = delta < 0;
+                    }
+                    level = Math.max(level, intensity);
                 }
             } else {
                 level = Math.max(level, value);
@@ -228,20 +234,35 @@ class BridgeToy {
         if (isNaN(level)) level = 0;
         //if (level < 0.05) level = 0;
 
-        if (this.bioFeature.linear) {
-            // TODO: Make this work
+        if (this.bioFeature.type == 'linear') {
             /*
             const targetPosition = level;
             const currentPosition = this.bioFeature.lastLevel;
-            const timeRequiredToStopSmoothly = Math.abs(this.linearVelocity) / this.maxAcceleration; // seconds
-            const absDistanceRequiredToStopSmoothly = Math.abs(this.linearVelocity / 2) * timeRequiredToStopSmoothly; // units (+/-)
+            let maxAcceleration = this.maxAcceleration;
+            const absDistanceRequiredToStopSmoothly = this.linearVelocity^2 / (2*maxAcceleration);
             const absDistanceToEdge = this.linearVelocity > 0 ? (1-currentPosition) : currentPosition;
+            const distanceToTarget = Math.abs(targetPosition - currentPosition);
+            const stopPosition = this.linearVelocity
 
             let stopNow = false;
-            if ()
+            if (absDistanceToEdge < absDistanceRequiredToStopSmoothly) {
+                // How did we get in this situation?
+                // We'll have to override the boost the acceleration limit to stop before we hit the edge.
+                maxAcceleration = this.linearVelocity^2 / (2*absDistanceToEdge);
+                stopNow = true;
+            } else if (Math.abs(distanceToTarget) < 0.05 && this.linearVelocity < )
+
+            if (distanceToTarget < 0 != this.linearVelocity < 0) {
+                // We're going in the wrong direction
+                stopNow = true;
+            }
+
+
 
             this.linearTarget = level;
              */
+        } else if (this.bioFeature.type == 'rotate') {
+            this.bioFeature.setLevel(level * (motionBasedBackward ? -1 : 1));
         } else {
             this.bioFeature.setLevel(level);
         }
