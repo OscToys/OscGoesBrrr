@@ -1,7 +1,7 @@
 import type Buttplug from "./Buttplug";
 import type {OscValue} from "./OscConnection";
 import type OscConnection from "./OscConnection";
-import {GameDevice} from "./GameDevice";
+import GameDevice from "./GameDevice";
 import type {DeviceFeature} from "./Buttplug";
 
 export default class Bridge {

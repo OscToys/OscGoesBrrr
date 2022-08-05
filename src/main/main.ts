@@ -147,7 +147,11 @@ ipcMain.handle('oscStatus:get', async (_event, text) => {
 
   const sections: string[] = [];
 
-  const outdated = gameDevices.some(device => device.getVersion() != 8);
+  const outdated = gameDevices.some(device => {
+    if (device.type == 'Pen' && (device.getVersion() ?? 0) < 8) return true;
+    if (device.type == 'Orf' && (device.getVersion() ?? 0) < 9) return true;
+    return false;
+  });
   if (outdated) {
     sections.push('OUTDATED AVATAR DETECTED\n' +
         'Your avatar was not built using\nthe newest OscGB upgrade tool.\n' +

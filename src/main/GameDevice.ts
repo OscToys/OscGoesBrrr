@@ -15,14 +15,16 @@ type allowedGetValues =
     | 'PenSelfNewTip'
     | 'PenOthersNewRoot'
     | 'PenOthersNewTip'
+    | 'PenOthersClose'
     ;
 type allowedGetBools =
     'TouchSelfClose'
     | 'TouchOthersClose'
     | 'FrotOthersClose'
+    | 'PenOthersClose'
     ;
 
-export class GameDevice {
+export default class GameDevice {
     readonly type; // probably 'Orf' or 'Pen'
     readonly id;
     readonly isTps;
@@ -64,29 +66,20 @@ export class GameDevice {
     }
 
     getNewPenAmount(self: boolean) {
-        const len = (self ? this.recordedSelfLength : this.recordedOthersLength).getLength();
-        if (len) {
-            const rootProx = this.get(self ? 'PenSelfNewRoot' : 'PenOthersNewRoot')?.get();
-            const tipProx = this.get(self ? 'PenSelfNewTip' : 'PenOthersNewTip')?.get();
-            if (typeof rootProx == 'number' && typeof tipProx == 'number') {
-                if (tipProx > 0.99) {
-                    const exposedLength = 1 - rootProx;
-                    const exposedRatio = exposedLength / len;
-                    return 1 - exposedRatio;
-                } else {
-                    return 0;
-                }
+        const rootProx = this.get(self ? 'PenSelfNewRoot' : 'PenOthersNewRoot')?.get();
+        const tipProx = this.get(self ? 'PenSelfNewTip' : 'PenOthersNewTip')?.get();
+        if (typeof rootProx == 'number' && typeof tipProx == 'number' && (rootProx > 0 || tipProx > 0)) {
+            // Someone with new penetration is nearby, so never use legacy pen
+            const len = (self ? this.recordedSelfLength : this.recordedOthersLength).getLength();
+            if (len && tipProx > 0.99) {
+                const exposedLength = 1 - rootProx;
+                const exposedRatio = exposedLength / len;
+                return 1 - exposedRatio;
             }
+            return 0;
         }
+
         return undefined;
-    }
-
-    getLegacyPenAmount(self: boolean): number | undefined {
-        return this.getNumber(self ? 'PenSelf' : 'PenOthers');
-    }
-
-    getPenAmount(self: boolean) {
-        return this.getNewPenAmount(self) ?? this.getLegacyPenAmount(self);
     }
 
     get(key: allowedGetValues) {
@@ -113,18 +106,26 @@ export class GameDevice {
                     this.getBool('TouchSelfClose') ? this.getNumber('TouchSelf') ?? 0 : 0));
                 sources.push(new BridgeSource('orf', this.id, 'touchOthers',
                     this.getBool('TouchOthersClose') ? this.getNumber('TouchOthers') ?? 0 : 0));
+
+                const penSelfLegacy = this.getNumber('PenSelf');
+                const penSelfNew = this.getNewPenAmount(true);
                 sources.push(new BridgeSource('orf', this.id, 'penSelfLegacy',
-                    this.getLegacyPenAmount(true) ?? 0));
+                    penSelfLegacy ?? 0));
                 sources.push(new BridgeSource('orf', this.id, 'penSelfNew',
-                    this.getNewPenAmount(true) ?? 0));
+                    penSelfNew ?? 0));
                 sources.push(new BridgeSource('orf', this.id, 'penSelf',
-                    this.getPenAmount(true) ?? 0));
+                    penSelfNew ?? penSelfLegacy ?? 0));
+
+                const penOthersLegacyClose = this.getBool('PenOthersClose') || this.get('PenOthersClose') == undefined;
+                const penOthersLegacy = penOthersLegacyClose ? this.getNumber('PenOthers') : undefined;
+                const penOthersNew = this.getNewPenAmount(false);
                 sources.push(new BridgeSource('orf', this.id, 'penOthersLegacy',
-                    this.getLegacyPenAmount(false) ?? 0));
+                    penOthersLegacy ?? 0));
                 sources.push(new BridgeSource('orf', this.id, 'penOthersNew',
-                    this.getNewPenAmount(false) ?? 0));
+                    penOthersNew ?? 0));
                 sources.push(new BridgeSource('orf', this.id, 'penOthers',
-                    this.getPenAmount(false) ?? 0));
+                    penOthersNew ?? penOthersLegacy ?? 0));
+
                 sources.push(new BridgeSource('orf', this.id, 'frotOthers',
                     this.getNumber('FrotOthers') ?? 0));
             }
@@ -134,9 +135,9 @@ export class GameDevice {
                 sources.push(new BridgeSource('pen', this.id, 'touchOthers',
                     this.getBool('TouchOthersClose') ? this.getNumber('TouchOthers') ?? 0 : 0));
                 sources.push(new BridgeSource('pen', this.id, 'penSelf',
-                    this.getLegacyPenAmount(true) ?? 0));
+                    this.getNumber('PenSelf') ?? 0));
                 sources.push(new BridgeSource('pen', this.id, 'penOthers',
-                    this.getLegacyPenAmount(false) ?? 0));
+                    this.getNumber('PenOthers') ?? 0));
                 sources.push(new BridgeSource('pen', this.id, 'frotOthers',
                     this.getBool('FrotOthersClose') ? this.getNumber('FrotOthers') ?? 0 : 0));
             }
