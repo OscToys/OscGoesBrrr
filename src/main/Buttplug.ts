@@ -120,7 +120,7 @@ export default class Buttplug extends (EventEmitter as new () => TypedEmitter<My
             Id: id,
             ...params
         };
-        if (type === 'VibrateCmd' || type === 'LinearCmd') {
+        if (type === 'VibrateCmd' || type === 'LinearCmd' || type == 'RotateCmd' || type == 'FleshlightLaunchFW12Cmd') {
             this.recentlySentCmds++;
         } else {
             this.log('->', type, newArgs);
@@ -248,14 +248,20 @@ export class DeviceFeature {
         this.parent = parent;
     }
 
-    setLevel(level: number) {
+    setLevel(level: number, duration = 0) {
         this.lastLevel = level;
         if (this.type == 'linear') {
             this.parent.send({
                 type: 'LinearCmd',
                 DeviceIndex: this.bioDeviceIndex,
-                Vectors: [{Index: this.bioSubIndex, Duration: 20, Position: level}]
+                Vectors: [{Index: this.bioSubIndex, Duration: Math.round(duration*0.8), Position: level}]
             });
+            //this.parent.send({
+            //    type: 'FleshlightLaunchFW12Cmd',
+            //    DeviceIndex: this.bioDeviceIndex,
+            //    Speed: 40,
+            //    Position: Math.round(level*99)
+            //});
         } else if (this.type == 'rotate') {
             this.parent.send({
                 type: 'RotateCmd',

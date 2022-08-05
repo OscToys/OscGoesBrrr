@@ -40,6 +40,11 @@ export const ButtplugMessage = t.partial({
             Position: t.number,
         }))
     }),
+    FleshlightLaunchFW12Cmd: t.type({
+        DeviceIndex: t.number,
+        Position: t.number,
+        Speed: t.number
+    }),
     RotateCmd: t.type({
         DeviceIndex: t.number,
         Rotations: t.array(t.type({

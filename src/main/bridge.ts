@@ -150,7 +150,9 @@ class BridgeToy {
     lastPushTime = 0;
     linearTarget = 0;
     linearVelocity = 0;
-    maxAcceleration = 1; // unit per second^2
+    maxAcceleration = 20; // unit/s^2
+    maxVelocity = 3; // unit/s
+    lastLinearSuck = 0;
 
     constructor(bioFeature: DeviceFeature, configMap: Map<string,string>, osc: OscConnection) {
         this.bioFeature = bioFeature;
@@ -191,7 +193,7 @@ class BridgeToy {
 
     pushToBio(globalSources: BridgeSource[]) {
         const now = Date.now();
-        const timeSinceLastPush = now - this.lastPushTime;
+        const timeDelta = Math.min(now - this.lastPushTime, 100); // safety limited
         const idle = this.getConfigNumber('idle', 0);
         const scale = this.getConfigNumber('scale', 1);
         const motionBased = !this.getConfigBool('linear', true);
@@ -208,7 +210,7 @@ class BridgeToy {
                 const lastValue = lastSource?.value;
                 if (lastValue !== undefined) {
                     const delta = Math.abs(value - lastValue);
-                    const diffPerSecond = delta / timeSinceLastPush * 1000;
+                    const diffPerSecond = delta / timeDelta * 1000;
                     const intensity = diffPerSecond / 5;
                     if (intensity > level) {
                         level = intensity;
@@ -235,32 +237,77 @@ class BridgeToy {
         //if (level < 0.05) level = 0;
 
         if (this.bioFeature.type == 'linear') {
-            /*
-            const targetPosition = level;
-            const currentPosition = this.bioFeature.lastLevel;
+            const timeDeltaSeconds = timeDelta / 1000;
+            const oldVelocity = this.linearVelocity;
+            let maxVelocity = this.maxVelocity;
             let maxAcceleration = this.maxAcceleration;
-            const absDistanceRequiredToStopSmoothly = this.linearVelocity^2 / (2*maxAcceleration);
-            const absDistanceToEdge = this.linearVelocity > 0 ? (1-currentPosition) : currentPosition;
-            const distanceToTarget = Math.abs(targetPosition - currentPosition);
-            const stopPosition = this.linearVelocity
 
-            let stopNow = false;
-            if (absDistanceToEdge < absDistanceRequiredToStopSmoothly) {
-                // How did we get in this situation?
-                // We'll have to override the boost the acceleration limit to stop before we hit the edge.
-                maxAcceleration = this.linearVelocity^2 / (2*absDistanceToEdge);
-                stopNow = true;
-            } else if (Math.abs(distanceToTarget) < 0.05 && this.linearVelocity < )
-
-            if (distanceToTarget < 0 != this.linearVelocity < 0) {
-                // We're going in the wrong direction
-                stopNow = true;
+            let targetPosition = 1-level;
+            if (level > 0) {
+                this.lastLinearSuck = now;
+            } else if (this.lastLinearSuck < now - 3000) {
+                targetPosition = 0;
+                maxAcceleration = 1;
+                maxVelocity = 1;
             }
 
+            const currentPosition = this.bioFeature.lastLevel;
+            const absDistanceRequiredToStopSmoothly = Math.pow(oldVelocity,2) / (2*maxAcceleration);
+            const stopPosition = currentPosition + (oldVelocity < 0 ? -1 : 1) * absDistanceRequiredToStopSmoothly;
+            const fromStopPositionToTarget = targetPosition - stopPosition;
 
+            // Test what would happen if we accelerate or decelerate
+            let newVelocityIfWeAdd = oldVelocity + maxAcceleration * timeDeltaSeconds;
+            let newVelocityIfWeSubtract = oldVelocity - maxAcceleration * timeDeltaSeconds;
+            if (Math.abs(newVelocityIfWeAdd) > maxVelocity) newVelocityIfWeAdd = (newVelocityIfWeAdd > 0 ? 1 : -1) * maxVelocity;
+            if (Math.abs(newVelocityIfWeSubtract) > maxVelocity) newVelocityIfWeSubtract = (newVelocityIfWeSubtract > 0 ? 1 : -1) * maxVelocity;
 
-            this.linearTarget = level;
-             */
+            // If we'd hit the target with a velocity in between the accelerate and decelerate options, lock to the target
+            const newPosIfWeAdd = currentPosition + newVelocityIfWeAdd * timeDeltaSeconds;
+            const newPosIfWeSubtract = currentPosition + newVelocityIfWeSubtract * timeDeltaSeconds;
+            let newVelocity;
+            if (targetPosition == newPosIfWeAdd) {
+                newVelocity = newVelocityIfWeAdd;
+            } else if (targetPosition == newPosIfWeSubtract) {
+                newVelocity = newVelocityIfWeSubtract;
+            } else if (newPosIfWeAdd < targetPosition != newPosIfWeSubtract < targetPosition) {
+                newVelocity = (targetPosition - currentPosition) / timeDeltaSeconds;
+            } else {
+                // otherwise, head toward the target
+                newVelocity = fromStopPositionToTarget > 0 ? newVelocityIfWeAdd : newVelocityIfWeSubtract;
+            }
+
+            let newPosition = currentPosition + newVelocity * timeDeltaSeconds;
+
+            //console.log(`target=${targetPosition} velocity=${this.linearVelocity} stopDistance=${absDistanceRequiredToStopSmoothly} stopPos=${stopPosition} stopDelta=${fromStopPositionToTarget} pos=${currentPosition}->${newPosition} add=${add}`);
+            if (newPosition > 1) {
+                newPosition = 1;
+                newVelocity = 0;
+            }
+            if (newPosition < 0) {
+                newPosition = 0;
+                newVelocity = 0;
+            }
+            //newPosition = level;
+            if (this.bioFeature.lastLevel != newPosition) {
+                this.bioFeature.setLevel(newPosition, timeDelta);
+            }
+
+            this.linearVelocity = newVelocity;
+            this.linearTarget = targetPosition;
+
+            const width = 60;
+            const currentPos = Math.floor(newPosition*width);
+            const targetPos = Math.floor(targetPosition*width);
+            let out = '';
+            out += '|';
+            for (let i = 0; i < width; i++) {
+                if (i == currentPos) out += '#';
+                else if (i == targetPos) out += '*';
+                else out += ' ';
+            }
+            out += '|';
+            console.log(out);
         } else if (this.bioFeature.type == 'rotate') {
             this.bioFeature.setLevel(level * (motionBasedBackward ? -1 : 1));
         } else {
