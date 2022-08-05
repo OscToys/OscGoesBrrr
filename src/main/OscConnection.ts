@@ -1,7 +1,14 @@
 import osc, {OscMessage} from 'osc';
 import dgram from 'dgram';
+import EventEmitter from "events"
+import type TypedEmitter from "typed-emitter"
 
-export default class OscConnection {
+type MyEvents = {
+    add: (key: string, value: OscValue) => void,
+    clear: () => void
+}
+
+export default class OscConnection extends (EventEmitter as new () => TypedEmitter<MyEvents>) {
     private readonly _entries = new Map<string,OscValue>();
     private recentlyRcvdOscCmds = 0;
     lastReceiveTime = 0;
@@ -16,6 +23,8 @@ export default class OscConnection {
         logger: (...args: unknown[]) => void,
         configMap: Map<string,string>
     ) {
+        super();
+
         this.log = logger;
         this.configMap = configMap;
         this.udpClient = dgram.createSocket('udp4');
@@ -74,6 +83,7 @@ export default class OscConnection {
             if (address === '/avatar/change') {
                 this.log('<-', 'Avatar change');
                 this._entries.clear();
+                this.emit('clear');
                 return;
             }
 
@@ -84,11 +94,14 @@ export default class OscConnection {
             if (address.startsWith('/avatar/parameters/')) {
                 const key = address.substring('/avatar/parameters/'.length);
                 let value = this._entries.get(key);
+                let isNew = false;
                 if (!value) {
                     value = new OscValue();
                     this._entries.set(key, value);
+                    isNew = true;
                 }
                 value.receivedUpdate(rawValue);
+                if (isNew) this.emit('add', key, value);
             }
         });
 
@@ -129,7 +142,11 @@ export default class OscConnection {
     }
 }
 
-export class OscValue {
+type ValueEvents = {
+    change: (oldValue: unknown, newValue: unknown) => void,
+}
+
+export class OscValue extends (EventEmitter as new () => TypedEmitter<ValueEvents>) {
     private value: unknown = undefined;
     private delta = 0;
 
@@ -143,6 +160,7 @@ export class OscValue {
             this.delta += Math.abs(newValue - oldValue);
         }
         this.value = newValue;
+        this.emit('change', oldValue, newValue);
     }
 
     get() {

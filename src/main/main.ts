@@ -117,33 +117,14 @@ oscConnection = new OscConnection(oscLogger, configMap);
 const bridge = new Bridge(oscConnection, butt, buttLogger, configMap);
 new OscConfigDeleter(oscLogger, configMap);
 
-setInterval(() => {
-  if (!mainWindow) return;
-
-  let oscStatus = '';
-  if (!oscConnection || !oscConnection.socketopen) {
-    oscStatus = `OSC socket isn't open.\nIs something else using the OSC port?`;
-  } else if (!oscConnection.lastReceiveTime || oscConnection.lastReceiveTime < Date.now() - 60_000) {
-    oscStatus = `Haven't received OSC status recently.\nIs game open and active?\nIs OSC Enabled in the radial menu?`;
-  } else {
-    const params = Array.from(oscConnection.entries());
-    params.sort((a,b) => a[0] > b[0] ? 1 : -1);
-    const status = params
-        .map(([k,v]) => `${k}=${v.get()}`)
-        .join('\n');
-    oscStatus = status;
-  }
-  mainWindow.webContents.send('oscStatus', oscStatus);
-
+ipcMain.handle('bioStatus:get', async (_event, text) => {
   let bioStatus = '';
   if (butt.wsReady()) {
-    const devices = Array.from(butt.getDevices());
-    devices.sort((a,b) => a.id > b.id ? 1 : -1);
+    const devices = Array.from(bridge.getToys()).map(toy => toy.getStatus());
+    devices.sort();
     let devicesStr;
     if (devices.length) {
-      devicesStr = devices.map(device => {
-        return `${device.id} = ${Math.round(device.lastLevel*100)}%`;
-      }).join('\n');
+      devicesStr = devices.join('\n');
     } else {
       devicesStr = 'None';
     }
@@ -151,9 +132,52 @@ setInterval(() => {
   } else {
     bioStatus = 'Not connected to Intiface.\nIs Intiface Desktop running?\nDid you click Start Server?';
   }
+  return bioStatus;
+});
 
-  mainWindow.webContents.send('bioStatus', bioStatus);
-}, 250);
+ipcMain.handle('oscStatus:get', async (_event, text) => {
+  if (!oscConnection || !oscConnection.socketopen) {
+    return `OSC socket isn't open.\nIs something else using the OSC port?`;
+  }
+  if (!oscConnection.lastReceiveTime || oscConnection.lastReceiveTime < Date.now() - 60_000) {
+    return `Haven't received OSC status recently.\nIs game open and active?\nIs OSC Enabled in the radial menu?`;
+  }
+
+  const gameDevices = Array.from(bridge.getGameDevices());
+
+  const sections: string[] = [];
+
+  const outdated = gameDevices.some(device => device.getVersion() != 8);
+  if (outdated) {
+    sections.push('OUTDATED AVATAR DETECTED\n' +
+        'Your avatar was not built using\nthe newest OscGB upgrade tool.\n' +
+        'Penetration may not work or be less effective.\n' +
+        'If you are sure your avatar is updated already,\nbe sure "Self Interact" is on in your vrc settings.')
+  }
+
+  if (gameDevices.length > 0) {
+    const gameDeviceStatuses = gameDevices.map(d => d.getStatus());
+    gameDeviceStatuses.sort();
+    sections.push(gameDeviceStatuses.join('\n'));
+  }
+
+  const globalSources = bridge.getGlobalSources(false);
+  if (globalSources.length > 0) {
+    const globalSourcesLines = globalSources
+        .map(source => source.deviceType+'.'+source.deviceName+'.'+source.featureName+'='+source.value);
+    globalSourcesLines.sort();
+    sections.push("Other sources:\n" + globalSourcesLines.join('\n'));
+  }
+
+  const rawOscParams = Array.from(oscConnection.entries())
+      .map(([k,v]) => `${k}=${v.get()}`);
+  rawOscParams.sort();
+  if (rawOscParams.length > 0) {
+    sections.push('Raw OSC data:\n' + rawOscParams.join('\n'));
+  }
+
+  return sections.join('\n\n');
+});
 
 ipcMain.handle('config:save', (_event, text) => {
   loadConfig(text);
