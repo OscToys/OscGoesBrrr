@@ -158,7 +158,7 @@ class BridgeToy {
         this.bioFeature = bioFeature;
         this.configMap = configMap;
         this.osc = osc;
-        console.log("New b.io feature loaded into BridgeToy: " + this.bioFeature.id);
+        //console.log("New b.io feature loaded into BridgeToy: " + this.bioFeature.id);
     }
 
     getRelevantSources(globalSources: BridgeSource[]) {
@@ -307,7 +307,7 @@ class BridgeToy {
                 else out += ' ';
             }
             out += '|';
-            console.log(out);
+            //console.log(out);
         } else if (this.bioFeature.type == 'rotate') {
             this.bioFeature.setLevel(level * (motionBasedBackward ? -1 : 1));
         } else {
