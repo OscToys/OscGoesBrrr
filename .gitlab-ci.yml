@@ -26,43 +26,43 @@ build_files:
     reports:
       dotenv: build.env
 
-release:
-  image: registry.gitlab.com/gitlab-org/release-cli:latest
-  script:
-    - echo 'running release_job'
-  needs:
-    - job: build_files
-      artifacts: true
-  release:
-    name: 'OscGoesBrrr $VERSION'
-    description: This is a release of OscGoesBrrr. Click 'Download Windows Zip' above to download!
-    tag_name: '$VERSION'
-    assets:
-      links:
-        - name: 'Download Windows Zip'
-          url: '${PACKAGE_URL}'
-
-bump_autoupdater:
-  needs:
-    - job: build_files
-      artifacts: true
-    - release
-  image: curlimages/curl
-  script:
-    - >
-      echo "$ASAR_URL"
-
-      curl
-      --silent --show-error
-      --request PUT
-      --data "url=$ASAR_URL"
-      --header "JOB-TOKEN: $CI_JOB_TOKEN"
-      "https://gitlab.com/api/v4/projects/vrcfury%2foscgoesbrrr/releases/autoupdater/assets/links/867462"
-
-      curl
-      --silent --show-error
-      --header 'Content-Type: application/json'
-      --request PUT
-      --data '{ "description": "version='"$VERSION"'" }'
-      --header "JOB-TOKEN: $CI_JOB_TOKEN"
-      "https://gitlab.com/api/v4/projects/vrcfury%2foscgoesbrrr/releases/autoupdater"
+#release:
+#  image: registry.gitlab.com/gitlab-org/release-cli:latest
+#  script:
+#    - echo 'running release_job'
+#  needs:
+#    - job: build_files
+#      artifacts: true
+#  release:
+#    name: 'OscGoesBrrr $VERSION'
+#    description: This is a release of OscGoesBrrr. Click 'Download Windows Zip' above to download!
+#    tag_name: '$VERSION'
+#    assets:
+#      links:
+#        - name: 'Download Windows Zip'
+#          url: '${PACKAGE_URL}'
+#
+#bump_autoupdater:
+#  needs:
+#    - job: build_files
+#      artifacts: true
+#    - release
+#  image: curlimages/curl
+#  script:
+#    - >
+#      echo "$ASAR_URL"
+#
+#      curl
+#      --silent --show-error
+#      --request PUT
+#      --data "url=$ASAR_URL"
+#      --header "JOB-TOKEN: $CI_JOB_TOKEN"
+#      "https://gitlab.com/api/v4/projects/vrcfury%2foscgoesbrrr/releases/autoupdater/assets/links/868919"
+#
+#      curl
+#      --silent --show-error
+#      --header 'Content-Type: application/json'
+#      --request PUT
+#      --data '{ "description": "version='"$VERSION"'" }'
+#      --header "JOB-TOKEN: $CI_JOB_TOKEN"
+#      "https://gitlab.com/api/v4/projects/vrcfury%2foscgoesbrrr/releases/autoupdater"
