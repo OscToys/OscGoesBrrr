@@ -226,7 +226,7 @@ class BridgeToy {
         if (level < 0) level = 0;
         if (level > 1) level = 1;
         if (isNaN(level)) level = 0;
-        if (level < 0.05) level = 0;
+        //if (level < 0.05) level = 0;
 
         if (this.bioFeature.linear) {
             // TODO: Make this work
@@ -276,7 +276,7 @@ class BridgeToy {
 
         const sourceLines = [];
         for (const source of this.lastSources.values()) {
-            if (source.value == 0) continue;
+            //if (source.value == 0) continue;
             sourceLines.push(`  ${source.deviceType}.${source.deviceName}.${source.featureName} = ${Math.round(source.value*100)}%`);
         }
         sourceLines.sort();

@@ -158,7 +158,7 @@ export class GameDevice {
         out.push(`${this.type}:${this.id}`);
         const selfLength = this.recordedSelfLength.getLength();
         const othersLength = this.recordedOthersLength.getLength();
-        if (selfLength) out.push(`  Nearby self-penetrator length: ${selfLength.toFixed(2)}m \n${this.recordedSelfLength.recentSamples.join('\n')}`);
+        if (selfLength) out.push(`  Nearby self-penetrator length: ${selfLength.toFixed(2)}m`);
         if (othersLength) out.push(`  Nearby penetrator length: ${othersLength.toFixed(2)}m`);
         for (const source of this.getSources()) {
             out.push(`  ${source.featureName}=${Math.round(source.value*100)}%`);
