@@ -219,23 +219,6 @@ class BridgeToy {
             }
         }
 
-        if (this.bioFeature.type == 'linear') {
-            level = 1-level;
-            const min = this.getConfigNumber('min', 0);
-            const max = this.getConfigNumber('max', 1);
-            level = this.remap(level, 0, 1, min, max);
-        } else {
-            const idle = this.getConfigNumber('idle', 0);
-            const scale = this.getConfigNumber('scale', 1);
-            if (scale !== undefined) {
-                level = level * scale;
-            }
-            if (idle) {
-                level = level * (1 - idle) + idle;
-            }
-        }
-
-        // Safety
         level = this.clamp(level, 0, 1);
 
         if (this.bioFeature.type == 'linear') {
@@ -246,12 +229,17 @@ class BridgeToy {
             const customCalc = this.getConfigBool('customCalc', false);
             const customCalcClamp = this.getConfigBool('customCalcClamp', true);
             const durationMult = this.getConfigNumber('durationMult', 1);
+            const restingPos = this.clamp(this.getConfigNumber('restingPos', 0), 0, 1);
+            const restingTime = this.getConfigNumber('restingTime', 3) * 1000;
 
-            let targetPosition = level;
+            let targetPosition = 1 - level;
+            const min = this.getConfigNumber('min', 0);
+            const max = this.getConfigNumber('max', 1);
+            targetPosition = this.remap(targetPosition, 0, 1, min, max);
+
             if (level > 0) {
                 this.lastLinearSuck = now;
-            } else if (this.lastLinearSuck < now - 3000) {
-                const restingPos = this.clamp(this.getConfigNumber('restingPos', 0), 0, 1);
+            } else if (this.lastLinearSuck < now - restingTime) {
                 targetPosition = restingPos;
                 maxAcceleration = 999;
                 maxVelocity = Math.min(maxVelocity, 1);
@@ -260,7 +248,7 @@ class BridgeToy {
             targetPosition = this.clamp(targetPosition, 0, 1);
 
             const currentPosition = this.bioFeature.lastLevel;
-            const absDistanceRequiredToStopSmoothly = Math.pow(oldVelocity,2) / (2*maxAcceleration);
+            const absDistanceRequiredToStopSmoothly = Math.pow(oldVelocity, 2) / (2 * maxAcceleration);
             const stopPosition = currentPosition + (oldVelocity < 0 ? -1 : 1) * absDistanceRequiredToStopSmoothly;
             const fromStopPositionToTarget = targetPosition - stopPosition;
 
@@ -319,10 +307,22 @@ class BridgeToy {
                 out += '|';
                 console.log(out);
             }
-        } else if (this.bioFeature.type == 'rotate') {
-            this.bioFeature.setLevel(level * (motionBasedBackward ? -1 : 1));
         } else {
-            this.bioFeature.setLevel(level);
+            const idle = this.getConfigNumber('idle', 0);
+            const scale = this.getConfigNumber('scale', 1);
+            if (scale !== undefined) {
+                level = level * scale;
+            }
+            if (idle) {
+                level = level * (1 - idle) + idle;
+            }
+            level = this.clamp(level, 0, 1);
+
+            if (this.bioFeature.type == 'rotate') {
+                this.bioFeature.setLevel(level * (motionBasedBackward ? -1 : 1));
+            } else {
+                this.bioFeature.setLevel(level);
+            }
         }
 
         this.lastLevel = this.bioFeature.lastLevel;
