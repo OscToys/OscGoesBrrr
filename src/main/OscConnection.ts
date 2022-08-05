@@ -94,12 +94,14 @@ export default class OscConnection extends (EventEmitter as new () => TypedEmitt
             if (address.startsWith('/avatar/parameters/')) {
                 const key = address.substring('/avatar/parameters/'.length);
                 let value = this._entries.get(key);
+                let isNew = false;
                 if (!value) {
                     value = new OscValue();
                     this._entries.set(key, value);
+                    isNew = true;
                 }
                 value.receivedUpdate(rawValue);
-                this.emit('add', key, value);
+                if (isNew) this.emit('add', key, value);
             }
         });
 

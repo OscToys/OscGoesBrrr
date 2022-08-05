@@ -1,10 +1,16 @@
 import { ipcRenderer } from 'electron';
 
 function makeLog(eventName: string, elementName: string, clear = false) {
+  const logUpdater = getLogUpdater(elementName, clear);
+  ipcRenderer.on(eventName, (_event, text) => {
+    logUpdater(text);
+  });
+}
+
+function getLogUpdater(elementName: string, clear = false) {
   const area = document.getElementById(elementName);
-  if (!area || !(area instanceof HTMLTextAreaElement)) throw new Error('Log area missing');
-  const outdated = document.getElementById('outdated');
   const log: string[] = [];
+  if (!area || !(area instanceof HTMLTextAreaElement)) throw new Error('Log area missing');
   let lastMouse = 0;
   area.onmousedown = () => {
     lastMouse = Date.now();
@@ -12,11 +18,7 @@ function makeLog(eventName: string, elementName: string, clear = false) {
   area.onmousemove = () => {
     if (lastMouse > Date.now() - 2000) lastMouse = Date.now();
   }
-  ipcRenderer.on(eventName, (_event, text) => {
-    if (eventName === 'oscStatus' && outdated) {
-      const isOutdated = (text.includes('TPS_Internal') || text.includes('OGB/')) && !text.includes('/Version/8');
-      outdated.style.display = isOutdated ? '' : 'none';
-    }
+  return (text: string) => {
     if (clear) log.length = 0;
     log.push(...text.split('\n'));
     while (log.length > 1000) log.shift();
@@ -24,14 +26,12 @@ function makeLog(eventName: string, elementName: string, clear = false) {
       area.value = log.join('\n');
       if (!clear) area.scrollTop = area.scrollHeight;
     }
-  });
+  }
 }
 
 window.addEventListener('DOMContentLoaded', () => {
   makeLog('oscLog', 'oscLog');
   makeLog('bioLog', 'bioLog');
-  makeLog('bioStatus', 'bioStatus', true);
-  makeLog('oscStatus', 'oscStatus', true);
 
   const save = document.getElementById('save');
   if (!save) throw new Error('Save button missing');
@@ -49,6 +49,26 @@ window.addEventListener('DOMContentLoaded', () => {
   save.onclick = () => {
     ipcRenderer.invoke('config:save', config.value);
   }
+
+  const oscStatusUpdater = getLogUpdater('oscStatus', true);
+  async function updateOscStatus() {
+    try {
+      const status = await ipcRenderer.invoke('oscStatus:get');
+      oscStatusUpdater(status);
+    } catch(e) { console.error(e); }
+    setTimeout(updateOscStatus, 100);
+  }
+  updateOscStatus();
+
+  const bioStatusUpdater = getLogUpdater('bioStatus', true);
+  async function updateBioStatus() {
+    try {
+      const status = await ipcRenderer.invoke('bioStatus:get');
+      bioStatusUpdater(status);
+    } catch(e) { console.error(e); }
+    setTimeout(updateBioStatus, 100);
+  }
+  updateBioStatus();
 });
 
 (window as any).testRenderer = ipcRenderer;

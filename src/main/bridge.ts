@@ -47,7 +47,7 @@ export default class Bridge {
             const isTps = split[0] == 'TPS_Internal';
             const type = split[1];
             const id = split[2];
-            const contactType = split[3];
+            const contactType = split.slice(3).join('/');
             if (!type || !id || !contactType) return;
             const key = isTps + '__' + type + '__' + id;
             let gameDevice = this.gameDevices.get(key);
@@ -148,6 +148,9 @@ class BridgeToy {
     private lastSources: Map<string,BridgeSource> = new Map();
     lastLevel = 0;
     lastPushTime = 0;
+    linearTarget = 0;
+    linearVelocity = 0;
+    maxAcceleration = 1; // unit per second^2
 
     constructor(bioFeature: DeviceFeature, configMap: Map<string,string>, osc: OscConnection) {
         this.bioFeature = bioFeature;
@@ -191,16 +194,15 @@ class BridgeToy {
         const timeSinceLastPush = now - this.lastPushTime;
         const idle = this.getConfigNumber('idle', 0);
         const scale = this.getConfigNumber('scale', 1);
-        const forceLinearPref = this.getConfigBool('linear', true);
+        const motionBased = !this.getConfigBool('linear', true);
 
         const sources = this.getRelevantSources(globalSources);
         let level = 0;
         for (const source of sources) {
-            if (this.bioFeature.linear && source.deviceType == 'audio') continue;
             const value = source.value;
-            if (this.bioFeature.linear || forceLinearPref) {
+            if (this.bioFeature.linear) {
                 level = Math.max(level, value);
-            } else {
+            } else if (motionBased) {
                 const lastSource = this.lastSources.get(source.getUniqueKey());
                 const lastValue = lastSource?.value;
                 if (lastValue !== undefined) {
@@ -208,6 +210,8 @@ class BridgeToy {
                     const diffPerSecond = delta / timeSinceLastPush * 1000;
                     level = Math.max(level, diffPerSecond / 5);
                 }
+            } else {
+                level = Math.max(level, value);
             }
         }
 
@@ -224,11 +228,25 @@ class BridgeToy {
         if (isNaN(level)) level = 0;
         if (level < 0.05) level = 0;
 
-        if (level > 0 || !this.bioFeature.linear) {
+        if (this.bioFeature.linear) {
+            // TODO: Make this work
+            /*
+            const targetPosition = level;
+            const currentPosition = this.bioFeature.lastLevel;
+            const timeRequiredToStopSmoothly = Math.abs(this.linearVelocity) / this.maxAcceleration; // seconds
+            const absDistanceRequiredToStopSmoothly = Math.abs(this.linearVelocity / 2) * timeRequiredToStopSmoothly; // units (+/-)
+            const absDistanceToEdge = this.linearVelocity > 0 ? (1-currentPosition) : currentPosition;
+
+            let stopNow = false;
+            if ()
+
+            this.linearTarget = level;
+             */
+        } else {
             this.bioFeature.setLevel(level);
         }
 
-        this.lastLevel = level;
+        this.lastLevel = this.bioFeature.lastLevel;
         this.lastSources.clear();
         for (const source of sources) {
             this.lastSources.set(source.getUniqueKey(), source);
