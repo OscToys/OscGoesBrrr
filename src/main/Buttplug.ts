@@ -248,20 +248,31 @@ export class DeviceFeature {
         this.parent = parent;
     }
 
-    setLevel(level: number, duration = 0) {
-        this.lastLevel = level;
+    setLevel(level: number, duration = 0, customCalc = false, customCalcClamp = false) {
         if (this.type == 'linear') {
-            this.parent.send({
-                type: 'LinearCmd',
-                DeviceIndex: this.bioDeviceIndex,
-                Vectors: [{Index: this.bioSubIndex, Duration: Math.round(duration*0.8), Position: level}]
-            });
-            //this.parent.send({
-            //    type: 'FleshlightLaunchFW12Cmd',
-            //    DeviceIndex: this.bioDeviceIndex,
-            //    Speed: 40,
-            //    Position: Math.round(level*99)
-            //});
+            if (customCalc) {
+                const absDistance = Math.abs(this.lastLevel - level);
+                if (absDistance > 0) {
+                    let speed = Math.pow((duration * 90) / (absDistance * 100), -1.05) * 250;
+                    speed = Math.round(speed * 99);
+                    if (customCalcClamp) {
+                        if (speed < 20) speed = 20;
+                        if (speed > 80) speed = 80;
+                    }
+                    this.parent.send({
+                        type: 'FleshlightLaunchFW12Cmd',
+                        DeviceIndex: this.bioDeviceIndex,
+                        Speed: speed,
+                        Position: Math.round(level * 99)
+                    });
+                }
+            } else {
+                this.parent.send({
+                    type: 'LinearCmd',
+                    DeviceIndex: this.bioDeviceIndex,
+                    Vectors: [{Index: this.bioSubIndex, Duration: duration, Position: level}]
+                });
+            }
         } else if (this.type == 'rotate') {
             this.parent.send({
                 type: 'RotateCmd',
@@ -275,5 +286,6 @@ export class DeviceFeature {
                 Speeds: [{Index: this.bioSubIndex, Speed: level}]
             });
         }
+        this.lastLevel = level;
     }
 }

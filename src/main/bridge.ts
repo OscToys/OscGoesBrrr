@@ -150,8 +150,6 @@ class BridgeToy {
     lastPushTime = 0;
     linearTarget = 0;
     linearVelocity = 0;
-    maxAcceleration = 20; // unit/s^2
-    maxVelocity = 3; // unit/s
     lastLinearSuck = 0;
 
     constructor(bioFeature: DeviceFeature, configMap: Map<string,string>, osc: OscConnection) {
@@ -194,8 +192,6 @@ class BridgeToy {
     pushToBio(globalSources: BridgeSource[]) {
         const now = Date.now();
         const timeDelta = Math.min(now - this.lastPushTime, 100); // safety limited
-        const idle = this.getConfigNumber('idle', 0);
-        const scale = this.getConfigNumber('scale', 1);
         const motionBased = !this.getConfigBool('linear', true);
 
         const sources = this.getRelevantSources(globalSources);
@@ -223,33 +219,45 @@ class BridgeToy {
             }
         }
 
-        if (scale !== undefined) {
-            level = level * scale;
-        }
-        if (idle) {
-            level = level * (1-idle) + idle;
+        if (this.bioFeature.type == 'linear') {
+            level = 1-level;
+            const min = this.getConfigNumber('min', 0);
+            const max = this.getConfigNumber('max', 1);
+            level = this.remap(level, 0, 1, min, max);
+        } else {
+            const idle = this.getConfigNumber('idle', 0);
+            const scale = this.getConfigNumber('scale', 1);
+            if (scale !== undefined) {
+                level = level * scale;
+            }
+            if (idle) {
+                level = level * (1 - idle) + idle;
+            }
         }
 
         // Safety
-        if (level < 0) level = 0;
-        if (level > 1) level = 1;
-        if (isNaN(level)) level = 0;
-        //if (level < 0.05) level = 0;
+        level = this.clamp(level, 0, 1);
 
         if (this.bioFeature.type == 'linear') {
             const timeDeltaSeconds = timeDelta / 1000;
             const oldVelocity = this.linearVelocity;
-            let maxVelocity = this.maxVelocity;
-            let maxAcceleration = this.maxAcceleration;
+            let maxVelocity = this.getConfigNumber('maxv', 3);
+            let maxAcceleration = this.getConfigNumber('maxa', 20);
+            const customCalc = this.getConfigBool('customCalc', false);
+            const customCalcClamp = this.getConfigBool('customCalcClamp', true);
+            const durationMult = this.getConfigNumber('durationMult', 1);
 
-            let targetPosition = 1-level;
+            let targetPosition = level;
             if (level > 0) {
                 this.lastLinearSuck = now;
             } else if (this.lastLinearSuck < now - 3000) {
-                targetPosition = 0;
-                maxAcceleration = 1;
-                maxVelocity = 1;
+                const restingPos = this.clamp(this.getConfigNumber('restingPos', 0), 0, 1);
+                targetPosition = restingPos;
+                maxAcceleration = 999;
+                maxVelocity = Math.min(maxVelocity, 1);
             }
+
+            targetPosition = this.clamp(targetPosition, 0, 1);
 
             const currentPosition = this.bioFeature.lastLevel;
             const absDistanceRequiredToStopSmoothly = Math.pow(oldVelocity,2) / (2*maxAcceleration);
@@ -290,24 +298,27 @@ class BridgeToy {
             }
             //newPosition = level;
             if (this.bioFeature.lastLevel != newPosition) {
-                this.bioFeature.setLevel(newPosition, timeDelta);
+                this.bioFeature.setLevel(newPosition, Math.round(timeDelta * durationMult), customCalc, customCalcClamp);
             }
 
             this.linearVelocity = newVelocity;
             this.linearTarget = targetPosition;
 
-            const width = 60;
-            const currentPos = Math.floor(newPosition*width);
-            const targetPos = Math.floor(targetPosition*width);
-            let out = '';
-            out += '|';
-            for (let i = 0; i < width; i++) {
-                if (i == currentPos) out += '#';
-                else if (i == targetPos) out += '*';
-                else out += ' ';
+            const debug = this.getConfigBool('debugLog');
+            if (debug) {
+                const width = 60;
+                const currentPos = Math.floor(newPosition * width);
+                const targetPos = Math.floor(targetPosition * width);
+                let out = '';
+                out += '|';
+                for (let i = 0; i < width; i++) {
+                    if (i == currentPos) out += '#';
+                    else if (i == targetPos) out += '*';
+                    else out += ' ';
+                }
+                out += '|';
+                console.log(out);
             }
-            out += '|';
-            //console.log(out);
         } else if (this.bioFeature.type == 'rotate') {
             this.bioFeature.setLevel(level * (motionBasedBackward ? -1 : 1));
         } else {
@@ -320,6 +331,15 @@ class BridgeToy {
             this.lastSources.set(source.getUniqueKey(), source);
         }
         this.lastPushTime = now;
+    }
+
+    remap(num: number, fromMin: number, fromMax: number, toMin: number, toMax: number) {
+        const normalized = (num - fromMin) / (fromMax-fromMin);
+        return normalized * (toMax-toMin) + toMin;
+    }
+    clamp(num: number, min: number, max: number) {
+        if (isNaN(num)) return min;
+        return Math.max(min, Math.min(max, num));
     }
 
     getConfigParam(subkey: string) {
