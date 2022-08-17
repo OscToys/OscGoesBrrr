@@ -67,15 +67,7 @@ export default class Bridge {
         const sources: BridgeSource[] = [];
 
         if (includeGameDevices) {
-            let hasOGBDevice = false;
-            for (const gameDevice of this.gameDevices.values()) {
-                if (!gameDevice.isTps) {
-                    hasOGBDevice = true;
-                    break;
-                }
-            }
-            for (const gameDevice of this.gameDevices.values()) {
-                if (hasOGBDevice && gameDevice.isTps) continue;
+            for (const gameDevice of this.getGameDevices()) {
                 sources.push(...gameDevice.getSources());
             }
         }
@@ -89,7 +81,10 @@ export default class Bridge {
     }
 
     getGameDevices() {
-        return this.gameDevices.values();
+        const allGameDevices = Array.from(this.gameDevices.values());
+        const hasOGBDevice = allGameDevices.some(device => !device.isTps);
+        return Array.from(this.gameDevices.values())
+            .filter(device => !hasOGBDevice || !device.isTps);
     }
 
     getToys() {
