@@ -31,6 +31,7 @@ const configMap = new Map<string,string>();
 let configTxt = '';
 
 let oscConnection: OscConnection | undefined;
+let butt: Buttplug | undefined;
 
 function loadConfig(txt: string) {
   configTxt = txt;
@@ -48,6 +49,9 @@ function loadConfig(txt: string) {
 
   if (oldConfigMap.get('osc.port') !== configMap.get('osc.port')) {
     if (oscConnection) oscConnection.delayRetry();
+  }
+  if (oldConfigMap.get('bio.port') !== configMap.get('bio.port')) {
+    if (butt) butt.delayRetry();
   }
 }
 
@@ -112,14 +116,14 @@ app.whenReady().then(() => {
 
 const buttLogger = (...args: unknown[]) => sendLog('bioLog', ...args);
 const oscLogger = (...args: unknown[]) => sendLog('oscLog', ...args);
-const butt = new Buttplug(buttLogger);
+butt = new Buttplug(buttLogger, configMap);
 oscConnection = new OscConnection(oscLogger, configMap);
 const bridge = new Bridge(oscConnection, butt, buttLogger, configMap);
 new OscConfigDeleter(oscLogger, configMap);
 
 ipcMain.handle('bioStatus:get', async (_event, text) => {
   let bioStatus = '';
-  if (butt.wsReady()) {
+  if (butt && butt.wsReady()) {
     const devices = Array.from(bridge.getToys()).map(toy => toy.getStatus());
     devices.sort();
     let devicesStr;

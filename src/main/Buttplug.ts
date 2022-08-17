@@ -19,10 +19,15 @@ export default class Buttplug extends (EventEmitter as new () => TypedEmitter<My
     recentlySentCmds = 0;
     retryTimeout : ReturnType<typeof setInterval> | undefined;
     ws: WebSocket | undefined;
+    configMap: Map<string,string>;
 
-    constructor(logger: (...args: unknown[]) => void) {
+    constructor(
+        logger: (...args: unknown[]) => void,
+        configMap: Map<string,string>
+    ) {
         super();
         this.log = logger;
+        this.configMap = configMap;
         this.retry();
         this.scanForever();
 
@@ -42,7 +47,12 @@ export default class Buttplug extends (EventEmitter as new () => TypedEmitter<My
         this.connectionTimeout = undefined;
 
         this.terminate();
-        const ws = this.ws = new WebSocket('ws://127.0.0.1:12345');
+
+        let port = parseInt(this.configMap.get('bio.port') || '');
+        if (isNaN(port) || port == 0) port = 12345;
+        this.log("Opening server on port " + port);
+
+        const ws = this.ws = new WebSocket('ws://127.0.0.1:' + port);
         ws.on('message', data => this.onReceive(data));
         ws.on('error', e => {
             this.log('error', e);
