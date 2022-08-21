@@ -9,6 +9,7 @@ import Updater from './updater';
 import OscConnection from "./OscConnection";
 import Buttplug from "./Buttplug";
 import OscConfigDeleter from "./OscConfigDeleter";
+import VrcConfigCheck from "./VrcConfigCheck";
 
 process.on("uncaughtException", (err) => {
   dialog.showErrorBox("Fatal Error", err.stack+'');
@@ -54,6 +55,9 @@ function loadConfig(txt: string) {
     if (butt) butt.delayRetry();
   }
 }
+
+const vrcConfigCheck = new VrcConfigCheck();
+vrcConfigCheck.start();
 
 if (fsPlain.existsSync(savePath)) {
   loadConfig(fsPlain.readFileSync(savePath, {encoding: 'utf-8'}));
@@ -144,23 +148,39 @@ ipcMain.handle('oscStatus:get', async (_event, text) => {
     return `OSC socket isn't open.\nIs something else using the OSC port?`;
   }
   if (!oscConnection.lastReceiveTime || oscConnection.lastReceiveTime < Date.now() - 60_000) {
-    return `Haven't received OSC status recently.\nIs game open and active?\nIs OSC Enabled in the radial menu?`;
+    if (vrcConfigCheck.oscEnabled === false) {
+      return `OSC is disabled in your game.\nEnable it in the radial menu:\nOptions > OSC > Enabled`;
+    } else {
+      return `Haven't received OSC status recently.\nIs game open and active?`;
+    }
   }
 
   const gameDevices = Array.from(bridge.getGameDevices());
 
   const sections: string[] = [];
 
-  const outdated = gameDevices.some(device => {
-    if (device.type == 'Pen' && (device.getVersion() ?? 0) < 8) return true;
-    if (device.type == 'Orf' && (device.getVersion() ?? 0) < 9) return true;
-    return false;
-  });
-  if (outdated) {
-    sections.push('OUTDATED AVATAR DETECTED\n' +
-        'Your avatar was not built using\nthe newest OscGB upgrade tool.\n' +
-        'Penetration may not work or be less effective.\n' +
-        'If you are sure your avatar is updated already,\nbe sure "Self Interact" is on in your vrc settings.')
+  if (vrcConfigCheck.oscEnabled === false) {
+    sections.push(`OSC is disabled in your game.\nEnable it in the radial menu:\nOptions > OSC > Enabled`);
+  }
+  if (vrcConfigCheck.selfInteractEnabled === false) {
+    sections.push('Self-Interaction is disabled in your game.\nThis breaks many OGB features.\nEnable it in the quick menu:\nSettings > Avatar Interactions > Self Interact');
+  }
+  if (vrcConfigCheck.everyoneInteractEnabled === false) {
+    sections.push('Interaction is not set to everyone in game.\nEnable it in the quick menu:\nSettings > Avatar Interactions > Everyone');
+  }
+
+  if (vrcConfigCheck.selfInteractEnabled !== false) {
+    const outdated = gameDevices.some(device => {
+      if (device.type == 'Pen' && (device.getVersion() ?? 0) < 8) return true;
+      if (device.type == 'Orf' && (device.getVersion() ?? 0) < 9) return true;
+      return false;
+    });
+    if (outdated) {
+      sections.push('OUTDATED AVATAR DETECTED\n' +
+          'Your avatar was not built using\nthe newest OscGB upgrade tool.\n' +
+          'Penetration may not work or be less effective.\n' +
+          'If you are sure your avatar is updated already,\nbe sure "Self Interact" is on in your vrc settings.')
+    }
   }
 
   if (gameDevices.length > 0) {

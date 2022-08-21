@@ -23,5 +23,8 @@
     "files": [
       "app/**/*"
     ]
+  },
+  "optionalDependencies": {
+    "native-reg": "^1.1.0"
   }
 }
