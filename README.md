@@ -1,3 +1,7 @@
+# OscGoesBrrr
+
+Make things in real life go BRRR from VRChat. This isn't a VRChat mod, it uses vrchat's OSC!
+
 ## Features / Benefits
 
 Why use OSCGoesBrrr instead of other OSC solutions?
