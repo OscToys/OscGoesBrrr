@@ -1,6 +1,6 @@
 ## Features / Benefits
 
-Why use OSCGoesBrrr instead of just simple OSC colliders?
+Why use OSCGoesBrrr instead of other OSC solutions?
 
 * One-click setup
   * For avatars with TPS or DPS penetrators and orifices, the avatar upgrader is only one click!
