@@ -19,7 +19,6 @@ Why use OSCGoesBrrr instead of other OSC solutions?
 * Easy debugging
   * The OscGoesBrrr app checks your vrchat config, making it easy to identify when OSC or interaction is disabled in game.
 
-## [Support Discord](https://vrcfury.com/discord)
-## [Download](https://gitlab.com/VRCFury/OscGoesBrrr/-/releases)
-## [Setup Instructions](https://gitlab.com/VRCFury/OscGoesBrrr/-/wikis/How-to-use-OscGoesBrrr)
-## [Advanced Config](https://gitlab.com/VRCFury/OscGoesBrrr/-/wikis/Advanced-Settings)
+## Ready to Brrr?
+
+[Click here to get started!](https://gitlab.com/VRCFury/OscGoesBrrr/-/wikis/How-to-use-OscGoesBrrr)
