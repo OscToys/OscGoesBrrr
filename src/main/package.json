@@ -8,5 +8,8 @@
     "semver": "^7.3.7",
     "typed-emitter": "^2.1.0",
     "ws": "^8.8.1"
+  },
+  "scripts": {
+    "watch": "webpack --watch"
   }
 }

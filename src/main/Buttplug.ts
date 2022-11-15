@@ -48,11 +48,24 @@ export default class Buttplug extends (EventEmitter as new () => TypedEmitter<My
 
         this.terminate();
 
-        let port = parseInt(this.configMap.get('bio.port') || '');
-        if (isNaN(port) || port == 0) port = 12345;
-        this.log("Opening server on port " + port);
+        let address = '127.0.0.1:12345';
+        const configOpt = this.configMap.get('bio.port') ?? '';
+        if (configOpt.includes(":")) {
+            address = configOpt;
+        } else {
+            let port = parseInt(configOpt);
+            if (!isNaN(port) && port > 0) address = '127.0.0.1:' + port;
+        }
+        this.log("Opening connection to server at " + address);
 
-        const ws = this.ws = new WebSocket('ws://127.0.0.1:' + port);
+        let ws;
+        try {
+            ws = this.ws = new WebSocket('ws://' + address);
+        } catch(e) {
+            this.log('Init exception', e);
+            this.delayRetry();
+            return;
+        }
         ws.on('message', data => this.onReceive(data));
         ws.on('error', e => {
             this.log('error', e);

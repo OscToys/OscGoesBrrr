@@ -33,4 +33,7 @@ module.exports = {
         extensions: ['', '.ts', '.tsx', '.js', '.jsx'],
     },
     mode: 'development',
+    watchOptions: {
+        poll: 1000,
+    },
 };
