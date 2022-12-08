@@ -39,13 +39,28 @@ export default class OscConnection extends (EventEmitter as new () => TypedEmitt
         }, 15000);
     }
 
+    public static parsePort(inputObj: string | undefined, defAddress: string, defPort: number): [string,number] {
+        let input = inputObj ?? '';
+        let outAddress = defAddress;
+        let outPort = defPort;
+        if (input.includes(':')) {
+            const split = input.split(':');
+            outAddress = split[0]!;
+            input = split[1]!;
+        }
+        const parsedPort = parseInt(input);
+        if (!isNaN(parsedPort) && parsedPort > 0) outPort = parsedPort;
+        return [outAddress, outPort];
+    }
+
     private openSocket() {
         let receivedOne = false;
-        let oscPort = parseInt(this.configMap.get('osc.port') || '');
-        if (isNaN(oscPort) || oscPort == 0) oscPort = 9001;
-        this.log("Opening server on port " + oscPort);
+        const [oscAddress, oscPort] = OscConnection.parsePort(
+            this.configMap.get('osc.port'), '127.0.0.1', 9001);
+
+        this.log(`Opening server on port ${oscAddress}:${oscPort}`);
         const udpPort = this.socket = new osc.UDPPort({
-            localAddress: "127.0.0.1",
+            localAddress: oscAddress,
             localPort: oscPort,
             remotePort: 9000,
             metadata: true
@@ -64,8 +79,8 @@ export default class OscConnection extends (EventEmitter as new () => TypedEmitt
             const proxyPort = this.configMap.get('osc.proxy');
             if (proxyPort) {
                 for (let p of proxyPort.split(',')) {
-                    const pNum = parseInt(p.trim());
-                    if (!isNaN(pNum) && pNum > 0) this.udpClient.send(msg, pNum, '127.0.0.1');
+                    const [address,port] = OscConnection.parsePort(p.trim(), '127.0.0.1', 0);
+                    if (port > 0) this.udpClient.send(msg, port, address);
                 }
             }
         });

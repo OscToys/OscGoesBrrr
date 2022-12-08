@@ -4,6 +4,7 @@ import type {ButtplugMessageWithType, Device} from "./ButtplugSpec";
 import {ButtplugPacket} from "./ButtplugSpec";
 import EventEmitter from "events";
 import type TypedEmitter from "typed-emitter";
+import OscConnection from "./OscConnection";
 
 type MyEvents = {
     addFeature: (device: DeviceFeature) => void,
@@ -48,14 +49,8 @@ export default class Buttplug extends (EventEmitter as new () => TypedEmitter<My
 
         this.terminate();
 
-        let address = '127.0.0.1:12345';
-        const configOpt = this.configMap.get('bio.port') ?? '';
-        if (configOpt.includes(":")) {
-            address = configOpt;
-        } else {
-            let port = parseInt(configOpt);
-            if (!isNaN(port) && port > 0) address = '127.0.0.1:' + port;
-        }
+        const [bAddress, bPort] = OscConnection.parsePort(this.configMap.get('bio.port'), '127.0.0.1', 12345);
+        let address = `${bAddress}:${bPort}`;
         this.log("Opening connection to server at " + address);
 
         let ws;
