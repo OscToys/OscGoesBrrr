@@ -156,8 +156,14 @@ class BridgeToy {
 
     getRelevantSources(globalSources: BridgeSource[]) {
         const bindType = this.getConfigParam('type') ?? 'all';
-        const bindId = this.getConfigParam('id');
-        const bind = this.getConfigParam('key');
+        const bindIds = (this.getConfigParam('id') ?? '')
+            .split(',')
+            .map(id => id.trim())
+            .filter(id => id);
+        const bindKeys = (this.getConfigParam('key') ?? '')
+            .split(',')
+            .map(key => key.trim())
+            .filter(key => key);
         const bindPen = bindType === 'pen' || bindType === 'all';
         const bindOrf = bindType === 'orf' || bindType === 'all';
         const defaultFeatures = ['touchOthers','penOthers','frotOthers'];
@@ -168,15 +174,15 @@ class BridgeToy {
             if (source.deviceType === 'pen' || source.deviceType === 'orf') {
                 if (source.deviceType === 'pen' && !bindPen) continue;
                 if (source.deviceType === 'orf' && !bindOrf) continue;
-                if (bindId && source.deviceName !== bindId) continue;
+                if (bindIds.length && !bindIds.includes(source.deviceName)) continue;
                 if (!this.getConfigBool(source.featureName, defaultFeatures.includes(source.featureName))) continue;
             }
             sources.push(source);
         }
-        if (bind) {
+        if (bindKeys.length) {
             const entries = this.osc.entries();
-            for (let k of bind.split(',')) {
-                const valueUnknown = entries.get(k.trim())?.get();
+            for (let k of bindKeys) {
+                const valueUnknown = entries.get(k)?.get();
                 const value = (typeof valueUnknown == 'number') ? valueUnknown : 0;
                 sources.push(new BridgeSource('raw', 'raw', k, value));
             }
