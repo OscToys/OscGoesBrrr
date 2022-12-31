@@ -1,54 +1,8 @@
 <!DOCTYPE html>
 <html>
   <head>
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'">
     <meta charset="UTF-8">
-    <!-- https://developer.mozilla.org/en-US/docs/Web/HTTP/CSP -->
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'">
-    <link href="bootstrap.css" rel="stylesheet">
-    <link href="styles.css" rel="stylesheet">
   </head>
-  <body>
-    <div style="display:flex; flex-direction: column; height: 100%">
-      <div style="padding: 5px;">
-        <h1 style="text-align: center;">OSC Goes Brrr</h1>
-        <ul style="margin:0">
-          <li>Your avatar must be upgraded using the <a href="https://vrcfury.com/brrrupgrade" target="_blank">VRCFury OscGB Upgrade Tool</a><br/>
-          <li>Your partner's avatar should be upgraded using the same tool.<br/>
-          <li>If their avatar is not upgraded, you can still interact with their Hands, Feet, Head, or stock Poi 8.1 TPS penetrators (limited).<br/>
-          <li>To enable interaction between a penetrator and orifice both on your own avatar, add <i>all.penSelf=1</i> to the Advanced Config.
-          <li>To enable touching your own penetrator with your own hands, add <i>all.touchSelf=1</i> to the Advanced Config.
-          <li>For support, <a href="https://vrcfury.com/discord" target="_blank">click here to join the discord</a>.
-        </ul>
-      </div>
-      <div style="display:flex; flex: 1;">
-        <div style="display:flex; flex-direction: column; flex: 1; margin: 5px; text-align: center;">
-          <h3>Buttplug.io Status</h3>
-          <textarea style="flex:1;" id="bioStatus" readonly wrap="off"></textarea>
-        </div>
-        <div style="display:flex; flex-direction: column; flex: 1; margin: 5px; text-align: center;">
-          <h3>OSC Status</h3>
-          <textarea style="flex:1;" id="oscStatus" readonly wrap="off"></textarea>
-        </div>
-        <div style="display:flex; flex-direction: column; flex: 1; margin: 5px; text-align: center;">
-          <h3>Advanced Config <a href="https://vrcfury.com/brrradv" target="_blank">(?)</a></h3>
-          <textarea style="flex:1" id="advancedConfig" spellcheck="false"></textarea>
-          <div style="text-align: left">
-            <input type="button" value="Save" id="save"/>
-            <span id="saved" style="display: none">Saved</span>
-          </div>
-        </div>
-      </div>
-      <div style="display:flex; flex-basis: 300px;">
-        <div style="display:flex; flex-direction: column; flex: 1; margin: 5px; text-align: center;">
-          <h3>Buttplug.io Log</h3>
-          <textarea style="flex:1" id="bioLog"></textarea>
-        </div>
-        <div style="display:flex; flex-direction: column; flex: 1; margin: 5px; text-align: center;">
-          <h3>OSC Log</h3>
-          <textarea style="flex:1" id="oscLog"></textarea>
-        </div>
-      </div>
-    </div>
-
-  </body>
+  <body></body>
 </html>

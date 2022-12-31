@@ -8,6 +8,10 @@ body {
     font-family: Arial, sans-serif;
 }
 
+#maindiv {
+    height: 100%;
+}
+
 textarea {
     background-color: #111;
     color: white;

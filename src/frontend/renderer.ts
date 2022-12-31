@@ -1,4 +1,12 @@
 import { ipcRenderer } from 'electron';
+import * as ReactDOM from 'react-dom/client';
+
+// @ts-ignore
+import style1 from './bootstrap.css';
+// @ts-ignore
+import style2 from './styles.css';
+import Main from "./Main";
+import React from "react";
 
 function makeLog(eventName: string, elementName: string, clear = false) {
   const logUpdater = getLogUpdater(elementName, clear);
@@ -10,7 +18,7 @@ function makeLog(eventName: string, elementName: string, clear = false) {
 function getLogUpdater(elementName: string, clear = false) {
   const area = document.getElementById(elementName);
   const log: string[] = [];
-  if (!area || !(area instanceof HTMLTextAreaElement)) throw new Error('Log area missing');
+  if (!area || !(area instanceof HTMLTextAreaElement)) throw new Error('Log area missing: ' + elementName);
   let lastMouse = 0;
   area.onmousedown = () => {
     lastMouse = Date.now();
@@ -29,7 +37,17 @@ function getLogUpdater(elementName: string, clear = false) {
   }
 }
 
-window.addEventListener('DOMContentLoaded', () => {
+window.addEventListener('DOMContentLoaded', async () => {
+  style1.use();
+  style2.use();
+  const div = document.createElement("div");
+  div.id = "maindiv";
+  document.body.appendChild(div);
+  const root = ReactDOM.createRoot(div);
+  await new Promise(resolve => {
+    root.render(React.createElement(Main, {onRendered: () => resolve(null)}));
+  });
+
   makeLog('oscLog', 'oscLog');
   makeLog('bioLog', 'bioLog');
 
