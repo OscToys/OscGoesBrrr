@@ -1,7 +1,7 @@
 import {useEffect, useState} from 'react';
 import {ipcRenderer} from "electron";
-import {Config} from '../common/configTypes';
-import decodeType from "../common/decodeType";
+import {Config} from '../../common/configTypes';
+import decodeType from "../../common/decodeType";
 import React from 'react';
 
 export default function Settings() {

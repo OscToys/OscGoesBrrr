@@ -5,37 +5,8 @@ import * as ReactDOM from 'react-dom/client';
 import style1 from './bootstrap.css';
 // @ts-ignore
 import style2 from './styles.css';
-import Main from "./Main";
+import Main from "./components/Main";
 import React from "react";
-
-function makeLog(eventName: string, elementName: string, clear = false) {
-  const logUpdater = getLogUpdater(elementName, clear);
-  ipcRenderer.on(eventName, (_event, text) => {
-    logUpdater(text);
-  });
-}
-
-function getLogUpdater(elementName: string, clear = false) {
-  const area = document.getElementById(elementName);
-  const log: string[] = [];
-  if (!area || !(area instanceof HTMLTextAreaElement)) throw new Error('Log area missing: ' + elementName);
-  let lastMouse = 0;
-  area.onmousedown = () => {
-    lastMouse = Date.now();
-  }
-  area.onmousemove = () => {
-    if (lastMouse > Date.now() - 2000) lastMouse = Date.now();
-  }
-  return (text: string) => {
-    if (clear) log.length = 0;
-    log.push(...text.split('\n'));
-    while (log.length > 1000) log.shift();
-    if (lastMouse < Date.now() - 2000) {
-      area.value = log.join('\n');
-      if (!clear) area.scrollTop = area.scrollHeight;
-    }
-  }
-}
 
 window.addEventListener('DOMContentLoaded', async () => {
   style1.use();
@@ -47,9 +18,6 @@ window.addEventListener('DOMContentLoaded', async () => {
   await new Promise(resolve => {
     root.render(React.createElement(Main, {onRendered: () => resolve(null)}));
   });
-
-  makeLog('oscLog', 'oscLog');
-  makeLog('bioLog', 'bioLog');
 
   const save = document.getElementById('save');
   if (!save) throw new Error('Save button missing');
@@ -67,26 +35,6 @@ window.addEventListener('DOMContentLoaded', async () => {
   save.onclick = () => {
     ipcRenderer.invoke('config:save', config.value);
   }
-
-  const oscStatusUpdater = getLogUpdater('oscStatus', true);
-  async function updateOscStatus() {
-    try {
-      const status = await ipcRenderer.invoke('oscStatus:get');
-      oscStatusUpdater(status);
-    } catch(e) { console.error(e); }
-    setTimeout(updateOscStatus, 100);
-  }
-  updateOscStatus();
-
-  const bioStatusUpdater = getLogUpdater('bioStatus', true);
-  async function updateBioStatus() {
-    try {
-      const status = await ipcRenderer.invoke('bioStatus:get');
-      bioStatusUpdater(status);
-    } catch(e) { console.error(e); }
-    setTimeout(updateBioStatus, 100);
-  }
-  updateBioStatus();
 });
 
 (window as any).testRenderer = ipcRenderer;

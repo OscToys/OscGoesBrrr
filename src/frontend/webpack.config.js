@@ -6,7 +6,7 @@ module.exports = {
         path: path.resolve(__dirname, '../../app'),
         filename: 'preload.js'
     },
-    target: 'electron-preload',
+    target: 'electron-renderer',
     devtool: 'source-map',
     module: {
         rules: [
