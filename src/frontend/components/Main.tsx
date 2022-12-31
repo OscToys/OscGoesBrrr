@@ -1,5 +1,7 @@
 import React, {useEffect} from "react";
 import StatusBox, {LogBox} from "./StatusBox";
+import ToggleableAudioHandler from "./AudioHandler";
+import AdvancedConfig from "./AdvancedConfig";
 
 export default function Main(props: {
     onRendered: () => void
@@ -9,6 +11,7 @@ export default function Main(props: {
     },[]);
 
     return <div style={{display: 'flex', flexDirection: 'column', height: '100%'}}>
+        <ToggleableAudioHandler/>
         <div style={{padding: '5px'}}>
             <h1 style={{textAlign: 'center'}}>OSC Goes Brrr</h1>
             <ul style={{margin: 0}}>
@@ -36,11 +39,7 @@ export default function Main(props: {
             </div>
             <div style={{display: 'flex', flexDirection: 'column', flex: 1, margin: '5px', textAlign: 'center'}}>
                 <h3>Advanced Config <a href="https://vrcfury.com/brrradv" target="_blank">(?)</a></h3>
-                <textarea style={{flex: 1}} id="advancedConfig" spellCheck="false" defaultValue={""} />
-                <div style={{textAlign: 'left'}}>
-                    <input type="button" defaultValue="Save" id="save" />
-                    <span id="saved" style={{display: 'none'}}>Saved</span>
-                </div>
+                <AdvancedConfig/>
             </div>
         </div>
         <div style={{display: 'flex', flexBasis: '300px'}}>
