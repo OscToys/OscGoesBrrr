@@ -33,7 +33,10 @@ export default class OscConfigDeleter {
             const fullPath = Path.resolve(dir, entry.name);
             if (entry.isDirectory()) {
                 await this.checkDir(fullPath);
-            } else if (entry.isFile() && entry.name.endsWith(".json")) {
+            } else if (entry.isFile() && entry.name.endsWith(".json")
+                // https://gitlab.com/VRCFury/OscGoesBrrr/-/issues/3
+                && !fullPath.includes("VOR")
+            ) {
                 await this.backupAndDelete(fullPath);
             }
         }
