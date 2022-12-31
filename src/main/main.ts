@@ -11,6 +11,7 @@ import Buttplug from "./Buttplug";
 import OscConfigDeleter from "./OscConfigDeleter";
 import VrcConfigCheck from "./VrcConfigCheck";
 
+app.enableSandbox();
 process.on("uncaughtException", (err) => {
   dialog.showErrorBox("Fatal Error", err.stack+'');
   app.exit(1);
