@@ -3,13 +3,7 @@ import StatusBox, {LogBox} from "./StatusBox";
 import ToggleableAudioHandler from "./AudioHandler";
 import AdvancedConfig from "./AdvancedConfig";
 
-export default function Main(props: {
-    onRendered: () => void
-}) {
-    useEffect(() => {
-        props.onRendered();
-    },[]);
-
+export default function Main() {
     return <div style={{display: 'flex', flexDirection: 'column', height: '100%'}}>
         <ToggleableAudioHandler/>
         <div style={{padding: '5px'}}>

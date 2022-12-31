@@ -15,7 +15,5 @@ window.addEventListener('DOMContentLoaded', async () => {
   div.id = "maindiv";
   document.body.appendChild(div);
   const root = ReactDOM.createRoot(div);
-  await new Promise(resolve => {
-    root.render(React.createElement(Main, {onRendered: () => resolve(null)}));
-  });
+  root.render(React.createElement(Main));
 });
