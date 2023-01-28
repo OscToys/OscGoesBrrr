@@ -4,7 +4,8 @@ import fs from 'fs/promises';
 import existsAsync from "../common/existsAsync";
 
 const oscDir = Path.resolve(app.getPath('appData'), '../LocalLow/VRChat/VRChat/OSC');
-const bakDir = Path.resolve(oscDir, 'bak');
+const bakDir = Path.resolve(oscDir, '../OSC.bak');
+const oldBakDir = Path.resolve(oscDir, 'bak');
 
 export default class OscConfigDeleter {
     log;
@@ -16,6 +17,13 @@ export default class OscConfigDeleter {
     }
 
     async check() {
+        try {
+            if (await existsAsync(oldBakDir) && !(await existsAsync(bakDir))) {
+                await fs.rename(oldBakDir, bakDir);
+            }
+        } catch(e) {
+            this.log(e instanceof Error ? e.stack : e);
+        }
         try {
             const skip = this.configMap.get('keepOscConfigs');
             if (skip == '1' || skip == 'true') return;
