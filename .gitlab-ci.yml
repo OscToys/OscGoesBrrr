@@ -41,6 +41,7 @@ release:
       links:
         - name: 'Download Windows Zip'
           url: '${PACKAGE_URL}'
+          filepath: '/OscGoesBrrr.zip'
 
 bump_autoupdater:
   needs:
