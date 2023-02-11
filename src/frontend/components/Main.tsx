@@ -22,6 +22,12 @@ export default function Main() {
                     join the discord</a>.</li>
             </ul>
         </div>
+
+        <div style={{backgroundColor: '#333', color: 'red', margin: '5px', borderRadius: '5px', padding: '5px', textAlign: 'center', border: '1px solid red'}}>
+            Intiface Central is now required. If you are still using Intiface Desktop,
+            upgrade to Intiface Central at <a href="https://intiface.com/central/" target="_blank">https://intiface.com/central/</a>
+        </div>
+
         <div style={{display: 'flex', flex: 1}}>
             <div style={{display: 'flex', flexDirection: 'column', flex: 1, margin: '5px', textAlign: 'center'}}>
                 <h3>Buttplug.io Status</h3>

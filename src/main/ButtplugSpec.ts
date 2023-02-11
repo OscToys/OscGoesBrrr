@@ -7,9 +7,9 @@ export const Device = t.intersection([
     }),
     t.partial({
         DeviceMessages: t.partial({
-            VibrateCmd: t.partial({ FeatureCount: t.number }),
-            LinearCmd: t.partial({ FeatureCount: t.number }),
-            RotateCmd: t.partial({ FeatureCount: t.number }),
+            ScalarCmd: t.array(t.type({ ActuatorType: t.string })),
+            LinearCmd: t.array(t.type({ })),
+            RotateCmd: t.array(t.type({ })),
         })
     }),
 ]);
@@ -25,11 +25,12 @@ export const ButtplugMessage = t.partial({
     DeviceList: t.type({
         Devices: t.array(Device)
     }),
-    VibrateCmd: t.type({
+    ScalarCmd: t.type({
         DeviceIndex: t.number,
-        Speeds: t.array(t.type({
+        Scalars: t.array(t.type({
             Index: t.number,
-            Speed: t.number,
+            Scalar: t.number,
+            ActuatorType: t.string,
         }))
     }),
     LinearCmd: t.type({

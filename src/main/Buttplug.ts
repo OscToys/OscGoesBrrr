@@ -14,7 +14,7 @@ type MyEvents = {
 export default class Buttplug extends (EventEmitter as new () => TypedEmitter<MyEvents>) {
     log;
     lastMessageId = 0;
-    activeCallbacks = new Map<number,(msg:ButtplugMessageWithType)=>void>();
+    activeCallbacks = new Map<number,(msg:ButtplugMessageWithType|null,error?:any)=>void>();
     features = new Set<DeviceFeature>();
     usedDeviceIds = new Set<string>();
     recentlySentCmds = 0;
@@ -67,6 +67,9 @@ export default class Buttplug extends (EventEmitter as new () => TypedEmitter<My
             this.delayRetry();
         })
         ws.on('close', e => {
+            for (const callback of this.activeCallbacks.values()) {
+                callback(null, new Error("Connection closed"));
+            }
             this.clearDevices();
             this.log('Connection closed');
             this.delayRetry();
@@ -79,7 +82,7 @@ export default class Buttplug extends (EventEmitter as new () => TypedEmitter<My
             await this.send({
                 type: 'RequestServerInfo',
                 ClientName: 'OSC Goes Brrr',
-                MessageVersion: 1
+                MessageVersion: 3,
             });
             await this.send({ type: 'RequestDeviceList' });
         });
@@ -138,7 +141,7 @@ export default class Buttplug extends (EventEmitter as new () => TypedEmitter<My
             Id: id,
             ...params
         };
-        if (type === 'VibrateCmd' || type === 'LinearCmd' || type == 'RotateCmd' || type == 'FleshlightLaunchFW12Cmd') {
+        if (type === 'ScalarCmd' || type === 'LinearCmd' || type == 'RotateCmd' || type == 'FleshlightLaunchFW12Cmd') {
             this.recentlySentCmds++;
         } else {
             this.log('->', type, newArgs);
@@ -152,10 +155,11 @@ export default class Buttplug extends (EventEmitter as new () => TypedEmitter<My
                 this.activeCallbacks.delete(id);
                 reject("Timeout after 5000ms");
             }, 5000);
-            this.activeCallbacks.set(id, data => {
+            this.activeCallbacks.set(id, (data, error) => {
                 this.activeCallbacks.delete(id);
                 clearTimeout(timeout);
-                resolve(data);
+                if (error) reject(error);
+                else resolve(data);
             });
         });
     }
@@ -224,17 +228,17 @@ export default class Buttplug extends (EventEmitter as new () => TypedEmitter<My
         this.usedDeviceIds.add(id);
 
         let featureId = 0;
-        const vibratorCount = d.DeviceMessages?.VibrateCmd?.FeatureCount ?? 0;
-        for (let i = 0; i < vibratorCount; i++) {
-            this.addFeature(new DeviceFeature(id + '-' + featureId++, id, 'vibrate', d.DeviceIndex, i, this));
+        const scalarCmds = d.DeviceMessages?.ScalarCmd ?? [];
+        for (let i = 0; i < scalarCmds.length; i++) {
+            this.addFeature(new DeviceFeature(id + '-' + featureId++, id, 'vibrate', d.DeviceIndex, i, this, scalarCmds[i]!.ActuatorType));
         }
-        const linearCount = d.DeviceMessages?.LinearCmd?.FeatureCount ?? 0;
-        for (let i = 0; i < linearCount; i++) {
-            this.addFeature(new DeviceFeature(id + '-' + featureId++, id, 'linear', d.DeviceIndex, i, this));
+        const linearCmds = d.DeviceMessages?.LinearCmd ?? [];
+        for (let i = 0; i < linearCmds.length; i++) {
+            this.addFeature(new DeviceFeature(id + '-' + featureId++, id, 'linear', d.DeviceIndex, i, this, ''));
         }
-        const rotateCount = d.DeviceMessages?.RotateCmd?.FeatureCount ?? 0;
-        for (let i = 0; i < rotateCount; i++) {
-            this.addFeature(new DeviceFeature(id + '-' + featureId++, id, 'rotate', d.DeviceIndex, i, this));
+        const rotateCmds = d.DeviceMessages?.RotateCmd ?? [];
+        for (let i = 0; i < rotateCmds.length; i++) {
+            this.addFeature(new DeviceFeature(id + '-' + featureId++, id, 'rotate', d.DeviceIndex, i, this, ''));
         }
     }
 
@@ -255,15 +259,17 @@ export class DeviceFeature {
     readonly bioDeviceIndex;
     private readonly bioSubIndex;
     private readonly parent;
+    private readonly actuatorType;
     lastLevel = 0;
 
-    constructor(fullFeatureId: string, deviceId: string, type: 'linear'|'vibrate'|'rotate', bioDeviceIndex: number, bioSubIndex: number, parent: Buttplug) {
+    constructor(fullFeatureId: string, deviceId: string, type: 'linear'|'vibrate'|'rotate', bioDeviceIndex: number, bioSubIndex: number, parent: Buttplug, actuatorType: string) {
         this.id = fullFeatureId;
         this.deviceId = deviceId;
         this.type = type;
         this.bioDeviceIndex = bioDeviceIndex;
         this.bioSubIndex = bioSubIndex;
         this.parent = parent;
+        this.actuatorType = actuatorType;
     }
 
     setLevel(level: number, duration = 0, customCalc = false, customCalcClamp = false) {
@@ -299,9 +305,9 @@ export class DeviceFeature {
             });
         } else {
             this.parent.send({
-                type: 'VibrateCmd',
+                type: 'ScalarCmd',
                 DeviceIndex: this.bioDeviceIndex,
-                Speeds: [{Index: this.bioSubIndex, Speed: level}]
+                Scalars: [{Index: this.bioSubIndex, Scalar: level, ActuatorType: this.actuatorType }]
             });
         }
         this.lastLevel = level;
