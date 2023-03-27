@@ -1,6 +1,6 @@
 workflow:
   rules:
-    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_COMMIT_BRANCH
 
 build_files:
   needs: []
@@ -13,20 +13,17 @@ build_files:
     - echo "$VERSION" > src/main/version.txt
     - npm run build
     - npx electron-builder --win
-    - mv dist/osc-goes-brrr-1.0.0-win.zip OscGoesBrrr.$VERSION.zip
-    - mv dist/win-unpacked/resources/app.asar OscGoesBrrr.$VERSION.asar
     - echo "VERSION=$VERSION" > build.env
-    - echo "PACKAGE_URL=$CI_JOB_URL/artifacts/raw/OscGoesBrrr.$VERSION.zip" >> build.env
-    - echo "ASAR_URL=$CI_JOB_URL/artifacts/raw/OscGoesBrrr.$VERSION.asar" >> build.env
   artifacts:
     expire_in: 1 week
     paths:
-      - "*.zip"
-      - "*.asar"
+      - "dist/OscGoesBrrr-setup.exe"
     reports:
       dotenv: build.env
 
 release:
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
   image: registry.gitlab.com/gitlab-org/release-cli:latest
   script:
     - echo 'running release_job'
@@ -44,6 +41,8 @@ release:
           filepath: '/OscGoesBrrr.zip'
 
 bump_autoupdater:
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
   needs:
     - job: build_files
       artifacts: true
