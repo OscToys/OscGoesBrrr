@@ -68,14 +68,18 @@ if (fsPlain.existsSync(savePath)) {
   loadConfig(fsPlain.readFileSync(savePath, {encoding: 'utf-8'}));
 }
 
-let mainWindow: BrowserWindow | undefined;
+let mainWindow_: BrowserWindow | undefined;
+function getMainWindow() {
+  return mainWindow_ && !mainWindow_.isDestroyed() ? mainWindow_ : undefined;
+}
 function createWindow() {
-  if (mainWindow != null) {
-    if (mainWindow.isMinimized()) mainWindow.restore()
-    mainWindow.focus()
+  const oldMainWindow = getMainWindow();
+  if (oldMainWindow) {
+    if (oldMainWindow.isMinimized()) oldMainWindow.restore()
+    oldMainWindow.focus()
     return;
   }
-  mainWindow = new BrowserWindow({
+  const mainWindow = mainWindow_ = new BrowserWindow({
     width: 1024,
     height: 768,
     webPreferences: {
@@ -84,9 +88,9 @@ function createWindow() {
   })
   mainWindow.setMenuBarVisibility(false);
   mainWindow.loadFile(indexHtmlPath);
-  mainWindow.setIcon(iconPath);
-  mainWindow.setTitle('OSC Goes Brrr v' + updater.getLocalVersion());
-  mainWindow.on('closed', () => mainWindow = undefined);
+  mainWindow.setIcon(path.join(app.getAppPath(), iconPath));
+  mainWindow.setTitle('OscGoesBrrr v' + updater.getLocalVersion());
+  mainWindow.on('closed', () => mainWindow_ = undefined);
   mainWindow.on('page-title-updated', e => e.preventDefault());
   mainWindow.webContents.setWindowOpenHandler(details => {
     shell.openExternal(details.url);
@@ -101,6 +105,7 @@ app.whenReady().then(() => {
 
 function sendLog(type: string, ...args: unknown[]) {
   console.log(`[${type}]`, ...args);
+  const mainWindow = getMainWindow();
   if (mainWindow) {
     mainWindow.webContents.send(type, util.format(...args));
   }
@@ -216,6 +221,7 @@ ipcMain.handle('config:save', (_event, text) => {
   loadConfig(text);
 
   fs.mkdir(path.dirname(savePath), {recursive: true}).then(() => fs.writeFile(savePath, text));
+  const mainWindow = getMainWindow();
   if (mainWindow) mainWindow.webContents.send('config:saved');
 });
 ipcMain.handle('config:load', (_event) => {
@@ -229,6 +235,7 @@ ipcMain.handle('fft:status', (_event, level) => {
 })
 
 setInterval(() => {
+  const mainWindow = getMainWindow();
   if(!mainWindow) return;
   const audioLevel = parseFloat(configMap.get('audio') ?? '');
   const on = !isNaN(audioLevel) && audioLevel > 0;

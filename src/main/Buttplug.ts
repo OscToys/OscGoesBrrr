@@ -81,7 +81,7 @@ export default class Buttplug extends (EventEmitter as new () => TypedEmitter<My
             this.log('open');
             await this.send({
                 type: 'RequestServerInfo',
-                ClientName: 'OSC Goes Brrr',
+                ClientName: 'OscGoesBrrr',
                 MessageVersion: 3,
             });
             await this.send({ type: 'RequestDeviceList' });

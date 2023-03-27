@@ -4,7 +4,7 @@ Make things in real life go BRRR from VRChat. This isn't a VRChat mod, it uses v
 
 ## Features / Benefits
 
-Why use OSCGoesBrrr instead of other OSC solutions?
+Why use OscGoesBrrr instead of other OSC solutions?
 
 * One-click setup
   * For avatars with TPS or DPS penetrators and orifices, the avatar upgrader is only one click!
