@@ -143,7 +143,7 @@ ipcMain.handle('bioStatus:get', async (_event, text) => {
     }
     bioStatus = 'Connected to Intiface!\nConnected Devices:\n' + devicesStr;
   } else {
-    bioStatus = 'Not connected to Intiface.\nIs Intiface Desktop running?\nDid you click Start Server?';
+    bioStatus = 'Not connected to Intiface.\nIs Intiface running?\nDid you click Start Server?';
   }
   return bioStatus;
 });
@@ -156,7 +156,7 @@ ipcMain.handle('oscStatus:get', async (_event, text) => {
     if (vrcConfigCheck.oscEnabled === false) {
       return `OSC is disabled in your game.\nEnable it in the radial menu:\nOptions > OSC > Enabled`;
     } else {
-      return `Haven't received OSC status recently.\nIs game open and active?`;
+      return `No data received.\nIs the game open and active?`;
     }
   }
 
@@ -182,7 +182,7 @@ ipcMain.handle('oscStatus:get', async (_event, text) => {
     });
     if (outdated) {
       sections.push('OUTDATED AVATAR DETECTED\n' +
-          'Your avatar was not built using\nthe newest OscGB upgrade tool.\n' +
+          'Your avatar was not built using\nthe newest version of VRCFury Haptics.\n' +
           'Penetration may not work or be less effective.\n' +
           'If you are sure your avatar is updated already,\nbe sure "Self Interact" is on in your vrc settings.')
     }

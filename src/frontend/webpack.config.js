@@ -4,7 +4,8 @@ module.exports = {
     entry: './renderer',
     output: {
         path: path.resolve(__dirname, '../../app'),
-        filename: 'preload.js'
+        filename: 'preload.js',
+        publicPath: '',
     },
     target: 'electron-renderer',
     devtool: 'source-map',
@@ -29,7 +30,11 @@ module.exports = {
                     "css-loader",
                     "sass-loader",
                 ],
-            }
+            },
+            {
+                test: /\.(png)$/,
+                type: 'asset/resource',
+            },
         ]
     },
     resolve: {

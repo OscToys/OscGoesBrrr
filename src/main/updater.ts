@@ -12,14 +12,9 @@ import existsAsync from "../common/existsAsync";
 // @ts-ignore
 import versionPath from "./version.txt";
 
-const GitlabRelease = t.type({
-    description: t.string,
-    assets: t.type({
-        links: t.array(t.type({
-            name: t.string,
-            url: t.string
-        }))
-    })
+const UpdatesJsonSchema = t.type({
+    latestVersion: t.string,
+    latestInstaller: t.string,
 });
 
 export default class Updater {
@@ -66,29 +61,16 @@ export default class Updater {
         let myversion = this.getLocalVersion();
         if (!myversion) throw new Error('Failed to load local version file');
 
-        const releaseJson = await got('https://gitlab.com/api/v4/projects/vrcfury%2foscgoesbrrr/releases/autoupdater').json() as unknown;
-        const release = decodeType(releaseJson, GitlabRelease);
-        const desc = release.description;
-        let version;
-        for (let line of desc.split('\n')) {
-            line = line.trim();
-            if (line.startsWith('version=')) {
-                version = line.substring(8).trim();
-            }
-        }
-        if (!version) throw new Error("Failed to find version in description");
-        console.log("Autoupdate version is " + version);
+        const updatesJson = await got('https://updates.osc.toys/updates.json').json() as unknown;
+        const updates = decodeType(updatesJson, UpdatesJsonSchema);
+        console.log("Autoupdate version is " + updates.latestVersion);
 
-        if (semver.gte(myversion, version, { loose: true })) {
+        if (semver.gte(myversion, updates.latestVersion, { loose: true })) {
             console.log("Autoupdate doesn't need to do anything, app already up to date");
             return;
         }
 
-        let asar, exe;
-        for (const link of release.assets.links) {
-            if (link.name === 'asar') asar = link.url;
-            if (link.name === 'exe') exe = link.url;
-        }
+        const exe = updates.latestInstaller;
 
         if (!app.isPackaged) throw new Error('App is not packaged');
 
@@ -96,17 +78,9 @@ export default class Updater {
         if (!exeDir) throw new Error('Failed to find exe dir');
         console.log('Autoupdater exe dir is ' + exeDir);
 
-        if (!asar && !exe) {
-            dialog.showMessageBoxSync({
-                title: 'Update',
-                message: `Version ${version} is available - please install from the OscGoesBrrr website`,
-            });
-            return;
-        }
-
         const resp = await dialog.showMessageBox({
             title: 'Update',
-            message: `Version ${version} is available`,
+            message: `Version ${updates.latestVersion} is available`,
             buttons: ['Install', 'Skip'],
             cancelId: 1
         });
@@ -114,29 +88,12 @@ export default class Updater {
 
         await this.deleteOldUpdateFiles();
 
-        if (asar) {
-            await stream.pipeline(got.stream(asar), createWriteStream(path.join(exeDir, 'update.asa')));
-        } else if (exe) {
-            await stream.pipeline(got.stream(exe), createWriteStream(path.join(exeDir, 'update.exe')));
-        }
+        console.log("Downloading update ...");
+        const localPath = path.join(exeDir, 'update.exe');
+        await stream.pipeline(got.stream(exe), createWriteStream(localPath));
+        console.log("Downloaded");
 
-        console.log("Writing update.bat");
-        const batContent = `
-taskkill /f /im osc-goes-brrr.exe
-timeout /T 1 /NOBREAK
-if exist update.exe (
-  start update.exe
-)
-if exist update.asa (
-  del /f /q /a resources\\app.asar
-  move update.asa resources
-  ren resources\\update.asa app.asar
-  start osc-goes-brrr.exe
-)
-`;
-        await fs.writeFile(path.join(exeDir, 'update.bat'), batContent);
-
-        console.log("Running update.bat");
-        child_process.spawn(path.join(exeDir, 'update.bat'), { cwd: exeDir, detached: true, stdio: 'ignore' });
+        console.log("Running updater ...");
+        child_process.spawn(localPath, { cwd: exeDir, detached: true, stdio: 'ignore' });
     }
 }

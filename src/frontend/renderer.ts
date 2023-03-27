@@ -4,7 +4,7 @@ import * as ReactDOM from 'react-dom/client';
 // @ts-ignore
 import style1 from './bootstrap.css';
 // @ts-ignore
-import style2 from './styles.css';
+import style2 from './styles.scss';
 import Main from "./components/Main";
 import React from "react";
 

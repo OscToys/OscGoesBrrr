@@ -1,0 +1,45 @@
+html,body {
+    height: 100%;
+}
+
+body {
+    background-color: #111;
+    color: white;
+    font-family: Arial, sans-serif;
+}
+
+#maindiv {
+    height: 100%;
+}
+
+textarea {
+    background-color: #111;
+    color: white;
+    resize: none;
+}
+
+.leftColumn {
+    width: 200px;
+    min-width: 200px;
+    border-right: 1px solid rgba(255,255,255,0.1);
+
+    > img {
+        width: 200px;
+        padding: 0 25px;
+        display: block;
+        border-bottom: 1px solid rgba(255,255,255,0.1);
+    }
+    > div {
+        font-size: 20px;
+        padding: 10px;
+        border-bottom: 1px solid rgba(255,255,255,0.1);
+        cursor: pointer;
+        &.active {
+            background-color: rgba(128,128,255,0.3);
+        }
+    }
+}
+
+.rightColumn {
+    flex-grow: 1;
+}
