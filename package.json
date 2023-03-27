@@ -11,8 +11,8 @@
   "repository": "https://gitlab.com/VRCFury/OscGoesBrrr",
   "license": "MIT",
   "devDependencies": {
-    "electron": "^23.0.0",
-    "electron-builder": "^23.6.0"
+    "electron": "^23.2.0",
+    "electron-builder": "^24.1.1"
   },
   "build": {
     "productName": "OscGoesBrrr",
