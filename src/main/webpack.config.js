@@ -4,7 +4,8 @@ const webpack = require('webpack');
 module.exports = {
     entry: './main',
     output: {
-        path: path.resolve(__dirname, '../../app')
+        path: path.resolve(__dirname, '../../app'),
+        publicPath: 'app/',
     },
     target: 'electron-main',
     devtool: 'source-map',
@@ -14,7 +15,11 @@ module.exports = {
                 test: /\.tsx?$/,
                 use: [{loader: 'ts-loader', options: {onlyCompileBundledFiles: true}}],
                 exclude: /node_modules/,
-            }
+            },
+            {
+                test: /\.(ico|txt|html)$/,
+                type: 'asset/resource',
+            },
         ]
     },
     plugins: [

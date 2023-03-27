@@ -9,6 +9,8 @@ import stream from 'stream/promises';
 import decodeType, {t} from "../common/decodeType";
 import { readFileSync } from "fs";
 import existsAsync from "../common/existsAsync";
+// @ts-ignore
+import versionPath from "./version.txt";
 
 const GitlabRelease = t.type({
     description: t.string,
@@ -49,7 +51,7 @@ export default class Updater {
         if (this._myVersion !== undefined) {
             return this._myVersion;
         }
-        let myversion = readFileSync(path.join(app.getAppPath(), 'app/version.txt'), {encoding: 'utf-8'});
+        let myversion = readFileSync(path.join(app.getAppPath(), versionPath), {encoding: 'utf-8'});
         if (!myversion) myversion = '';
         myversion = myversion.trim();
         console.log("Local version is " + myversion);

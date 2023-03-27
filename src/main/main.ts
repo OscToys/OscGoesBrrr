@@ -10,6 +10,10 @@ import OscConnection from "./OscConnection";
 import Buttplug from "./Buttplug";
 import OscConfigDeleter from "./OscConfigDeleter";
 import VrcConfigCheck from "./VrcConfigCheck";
+// @ts-ignore
+import iconPath from '../icons/ogb-logo.ico';
+// @ts-ignore
+import indexHtmlPath from './index.html';
 
 app.enableSandbox();
 process.on("uncaughtException", (err) => {
@@ -79,8 +83,8 @@ function createWindow() {
     }
   })
   mainWindow.setMenuBarVisibility(false);
-  mainWindow.loadFile('app/index.html');
-  mainWindow.setIcon(path.join(app.getAppPath(), 'app/tps-bio.png'));
+  mainWindow.loadFile(indexHtmlPath);
+  mainWindow.setIcon(iconPath);
   mainWindow.setTitle('OSC Goes Brrr v' + updater.getLocalVersion());
   mainWindow.on('closed', () => mainWindow = undefined);
   mainWindow.on('page-title-updated', e => e.preventDefault());

@@ -1,7 +1,7 @@
 {
   "name": "osc-goes-brrr",
   "version": "1.0.0",
-  "description": "Link between OSC and B.io",
+  "description": "Haptics for VRChat",
   "main": "app/main.js",
   "scripts": {
     "start": "electron .",
@@ -11,20 +11,25 @@
   "repository": "https://gitlab.com/VRCFury/OscGoesBrrr",
   "license": "MIT",
   "devDependencies": {
-    "electron": "^19.0.9",
-    "electron-builder": "^23.1.0"
+    "electron": "^23.0.0",
+    "electron-builder": "^23.6.0"
   },
   "build": {
+    "productName": "OscGoesBrrr",
     "npmRebuild": false,
-    "icon": "app/tps-bio.png",
     "win": {
-      "target": "zip"
+      "target": "nsis",
+      "icon": "src/icons/ogb-logo.ico",
+      "artifactName": "OscGoesBrrr-setup.exe"
+    },
+    "nsis": {
+      "installerIcon": "src/icons/ogb-installer.ico"
     },
     "files": [
       "app/**/*"
     ]
   },
   "optionalDependencies": {
-    "native-reg": "^1.1.0"
+    "native-reg": "^1.1.1"
   }
 }

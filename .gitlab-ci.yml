@@ -10,7 +10,7 @@ build_files:
     - npm install -g npm@8
     - npm install
     - VERSION="1.$(date +%Y%m%d.1%H%M%S)"
-    - echo "$VERSION" > app/version.txt
+    - echo "$VERSION" > src/main/version.txt
     - npm run build
     - npx electron-builder --win
     - mv dist/osc-goes-brrr-1.0.0-win.zip OscGoesBrrr.$VERSION.zip

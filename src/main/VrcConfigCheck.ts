@@ -6,7 +6,7 @@ export default class VrcConfigCheck {
     async start() {
         const reg = await import('native-reg');
         while (true) {
-            try { this.check(); } catch {}
+            try { await this.check(); } catch {}
             console.log(`OSC=${this.oscEnabled} SELF=${this.selfInteractEnabled} EVERYONE=${this.everyoneInteractEnabled}`);
             await new Promise(r => setTimeout(r, 5000));
         }
