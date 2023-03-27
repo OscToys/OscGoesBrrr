@@ -10,7 +10,7 @@ build_files:
     - npm install -g npm@8
     - npm install
     - VERSION="1.$(date +%Y%m%d.1%H%M%S)"
-    - echo "$VERSION" > src/main/version.txt
+    - node build/updateVersion.js "$VERSION"
     - npm run build
     - npx electron-builder --win
     - echo "VERSION=$VERSION" > build.env

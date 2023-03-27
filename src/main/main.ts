@@ -89,7 +89,7 @@ function createWindow() {
   mainWindow.setMenuBarVisibility(false);
   mainWindow.loadFile(indexHtmlPath);
   mainWindow.setIcon(path.join(app.getAppPath(), iconPath));
-  mainWindow.setTitle('OscGoesBrrr v' + updater.getLocalVersion());
+  mainWindow.setTitle('OscGoesBrrr v' + app.getVersion());
   mainWindow.on('closed', () => mainWindow_ = undefined);
   mainWindow.on('page-title-updated', e => e.preventDefault());
   mainWindow.webContents.setWindowOpenHandler(details => {

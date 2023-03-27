@@ -41,24 +41,12 @@ export default class Updater {
             }
         }
     }
-    _myVersion?: string;
-    getLocalVersion() {
-        if (this._myVersion !== undefined) {
-            return this._myVersion;
-        }
-        let myversion = readFileSync(path.join(app.getAppPath(), versionPath), {encoding: 'utf-8'});
-        if (!myversion) myversion = '';
-        myversion = myversion.trim();
-        console.log("Local version is " + myversion);
-        this._myVersion = myversion;
-        return myversion;
-    }
     async checkAndNotifyUnsafe() {
         await this.deleteOldUpdateFiles();
 
         console.log("Checking for updates ...");
 
-        let myversion = this.getLocalVersion();
+        let myversion = app.getVersion();
         if (!myversion) throw new Error('Failed to load local version file');
 
         const updatesJson = await got('https://updates.osc.toys/updates.json').json() as unknown;
