@@ -5,15 +5,8 @@ import semver from 'semver';
 import tmp from 'tmp-promise';
 import { spawn } from 'promisify-child-process';
 
-const allTags = await getTags();
 const tagPrefix = "release/";
-const versions = allTags
-    .filter(tag => tag.startsWith(tagPrefix))
-    .map(tag => tag.substring(tagPrefix.length));
-const maxVersion = semver.maxSatisfying(versions, '*');
-if (!maxVersion) return '1.0.0';
-const version = semver.inc(maxVersion, 'minor');
-
+const version = await getNextVersion();
 const tagName = `${tagPrefix}${version}`
 
 const packageJson = await readJson('package.json');
@@ -85,4 +78,13 @@ async function getTags() {
         .filter(line => line.includes("refs/tags/"))
         .map(line => line.substring(line.indexOf('refs/tags/') + 10).trim())
         .filter(line => line !== "");
+}
+async function getNextVersion() {
+    const allTags = await getTags();
+    const versions = allTags
+        .filter(tag => tag.startsWith(tagPrefix))
+        .map(tag => tag.substring(tagPrefix.length));
+    const maxVersion = semver.maxSatisfying(versions, '*');
+    if (!maxVersion) return '1.0.0';
+    return semver.inc(maxVersion, 'minor');
 }
