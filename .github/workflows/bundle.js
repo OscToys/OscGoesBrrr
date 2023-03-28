@@ -14,13 +14,13 @@ packageJson.version = version;
 await writeJson('package.json', packageJson);
 
 console.log('Building main ...');
-await spawn('npx', ['webpack'], { stdio: "inherit", cwd: "src/main", shell: "true" });
+await spawn('npx', ['webpack'], { stdio: "inherit", cwd: "src/main" });
 
 console.log('Building frontend ...');
-await spawn('npx', ['webpack'], { stdio: "inherit", cwd: "src/frontend", shell: "true" });
+await spawn('npx', ['webpack'], { stdio: "inherit", cwd: "src/frontend" });
 
 console.log('Building electron ...');
-await spawn('npx', ['electron-builder', '--win'], { stdio: "inherit", shell: "true" });
+await spawn('npx', ['electron-builder', '--win'], { stdio: "inherit" });
 
 console.log('Creating github release ...');
 await spawn('gh', [
@@ -30,7 +30,7 @@ await spawn('gh', [
     'dist/OscGoesBrrr-setup.exe',
     '--target', process.env.GITHUB_SHA,
     '--title', `Release ${version}`
-], { stdio: "inherit", shell: "true" });
+], { stdio: "inherit" });
 
 console.log('Updating version manifest ...');
 const versionJson = await readJson('../versions/updates.json');
