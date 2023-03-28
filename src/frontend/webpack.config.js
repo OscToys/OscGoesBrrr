@@ -1,6 +1,8 @@
-const path = require('path');
+import path from 'node:path';
+import {fileURLToPath} from "node:url";
+const __dirname = fileURLToPath(new URL('.', import.meta.url));
 
-module.exports = {
+export default {
     entry: './renderer',
     output: {
         path: path.resolve(__dirname, '../../app'),

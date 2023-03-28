@@ -1,7 +1,9 @@
-const path = require('path');
-const webpack = require('webpack');
+import path from 'node:path';
+import webpack from 'webpack';
+import {fileURLToPath} from "node:url";
+const __dirname = fileURLToPath(new URL('.', import.meta.url));
 
-module.exports = {
+export default {
     entry: './main',
     output: {
         path: path.resolve(__dirname, '../../app'),

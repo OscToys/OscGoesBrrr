@@ -1,7 +1,6 @@
 import React, {useEffect, useRef, useState} from "react";
 import {ipcRenderer} from "electron";
 import {useLatest} from "react-use";
-import IpcRendererEvent = Electron.IpcRendererEvent;
 
 export default function StatusBox({getCmd, ...rest}: {
     getCmd: string
@@ -37,7 +36,7 @@ export function LogBox({eventName, ...rest}: {
 
     useEffect(() => {
         const lines: string[] = [];
-        function onEvent(_event: IpcRendererEvent, text: any) {
+        function onEvent(_event: Electron.IpcRendererEvent, text: any) {
             lines.push(...text.split('\n'));
             while (lines.length > 1000) lines.shift();
             setStatus(lines.join('\n'));

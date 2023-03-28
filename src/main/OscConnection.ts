@@ -1,4 +1,5 @@
-import osc, {OscMessage} from 'osc';
+import osc from 'osc';
+import type {OscMessage} from 'osc';
 import dgram from 'dgram';
 import EventEmitter from "events"
 import type TypedEmitter from "typed-emitter"
