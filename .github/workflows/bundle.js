@@ -13,8 +13,11 @@ const packageJson = await readJson('package.json');
 packageJson.version = version;
 await writeJson('package.json', packageJson);
 
-console.log('Building webpack ...');
-await spawn('npm', ['run', 'build'], { stdio: "inherit" });
+console.log('Building main ...');
+await spawn('npx', ['webpack'], { stdio: "inherit", cwd: "src/main" });
+
+console.log('Building frontend ...');
+await spawn('npx', ['webpack'], { stdio: "inherit", cwd: "src/frontend" });
 
 console.log('Building electron ...');
 await spawn('npx', ['electron-builder', '--win'], { stdio: "inherit" });
