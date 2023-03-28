@@ -7,12 +7,17 @@ const tagPrefix = "release/";
 const version = await getNextVersion();
 const tagName = `${tagPrefix}${version}`
 
+console.log(`Next version: ${version}`);
+
+console.log('Updating package.json ...');
 const packageJson = await readJson('package.json');
 packageJson.version = version;
 await writeJson('package.json', packageJson);
 
+console.log('Building distributable ...');
 await spawn('/bin/bash', ['.github/workflows/build.sh'], { stdio: "inherit" });
 
+console.log('Creating github release ...');
 await spawn('gh', [
     'release',
     'create',
@@ -22,6 +27,7 @@ await spawn('gh', [
     '--title', `Release ${version}`
 ], { stdio: "inherit" });
 
+console.log('Updating version manifest ...');
 const versionJson = await readJson('../versions/updates.json');
 versionJson.latestVersion = version;
 versionJson.latestInstaller = `https://github.com/OscToys/OscGoesBrrr/releases/download/${encodeURIComponent(tagName)}/${encodeURIComponent('OscGoesBrrr-setup.exe')}`;
