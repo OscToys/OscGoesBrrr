@@ -1,6 +1,4 @@
 import fs from 'node:fs/promises';
-import tar from 'tar';
-import hasha from 'hasha';
 import semver from 'semver';
 import tmp from 'tmp-promise';
 import { spawn } from 'promisify-child-process';
