@@ -16,11 +16,9 @@ export default function Home() {
                 <li>If their avatar is not upgraded, you can still interact with their Hands, Feet, Head, or
                     stock Poi 8.1 TPS penetrators (limited).</li>
                 <li>To enable interaction between a penetrator and orifice both on your own avatar,
-                    add <i>all.penSelf=1</i> to the Advanced Config.</li>
+                    add <i>all.penSelf=1</i> in the Settings box.</li>
                 <li>To enable touching your own penetrator with your own hands,
-                    add <i>all.touchSelf=1</i> to the Advanced Config.</li>
-                <li>For support, <a href="https://vrcfury.com/discord" target="_blank">click here to
-                    join the discord</a>.</li>
+                    add <i>all.touchSelf=1</i> in the Settings box.</li>
             </ul>
         </div>
 
@@ -34,7 +32,7 @@ export default function Home() {
                 <StatusBox style={{flex: 1}} getCmd="oscStatus:get" />
             </div>
             <div style={{display: 'flex', flexDirection: 'column', flex: 1, margin: '5px', textAlign: 'center'}}>
-                <h3>Advanced Config <a href="https://osc.toys/advanced" target="_blank">(?)</a></h3>
+                <h3>Settings <a href="https://osc.toys/advanced" target="_blank">(?)</a></h3>
                 <AdvancedConfig/>
             </div>
         </div>

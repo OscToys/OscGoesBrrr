@@ -19,21 +19,34 @@ textarea {
 }
 
 .leftColumn {
-    width: 200px;
-    min-width: 200px;
+    width: 220px;
+    min-width: 220px;
     border-right: 1px solid rgba(255,255,255,0.1);
 
     > img {
-        width: 200px;
+        width: 220px;
         padding: 0 25px;
         display: block;
         border-bottom: 1px solid rgba(255,255,255,0.1);
     }
     > div {
         font-size: 20px;
+        line-height: 20px;
         padding: 10px;
         border-bottom: 1px solid rgba(255,255,255,0.1);
         cursor: pointer;
+        vertical-align: middle;
+        > svg {
+            vertical-align: middle;
+            height: 20px;
+            padding-right: 10px;
+        }
+        > span {
+            vertical-align: middle;
+        }
+        &:hover {
+            background-color: rgba(255,255,255,0.1);
+        }
         &.active {
             background-color: rgba(128,128,255,0.3);
         }

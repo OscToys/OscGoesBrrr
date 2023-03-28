@@ -84,12 +84,12 @@ function createWindow() {
     height: 768,
     webPreferences: {
       preload: path.join(app.getAppPath(), 'app/preload.js')
-    }
+    },
+    icon: path.join(app.getAppPath(), iconPath),
+    title: 'OscGoesBrrr v' + app.getVersion()
   })
   mainWindow.setMenuBarVisibility(false);
   mainWindow.loadFile(indexHtmlPath);
-  mainWindow.setIcon(path.join(app.getAppPath(), iconPath));
-  mainWindow.setTitle('OscGoesBrrr v' + app.getVersion());
   mainWindow.on('closed', () => mainWindow_ = undefined);
   mainWindow.on('page-title-updated', e => e.preventDefault());
   mainWindow.webContents.setWindowOpenHandler(details => {

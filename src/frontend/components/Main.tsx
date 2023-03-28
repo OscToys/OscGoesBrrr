@@ -7,12 +7,19 @@ import logoPath from '../../icons/ogb-logo.png';
 import Home from "./Home";
 import classNames from "classnames";
 import DebugLog from "./DebugLog";
+import {FontAwesomeIcon} from "@fortawesome/react-fontawesome";
+import { faDiscord } from "@fortawesome/free-brands-svg-icons";
+import type {IconDefinition} from "@fortawesome/fontawesome-common-types";
+import {faHome, faTerminal} from "@fortawesome/free-solid-svg-icons";
 
 export default function Main() {
     const [page,setPage] = useState<string>("home");
 
-    function SelectButton(id: string, name: string) {
-        return <div onClick={() => setPage(id)} className={classNames({active: page == id})}>{name}</div>;
+    function SelectButton(id: string, name: string, icon?: IconDefinition, onClick?: ()=>any) {
+        return <div onClick={onClick ? onClick : () => setPage(id)} className={classNames({active: page == id})}>
+            {icon && <FontAwesomeIcon icon={icon} />}
+            <span>{name}</span>
+        </div>;
     }
 
     return <div style={{display: 'flex', flexDirection: 'row', height: '100%'}}>
@@ -20,8 +27,9 @@ export default function Main() {
 
         <div className="leftColumn">
             <img src={logoPath}/>
-            {SelectButton("home", "Home")}
-            {SelectButton("logs", "Debug Logs")}
+            {SelectButton("home", "Home", faHome)}
+            {SelectButton("logs", "Debug Logs", faTerminal)}
+            {SelectButton("discord", "Support Discord", faDiscord, () => window.open("https://vrcfury.com/discord", "_blank"))}
         </div>
 
         <div className="rightColumn">
