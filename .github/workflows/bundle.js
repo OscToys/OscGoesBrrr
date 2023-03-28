@@ -13,8 +13,11 @@ const packageJson = await readJson('package.json');
 packageJson.version = version;
 await writeJson('package.json', packageJson);
 
-console.log('Building distributable ...');
-await spawn('/bin/bash', ['.github/workflows/build.sh'], { stdio: "inherit" });
+console.log('Building webpack ...');
+await spawn('npm', ['run', 'build'], { stdio: "inherit" });
+
+console.log('Building electron ...');
+await spawn('npx', ['electron-builder', '--win'], { stdio: "inherit" });
 
 console.log('Creating github release ...');
 await spawn('gh', [
