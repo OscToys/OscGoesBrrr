@@ -55,7 +55,8 @@
     "win": {
       "target": "nsis",
       "icon": "src/icons/ogb-logo.ico",
-      "artifactName": "OscGoesBrrr-setup.exe"
+      "artifactName": "OscGoesBrrr-setup.exe",
+      "publish": []
     },
     "nsis": {
       "installerIcon": "src/icons/ogb-installer.ico"
