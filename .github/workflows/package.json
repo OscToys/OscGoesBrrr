@@ -1,8 +1,0 @@
-{
-  "type": "module",
-  "dependencies": {
-    "promisify-child-process": "^4.1.1",
-    "semver": "^7.3.8",
-    "tmp-promise": "^3.0.3"
-  }
-}

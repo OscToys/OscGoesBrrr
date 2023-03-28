@@ -1,6 +1,5 @@
 import fs from 'node:fs/promises';
 import semver from 'semver';
-import tmp from 'tmp-promise';
 import { spawn } from 'promisify-child-process';
 
 const tagPrefix = "release/";
@@ -46,13 +45,6 @@ function checkFileExists(file) {
         .catch(() => false)
 }
 
-async function md5Dir(dir) {
-    const tmpFile = (await tmp.file()).path;
-    await createTar(dir, tmpFile);
-    const md5 = await hasha.fromFile(tmpFile, {algorithm: 'sha256'});
-    await fs.unlink(tmpFile);
-    return md5;
-}
 async function readJson(file) {
     return JSON.parse(await fs.readFile(file, {encoding: 'utf-8'}));
 }
