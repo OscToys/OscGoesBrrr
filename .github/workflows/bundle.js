@@ -14,13 +14,13 @@ packageJson.version = version;
 await writeJson('package.json', packageJson);
 
 console.log('Building main ...');
-await spawn('npx', ['webpack'], { stdio: "inherit", cwd: "src/main" });
+await spawn('npm', ['exec', 'webpack'], { stdio: "inherit", cwd: "src/main" });
 
 console.log('Building frontend ...');
-await spawn('npx', ['webpack'], { stdio: "inherit", cwd: "src/frontend" });
+await spawn('npm', ['exec', 'webpack'], { stdio: "inherit", cwd: "src/frontend" });
 
 console.log('Building electron ...');
-await spawn('npx', ['electron-builder', '--win'], { stdio: "inherit" });
+await spawn('npm', ['exec', 'electron-builder', '--win'], { stdio: "inherit" });
 
 console.log('Creating github release ...');
 await spawn('gh', [
