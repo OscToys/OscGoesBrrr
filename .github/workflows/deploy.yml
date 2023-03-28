@@ -11,6 +11,8 @@ permissions:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    container:
+      image: electronuserland/builder:wine
     environment: prod
     steps:
       - name: Checkout repo
