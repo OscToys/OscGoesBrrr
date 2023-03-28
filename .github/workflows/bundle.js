@@ -1,0 +1,88 @@
+import fs from 'node:fs/promises';
+import tar from 'tar';
+import hasha from 'hasha';
+import semver from 'semver';
+import tmp from 'tmp-promise';
+import { spawn } from 'promisify-child-process';
+
+const allTags = await getTags();
+const tagPrefix = "release/";
+const versions = allTags
+    .filter(tag => tag.startsWith(tagPrefix))
+    .map(tag => tag.substring(tagPrefix.length));
+const maxVersion = semver.maxSatisfying(versions, '*');
+if (!maxVersion) return '1.0.0';
+const version = semver.inc(maxVersion, 'minor');
+
+const tagName = `${tagPrefix}${version}`
+
+const packageJson = await readJson('package.json');
+packageJson.version = version;
+await writeJson('package.json', packageJson);
+
+await spawn('/bin/bash', ['.github/workflows/build.sh'], { stdio: "inherit" });
+
+await spawn('gh', [
+    'release',
+    'create',
+    tagName,
+    'dist/OscGoesBrrr-setup.exe',
+    '--target', process.env.GITHUB_SHA,
+    '--title', `Release ${version}`
+], { stdio: "inherit" });
+
+const versionJson = await readJson('../versions/updates.json');
+versionJson.latestVersion = version;
+versionJson.latestInstaller = `https://github.com/OscToys/OscGoesBrrr/releases/download/${encodeURIComponent(tagName)}/${encodeURIComponent('OscGoesBrrr-setup.exe')}`;
+await writeJson('../versions/updates.json', versionJson);
+
+
+
+
+
+
+// ---
+
+function checkFileExists(file) {
+    return fs.access(file, fs.constants.F_OK)
+        .then(() => true)
+        .catch(() => false)
+}
+
+async function md5Dir(dir) {
+    const tmpFile = (await tmp.file()).path;
+    await createTar(dir, tmpFile);
+    const md5 = await hasha.fromFile(tmpFile, {algorithm: 'sha256'});
+    await fs.unlink(tmpFile);
+    return md5;
+}
+async function readJson(file) {
+    return JSON.parse(await fs.readFile(file, {encoding: 'utf-8'}));
+}
+async function writeJson(file, obj) {
+    await fs.writeFile(file, JSON.stringify(obj, null, 2));
+}
+async function rmdir(path) {
+    if (await checkFileExists(path)) {
+        await fs.rm(path, {recursive: true});
+    }
+}
+async function createTar(dir, outputFilename) {
+    await tar.create({
+        gzip: true,
+        cwd: dir,
+        file: outputFilename,
+        portable: true,
+        noMtime: true,
+        prefix: 'package/'
+    }, await fs.readdir(dir));
+}
+
+async function getTags() {
+    const { stdout, stderr } = await spawn('git', ['ls-remote', '--tags', 'origin'], {encoding: 'utf8'});
+    return (stdout+'')
+        .split('\n')
+        .filter(line => line.includes("refs/tags/"))
+        .map(line => line.substring(line.indexOf('refs/tags/') + 10).trim())
+        .filter(line => line !== "");
+}
