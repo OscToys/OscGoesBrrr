@@ -10,9 +10,13 @@ permissions:
 
 jobs:
   deploy:
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
+    container:
+      image: electronuserland/builder:wine
     environment: prod
     steps:
+      - name: Define proper HOME path
+        run: echo "HOME=/root" >> $GITHUB_ENV
       - name: Checkout repo
         uses: actions/checkout@v3
         with:
