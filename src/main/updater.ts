@@ -48,10 +48,6 @@ export default class Updater {
 
         if (!app.isPackaged) throw new Error('App is not packaged');
 
-        const exeDir = path.dirname(app.getPath("exe"));
-        if (!exeDir) throw new Error('Failed to find exe dir');
-        console.log('Autoupdater exe dir is ' + exeDir);
-
         const resp = await dialog.showMessageBox({
             title: 'Update',
             message: `Version ${updates.latestVersion} is available`,
@@ -69,6 +65,7 @@ export default class Updater {
         console.log("Downloaded");
 
         console.log("Running updater ...");
-        child_process.spawn(localPath, { cwd: exeDir, detached: true, stdio: 'ignore' });
+        child_process.spawn(localPath, { detached: true, stdio: 'ignore' });
+        app.exit(0);
     }
 }
