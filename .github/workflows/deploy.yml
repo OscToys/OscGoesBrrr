@@ -29,12 +29,12 @@ jobs:
           VERSION=$(node .github/workflows/scripts/determineVersion)
           echo "Next Version: $VERSION"
           echo "OGB_VERSION=$VERSION" >> $GITHUB_ENV
+          echo "OGB_TAGNAME=release/$VERSION" >> $GITHUB_ENV
       - name: Push tag
         run: |
           git config user.name Releases
           git config user.email noreply@osc.toys
           git diff --quiet || git commit -am "Release $VERSION"
-          echo "OGB_TAGNAME=release/$VERSION" >> $GITHUB_ENV
           git tag "$OGB_TAGNAME"
           git push origin "$OGB_TAGNAME"
       - uses: actions/upload-artifact@v3
@@ -74,6 +74,7 @@ jobs:
           path: dist/OscGoesBrrr-setup.exe
 
   release:
+    needs: [build_win]
     runs-on: ubuntu-latest
     environment: prod
     steps:
