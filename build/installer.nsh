@@ -9,9 +9,11 @@
         Delete *.json
         Delete *.txt
         Delete *.html
-        FileOpen $9 "_ DELETE THIS FOLDER" w
+        RMDir /r locales
+        RMDir /r resources
+        FileOpen $9 "DELETE THIS FOLDER" w
         FileClose $9
-        FileOpen $9 "_ OscGoesBrrr IS NOW IN YOUR START MENU" w
+        FileOpen $9 "OscGoesBrrr IS NOW INSTALLED" w
         FileClose $9
     not_upgrading_from_old_ogb:
 !macroend
