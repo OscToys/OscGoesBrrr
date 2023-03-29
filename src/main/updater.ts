@@ -66,7 +66,7 @@ export default class Updater {
             postfix: ".exe"
         });
         await stream.pipeline(got.stream(exe), createWriteStream(localPath));
-        console.log("Downloaded");
+        console.log("Downloaded"); 
 
         console.log("Running updater ...");
         child_process.spawn(localPath, { cwd: exeDir, detached: true, stdio: 'ignore' });
