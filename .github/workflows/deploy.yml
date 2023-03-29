@@ -97,7 +97,6 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ needs.version.outputs.tagName }}
-          target_commitish: ${{ needs.version.outputs.tagName }}
           name: Release ${{ needs.version.outputs.version }}
           files: |
             windows/OscGoesBrrr-setup.exe
