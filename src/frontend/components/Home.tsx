@@ -32,7 +32,7 @@ export default function Home() {
                 <StatusBox style={{flex: 1}} getCmd="oscStatus:get" />
             </div>
             <div style={{display: 'flex', flexDirection: 'column', flex: 1, margin: '5px', textAlign: 'center'}}>
-                <h3>Settings <a href="https://osc.toys/advanced" target="_blank">(?)</a></h3>
+                <h3>Settings <a href="https://osc.toys/settings" target="_blank">(?)</a></h3>
                 <AdvancedConfig/>
             </div>
         </div>
