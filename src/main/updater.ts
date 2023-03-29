@@ -11,6 +11,7 @@ import { readFileSync } from "fs";
 import existsAsync from "../common/existsAsync";
 // @ts-ignore
 import versionPath from "./version.txt";
+import tmpPromise from 'tmp-promise';
 
 const UpdatesJsonSchema = t.type({
     latestVersion: t.string,
@@ -18,19 +19,6 @@ const UpdatesJsonSchema = t.type({
 });
 
 export default class Updater {
-    async deleteOldUpdateFiles() {
-        const exeDir = path.dirname(app.getPath("exe"));
-        if (!exeDir) return;
-        if (await existsAsync(path.join(exeDir, 'update.bat'))) {
-            await fs.rm(path.join(exeDir, 'update.bat'));
-        }
-        if (await existsAsync(path.join(exeDir, 'update.asar'))) {
-            await fs.rm(path.join(exeDir, 'update.asar'));
-        }
-        if (await existsAsync(path.join(exeDir, 'update.exe'))) {
-            await fs.rm(path.join(exeDir, 'update.exe'));
-        }
-    }
     async checkAndNotify(notifyOnFailure = false) {
         try {
             await this.checkAndNotifyUnsafe();
@@ -42,8 +30,6 @@ export default class Updater {
         }
     }
     async checkAndNotifyUnsafe() {
-        await this.deleteOldUpdateFiles();
-
         console.log("Checking for updates ...");
 
         let myversion = app.getVersion();
@@ -74,10 +60,11 @@ export default class Updater {
         });
         if (resp.response !== 0) return;
 
-        await this.deleteOldUpdateFiles();
-
         console.log("Downloading update ...");
-        const localPath = path.join(exeDir, 'update.exe');
+        const localPath = await tmpPromise.tmpName({
+            prefix: "OGB-update-",
+            postfix: ".exe"
+        });
         await stream.pipeline(got.stream(exe), createWriteStream(localPath));
         console.log("Downloaded");
 
