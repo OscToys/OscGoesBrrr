@@ -17,10 +17,10 @@ jobs:
       - uses: actions/setup-node@v3
         with:
           node-version: 18
-      - name: Bundle
+      - name: Determine Version
         run: |
-          (cd .github/workflows && npm install)
-          VERSION=$(node .github/workflows/determineVersion)
+          (cd .github/workflows/scripts && npm install)
+          VERSION=$(node .github/workflows/scripts/determineVersion)
           echo "Next Version: $VERSION"
           echo "OGB_VERSION=$VERSION" >> $GITHUB_ENV
       - uses: actions/upload-artifact@v2
@@ -29,12 +29,11 @@ jobs:
           path: package.json
 
   build_win:
+    needs: [version]
     runs-on: ubuntu-latest
     container:
       image: electronuserland/builder:wine
     steps:
-      - name: Define proper HOME path
-        run: echo "HOME=/root" >> $GITHUB_ENV
       - name: Checkout repo
         uses: actions/checkout@v3
       - uses: actions/download-artifact@v2
@@ -49,6 +48,8 @@ jobs:
           (cd src/main && npx webpack)
           (cd src/frontend && npx webpack)
           npx electron-builder --win
+        env:
+          HOME: /root
       - uses: actions/upload-artifact@v2
         with:
           name: windows
@@ -73,8 +74,8 @@ jobs:
 #          node-version: 18
 #      - name: Update Version Manifest
 #        run: |
-#          (cd .github/workflows && npm install)
-#          (cd versions && node ../repo/.github/workflows/updateManifest.js)
+#          (cd .github/workflows/scripts && npm install)
+#          (cd versions && node ../repo/.github/workflows/scripts/updateManifest)
 #      - name: Push version manifest
 #        working-directory: versions
 #        run: |
