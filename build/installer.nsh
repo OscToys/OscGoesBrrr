@@ -1,6 +1,7 @@
 !macro customInit
     nsExec::Exec `taskkill /im "osc-goes-brrr.exe"`
     IfFileExists "$EXEDIR\osc-goes-brrr.exe" 0 not_upgrading_from_old_ogb
+    IfFileExists "$EXEDIR\ffmpeg.dll" 0 not_upgrading_from_old_ogb
         Delete "$EXEDIR\osc-goes-brrr.exe"
         Delete "$EXEDIR\*.dll"
         Delete "$EXEDIR\*.pak"

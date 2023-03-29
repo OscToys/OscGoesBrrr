@@ -23,10 +23,20 @@ jobs:
           node-version: 18
       - name: Determine Version
         run: |
-          (cd .github/workflows/scripts && npm install)
+          pushd .github/workflows/scripts
+          npm install
+          popd
           VERSION=$(node .github/workflows/scripts/determineVersion)
           echo "Next Version: $VERSION"
           echo "OGB_VERSION=$VERSION" >> $GITHUB_ENV
+      - name: Push tag
+        run: |
+          git config user.name Releases
+          git config user.email noreply@osc.toys
+          git diff --quiet || git commit -am "Release $VERSION"
+          echo "OGB_TAGNAME=release/$VERSION" >> $GITHUB_ENV
+          git tag "$OGB_TAGNAME"
+          git push origin "$OGB_TAGNAME"
       - uses: actions/upload-artifact@v3
         with:
           name: packageJson
@@ -49,8 +59,12 @@ jobs:
       - name: Build
         run: |
           npm install --platform=win32
-          (cd src/main && npx webpack)
-          (cd src/frontend && npx webpack)
+          pushd src/main
+          npx webpack
+          popd
+          pushd src/frontend
+          npx webpack
+          popd
           npx electron-builder --win
         env:
           HOME: /root
@@ -59,32 +73,52 @@ jobs:
           name: windows
           path: dist/OscGoesBrrr-setup.exe
 
-#  release:
-#    runs-on: ubuntu-latest
-#    environment: prod
-#    steps:
-#      - name: Checkout repo
-#        uses: actions/checkout@v3
-#        with:
-#          path: repo
-#      - name: Checkout version manifest
-#        uses: actions/checkout@v3
-#        with:
-#          path: versions
-#          repository: OSCToys/ogb-updater-manifest
-#          ssh-key: ${{ secrets.VERSION_DEPLOY_KEY }}
-#      - uses: actions/setup-node@v3
-#        with:
-#          node-version: 18
-#      - name: Update Version Manifest
-#        run: |
-#          (cd .github/workflows/scripts && npm install)
-#          (cd versions && node ../repo/.github/workflows/scripts/updateManifest)
-#      - name: Push version manifest
-#        working-directory: versions
-#        run: |
-#          git diff
-#          git config user.name Releases
-#          git config user.email noreply@osc.toys
-#          git diff --quiet || git commit -am "Release from $GITHUB_SHA"
-#          git push
+  release:
+    runs-on: ubuntu-latest
+    environment: prod
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+        with:
+          path: repo
+      - name: Checkout version manifest
+        uses: actions/checkout@v3
+        with:
+          path: versions
+          repository: OSCToys/ogb-updater-manifest
+          ssh-key: ${{ secrets.VERSION_DEPLOY_KEY }}
+      - name: Download artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: windows
+          path: windows
+      - name: Release
+        id: release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ env.OGB_TAGNAME }}
+          target_commitish: ${{ env.OGB_TAGNAME }}
+          name: Release ${{ env.OGB_VERSION }}
+          files: |
+            windows/OscGoesBrrr-setup.exe
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 18
+      - name: Update Version Manifest
+        run: |
+          pushd repo/.github/workflows/scripts
+          npm install
+          popd
+          pushd versions
+          node ../repo/.github/workflows/scripts/updateManifest "$VERSION" "$DOWNLOAD_URL"
+          popd
+        env:
+          DOWNLOAD_URL: ${{ fromJSON(steps.release.outputs.assets)[0].browser_download_url }}
+      - name: Push version manifest
+        working-directory: versions
+        run: |
+          git diff
+          git config user.name Releases
+          git config user.email noreply@osc.toys
+          git diff --quiet || git commit -am "Release from $GITHUB_SHA"
+          git push
