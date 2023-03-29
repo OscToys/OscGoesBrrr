@@ -24,7 +24,7 @@ jobs:
       - name: Determine Version
         run: |
           pushd .github/workflows/scripts
-          npm install
+          npm ci
           popd
           VERSION=$(node .github/workflows/scripts/determineVersion)
           echo "Next Version: $VERSION"
@@ -58,7 +58,7 @@ jobs:
           node-version: 18
       - name: Build
         run: |
-          npm install --platform=win32
+          npm ci --platform=win32
           pushd src/main
           npx webpack
           popd
@@ -108,7 +108,7 @@ jobs:
       - name: Update Version Manifest
         run: |
           pushd repo/.github/workflows/scripts
-          npm install
+          npm ci
           popd
           pushd versions
           node ../repo/.github/workflows/scripts/updateManifest "$VERSION" "$DOWNLOAD_URL"
