@@ -2,14 +2,17 @@ import semver from 'semver';
 import { spawn } from 'promisify-child-process';
 import fs from "node:fs/promises";
 
+console.error("Determining next version ...");
 const tagPrefix = "release/";
 const version = await getNextVersion();
 console.log(version);
+console.error(version);
 
-console.log('Updating package.json ...');
+console.error("Updating package.json ...");
 const packageJson = await readJson('package.json');
 packageJson.version = version;
 await writeJson('package.json', packageJson);
+console.error("Done");
 
 async function getTags() {
     const { stdout, stderr } = await spawn('git', ['ls-remote', '--tags', 'origin'], {encoding: 'utf8'});
