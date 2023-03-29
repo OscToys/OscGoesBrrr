@@ -41,6 +41,9 @@ jobs:
         with:
           name: packageJson
           path: package.json
+    outputs:
+      version: ${{ env.OGB_VERSION }}
+      tagName: ${{ env.OGB_TAGNAME }}
 
   build_win:
     needs: [version]
@@ -70,7 +73,7 @@ jobs:
           path: dist/OscGoesBrrr-setup.exe
 
   release:
-    needs: [build_win]
+    needs: [version, build_win]
     runs-on: ubuntu-latest
     environment: prod
     steps:
@@ -93,9 +96,9 @@ jobs:
         id: release
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: ${{ env.OGB_TAGNAME }}
-          target_commitish: ${{ env.OGB_TAGNAME }}
-          name: Release ${{ env.OGB_VERSION }}
+          tag_name: ${{ needs.version.outputs.tagName }}
+          target_commitish: ${{ needs.version.outputs.tagName }}
+          name: Release ${{ needs.version.outputs.version }}
           files: |
             windows/OscGoesBrrr-setup.exe
       - uses: actions/setup-node@v3
@@ -110,6 +113,7 @@ jobs:
           node ../repo/.github/workflows/scripts/updateManifest "$VERSION" "$DOWNLOAD_URL"
           popd
         env:
+          VERSION: ${{ needs.version.outputs.version }}
           DOWNLOAD_URL: ${{ fromJSON(steps.release.outputs.assets)[0].browser_download_url }}
       - name: Push version manifest
         working-directory: versions
