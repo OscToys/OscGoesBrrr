@@ -32,14 +32,12 @@
     "got": "^12.3.0",
     "io-ts": "^2.2.20",
     "osc": "^2.4.3",
-    "promisify-child-process": "^4.1.1",
     "prop-types": "^15.8.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-use": "^17.4.0",
     "sass": "^1.54.0",
     "sass-loader": "^13.0.2",
-    "semver": "^7.3.8",
     "source-map-support": "^0.5.21",
     "style-loader": "^3.3.1",
     "ts-loader": "^9.4.2",
@@ -50,6 +48,7 @@
     "ws": "^8.8.1"
   },
   "build": {
+    "appId": "toys.osc.oscgoesbrrr",
     "productName": "OscGoesBrrr",
     "npmRebuild": false,
     "win": {
