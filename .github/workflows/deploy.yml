@@ -59,12 +59,8 @@ jobs:
       - name: Build
         run: |
           npm ci --platform=win32
-          pushd src/main
-          npx webpack
-          popd
-          pushd src/frontend
-          npx webpack
-          popd
+          (cd src/main && npx webpack)
+          (cd src/frontend && npx webpack)
           npx electron-builder --win
         env:
           HOME: /root
