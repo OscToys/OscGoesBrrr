@@ -10,7 +10,7 @@ import DebugLog from "./DebugLog";
 import {FontAwesomeIcon} from "@fortawesome/react-fontawesome";
 import { faDiscord } from "@fortawesome/free-brands-svg-icons";
 import type {IconDefinition} from "@fortawesome/fontawesome-common-types";
-import {faHome, faTerminal} from "@fortawesome/free-solid-svg-icons";
+import {faCircleNodes, faHome, faPeopleGroup, faTerminal} from "@fortawesome/free-solid-svg-icons";
 
 export default function Main() {
     const [page,setPage] = useState<string>("home");
@@ -30,6 +30,7 @@ export default function Main() {
             {SelectButton("home", "Home", faHome)}
             {SelectButton("logs", "Debug Logs", faTerminal)}
             {SelectButton("discord", "Support Discord", faDiscord, () => window.open("https://vrcfury.com/discord", "_blank"))}
+            {SelectButton("vrcgroup", "VRChat Group", faCircleNodes, () => window.open("https://vrchat.com/home/group/grp_b64197f9-2d97-499a-93d3-1e3a37c944ae", "_blank"))}
         </div>
 
         <div className="rightColumn">

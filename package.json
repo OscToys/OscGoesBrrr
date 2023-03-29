@@ -5,7 +5,7 @@
   "main": "app/main.js",
   "scripts": {
     "start": "electron .",
-    "installForWsl": "npm install && rm -R node_modules/electron && npm install --platform=win32",
+    "startFromWsl": "build/startFromWsl.sh",
     "watchFrontend": "cd src/frontend && webpack --watch",
     "watchMain": "cd src/main && webpack --watch"
   },
