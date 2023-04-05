@@ -21,4 +21,4 @@ Why use OscGoesBrrr instead of other OSC solutions?
 
 ## Ready to Brrr?
 
-[Click here to get started!](https://gitlab.com/VRCFury/OscGoesBrrr/-/wikis/How-to-use-OscGoesBrrr)
+[Click here to get started!](https://github.com/OscToys/OscGoesBrrr/wiki/Getting-Started)
