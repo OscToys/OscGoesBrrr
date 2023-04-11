@@ -53,11 +53,11 @@
     "appId": "toys.osc.oscgoesbrrr",
     "productName": "OscGoesBrrr",
     "npmRebuild": false,
+    "publish": null,
     "win": {
       "target": "nsis",
       "icon": "src/icons/ogb-logo.ico",
-      "artifactName": "OscGoesBrrr-setup.exe",
-      "publish": []
+      "artifactName": "OscGoesBrrr-setup.exe"
     },
     "nsis": {
       "installerIcon": "src/icons/ogb-installer.ico"
