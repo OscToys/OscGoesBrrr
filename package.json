@@ -9,7 +9,7 @@
     "watchFrontend": "cd src/frontend && webpack --watch",
     "watchMain": "cd src/main && webpack --watch"
   },
-  "repository": "https://gitlab.com/VRCFury/OscGoesBrrr",
+  "repository": "https://github.com/OscToys/OscGoesBrrr",
   "license": "CC BY-NC-SA 4.0",
   "devDependencies": {
     "@fortawesome/fontawesome-svg-core": "^6.4.0",
