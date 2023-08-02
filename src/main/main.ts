@@ -14,6 +14,8 @@ import VrcConfigCheck from "./VrcConfigCheck";
 import iconPath from '../icons/ogb-logo.ico';
 // @ts-ignore
 import indexHtmlPath from './index.html';
+import {Config} from "../common/configTypes";
+import decodeType from "../common/decodeType";
 
 app.enableSandbox();
 process.on("uncaughtException", (err) => {
@@ -33,8 +35,10 @@ const updater = new Updater();
 updater.checkAndNotify();
 
 const savePath = path.join(app.getPath('appData'), 'OscGoesBrrr', 'config.txt');
+const savePathJson = path.join(app.getPath('appData'), 'OscGoesBrrr', 'config.json');
 const configMap = new Map<string,string>();
 let configTxt = '';
+let config : Config = {};
 
 let oscConnection: OscConnection | undefined;
 let butt: Buttplug | undefined;
@@ -60,12 +64,21 @@ function loadConfig(txt: string) {
     if (butt) butt.delayRetry();
   }
 }
+function loadNewConfig(c: Config) {
+  config = c;
+}
 
 const vrcConfigCheck = new VrcConfigCheck();
 vrcConfigCheck.start();
 
 if (fsPlain.existsSync(savePath)) {
   loadConfig(fsPlain.readFileSync(savePath, {encoding: 'utf-8'}));
+}
+if (fsPlain.existsSync(savePathJson)) {
+  const rawJson = fsPlain.readFileSync(savePathJson, {encoding: 'utf-8'});
+  const json = JSON.parse(rawJson);
+  const parsedJson = Config.cast(json);
+  loadNewConfig(parsedJson);
 }
 
 let mainWindow_: BrowserWindow | undefined;
@@ -130,8 +143,8 @@ app.whenReady().then(() => {
 
 const buttLogger = (...args: unknown[]) => sendLog('bioLog', ...args);
 const oscLogger = (...args: unknown[]) => sendLog('oscLog', ...args);
-butt = new Buttplug(buttLogger, configMap);
-oscConnection = new OscConnection(oscLogger, configMap);
+butt = new Buttplug(buttLogger, config);
+oscConnection = new OscConnection(oscLogger, config);
 const bridge = new Bridge(oscConnection, butt, buttLogger, configMap);
 new OscConfigDeleter(oscLogger, configMap);
 
@@ -226,6 +239,9 @@ ipcMain.handle('config:save', (_event, text) => {
 });
 ipcMain.handle('config:load', (_event) => {
   return configTxt;
+});
+ipcMain.handle('config:get', (_event) => {
+  return config;
 });
 
 ipcMain.handle('fft:status', (_event, level) => {

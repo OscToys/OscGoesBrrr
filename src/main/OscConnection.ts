@@ -3,6 +3,7 @@ import type {OscMessage} from 'osc';
 import dgram from 'dgram';
 import EventEmitter from "events"
 import type TypedEmitter from "typed-emitter"
+import type {Config} from "../common/configTypes";
 
 type MyEvents = {
     add: (key: string, value: OscValue) => void,
@@ -13,7 +14,7 @@ export default class OscConnection extends (EventEmitter as new () => TypedEmitt
     private readonly _entries = new Map<string,OscValue>();
     private recentlyRcvdOscCmds = 0;
     lastReceiveTime = 0;
-    private readonly configMap;
+    private readonly config;
     private readonly udpClient;
     private readonly log;
     private socket: osc.UDPPort | undefined;
@@ -22,12 +23,12 @@ export default class OscConnection extends (EventEmitter as new () => TypedEmitt
 
     constructor(
         logger: (...args: unknown[]) => void,
-        configMap: Map<string,string>
+        config: Config
     ) {
         super();
 
         this.log = logger;
-        this.configMap = configMap;
+        this.config = config;
         this.udpClient = dgram.createSocket('udp4');
 
         this.openSocket();
@@ -57,7 +58,7 @@ export default class OscConnection extends (EventEmitter as new () => TypedEmitt
     private openSocket() {
         let receivedOne = false;
         const [oscAddress, oscPort] = OscConnection.parsePort(
-            this.configMap.get('osc.port'), '127.0.0.1', 9001);
+            this.config.vrchat?.receiveAddress, '127.0.0.1', 9001);
 
         this.log(`Opening server on port ${oscAddress}:${oscPort}`);
         const udpPort = this.socket = new osc.UDPPort({

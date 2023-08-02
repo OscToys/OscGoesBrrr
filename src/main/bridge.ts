@@ -227,9 +227,7 @@ class BridgeToy {
             const oldVelocity = this.linearVelocity;
             let maxVelocity = this.getConfigNumber('maxv', 3);
             let maxAcceleration = this.getConfigNumber('maxa', 20);
-            const customCalc = this.getConfigBool('customCalc', false);
-            const customCalcClamp = this.getConfigBool('customCalcClamp', true);
-            const durationMult = this.getConfigNumber('durationMult', 1);
+            const durationMult = 1;
             const restingPos = this.clamp(this.getConfigNumber('restingPos', 0), 0, 1);
             const restingTime = this.getConfigNumber('restingTime', 3) * 1000;
 
@@ -287,7 +285,7 @@ class BridgeToy {
             }
             //newPosition = level;
             if (this.bioFeature.lastLevel != newPosition) {
-                this.bioFeature.setLevel(newPosition, Math.round(timeDelta * durationMult), customCalc, customCalcClamp);
+                this.bioFeature.setLevel(newPosition, Math.round(timeDelta * durationMult));
             }
 
             this.linearVelocity = newVelocity;

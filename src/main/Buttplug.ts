@@ -5,6 +5,7 @@ import {ButtplugPacket} from "./ButtplugSpec";
 import EventEmitter from "events";
 import type TypedEmitter from "typed-emitter";
 import OscConnection from "./OscConnection";
+import type {Config} from "../common/configTypes";
 
 type MyEvents = {
     addFeature: (device: DeviceFeature) => void,
@@ -20,15 +21,15 @@ export default class Buttplug extends (EventEmitter as new () => TypedEmitter<My
     recentlySentCmds = 0;
     retryTimeout : ReturnType<typeof setInterval> | undefined;
     ws: WebSocket | undefined;
-    configMap: Map<string,string>;
+    config: Config;
 
     constructor(
         logger: (...args: unknown[]) => void,
-        configMap: Map<string,string>
+        config: Config
     ) {
         super();
         this.log = logger;
-        this.configMap = configMap;
+        this.config = config;
         this.retry();
         this.scanForever();
 
@@ -49,7 +50,7 @@ export default class Buttplug extends (EventEmitter as new () => TypedEmitter<My
 
         this.terminate();
 
-        const [bAddress, bPort] = OscConnection.parsePort(this.configMap.get('bio.port'), '127.0.0.1', 12345);
+        const [bAddress, bPort] = OscConnection.parsePort(this.config.intiface?.address, '127.0.0.1', 12345);
         let address = `${bAddress}:${bPort}`;
         this.log("Opening connection to server at " + address);
 
@@ -272,31 +273,13 @@ export class DeviceFeature {
         this.actuatorType = actuatorType;
     }
 
-    setLevel(level: number, duration = 0, customCalc = false, customCalcClamp = false) {
+    setLevel(level: number, duration = 0) {
         if (this.type == 'linear') {
-            if (customCalc) {
-                const absDistance = Math.abs(this.lastLevel - level);
-                if (absDistance > 0) {
-                    let speed = Math.pow((duration * 90) / (absDistance * 100), -1.05) * 250;
-                    speed = Math.round(speed * 99);
-                    if (customCalcClamp) {
-                        if (speed < 20) speed = 20;
-                        if (speed > 80) speed = 80;
-                    }
-                    this.parent.send({
-                        type: 'FleshlightLaunchFW12Cmd',
-                        DeviceIndex: this.bioDeviceIndex,
-                        Speed: speed,
-                        Position: Math.round(level * 99)
-                    });
-                }
-            } else {
-                this.parent.send({
-                    type: 'LinearCmd',
-                    DeviceIndex: this.bioDeviceIndex,
-                    Vectors: [{Index: this.bioSubIndex, Duration: duration, Position: level}]
-                });
-            }
+            this.parent.send({
+                type: 'LinearCmd',
+                DeviceIndex: this.bioDeviceIndex,
+                Vectors: [{Index: this.bioSubIndex, Duration: duration, Position: level}]
+            });
         } else if (this.type == 'rotate') {
             this.parent.send({
                 type: 'RotateCmd',
