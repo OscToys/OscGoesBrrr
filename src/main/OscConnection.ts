@@ -9,6 +9,7 @@ import {
     OSCQAccess,
 } from "oscquery";
 import portfinder from 'portfinder';
+import ip from 'ip';
 
 type MyEvents = {
     add: (key: string, value: OscValue) => void,
@@ -75,24 +76,32 @@ export default class OscConnection extends (EventEmitter as new () => TypedEmitt
     }
 
     private async openSocketUnsafe() {
+        const host = ip.address();
+        //const host = '127.0.0.1';
+        const port = await portfinder.getPortPromise({
+            host: host,
+            //port: Math.floor(Math.random()*100 + 43776),
+            port: 43858
+        });
+        this.log(`Selected port: ${host}:${port}`);
+
+        this.log(`Starting OSCQuery server...`);
         const oscQuery = this.oscQuery = new OSCQueryServer({
-            bindAddress: "127.0.0.1",
+            bindAddress: host,
+            httpPort: port,
             serviceName: "OGB"
         });
-        portfinder.setBasePort(Math.floor(Math.random()*100 + 43776));
+        oscQuery.addMethod("/avatar/change", { access: OSCQAccess.WRITEONLY });
         const hostInfo = await oscQuery.start();
         this.log("OscQuery started on port " + hostInfo.oscPort);
-        const portNumber = hostInfo.oscPort!;
 
         let receivedOne = false;
-        const [oscAddress, oscPort] = OscConnection.parsePort(
-            this.configMap.get('osc.port'), '127.0.0.1', 9001);
 
-        this.log(`Opening server on port ${oscAddress}:${oscPort}`);
+        this.log(`Starting OSC server...`);
         const oscSocket = this.oscSocket = new osc.UDPPort({
-            localAddress: oscAddress,
-            localPort: oscPort,
-            remotePort: portNumber,
+            localAddress: host,
+            localPort: port,
+            remotePort: 9000,
             metadata: true
         });
         oscSocket.on('ready', () => {
