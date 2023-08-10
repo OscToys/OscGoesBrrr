@@ -3,6 +3,12 @@ import type {OscMessage} from 'osc';
 import dgram from 'dgram';
 import EventEmitter from "events"
 import type TypedEmitter from "typed-emitter"
+import {
+    OSCQueryServer,
+    OSCTypeSimple,
+    OSCQAccess,
+} from "oscquery";
+import portfinder from 'portfinder';
 
 type MyEvents = {
     add: (key: string, value: OscValue) => void,
@@ -16,7 +22,8 @@ export default class OscConnection extends (EventEmitter as new () => TypedEmitt
     private readonly configMap;
     private readonly udpClient;
     private readonly log;
-    private socket: osc.UDPPort | undefined;
+    private oscQuery: OSCQueryServer | undefined;
+    private oscSocket: osc.UDPPort | undefined;
     socketopen = false;
     private retryTimeout: ReturnType<typeof setTimeout> | undefined;
 
@@ -54,29 +61,47 @@ export default class OscConnection extends (EventEmitter as new () => TypedEmitt
         return [outAddress, outPort];
     }
 
-    private openSocket() {
+    private error(e: unknown) {
+        this.log('<-', 'ERROR', e);
+        this.delayRetry();
+    }
+
+    private async openSocket() {
+        try {
+            await this.openSocketUnsafe();
+        } catch (e) {
+            this.error(e);
+        }
+    }
+
+    private async openSocketUnsafe() {
+        const oscQuery = this.oscQuery = new OSCQueryServer({
+            bindAddress: "127.0.0.1",
+            serviceName: "OGB"
+        });
+        portfinder.setBasePort(Math.floor(Math.random()*100 + 43776));
+        const hostInfo = await oscQuery.start();
+        this.log("OscQuery started on port " + hostInfo.oscPort);
+        const portNumber = hostInfo.oscPort!;
+
         let receivedOne = false;
         const [oscAddress, oscPort] = OscConnection.parsePort(
             this.configMap.get('osc.port'), '127.0.0.1', 9001);
 
         this.log(`Opening server on port ${oscAddress}:${oscPort}`);
-        const udpPort = this.socket = new osc.UDPPort({
+        const oscSocket = this.oscSocket = new osc.UDPPort({
             localAddress: oscAddress,
             localPort: oscPort,
-            remotePort: 9000,
+            remotePort: portNumber,
             metadata: true
         });
-        udpPort.on('ready', () => {
+        oscSocket.on('ready', () => {
             this.socketopen = true;
             this.log('<-', 'OPEN');
             this.log("Waiting for first message from OSC ...");
         });
-        udpPort.on('error', (e: unknown) => {
-            this.socketopen = false;
-            this.log('<-', 'ERROR', e);
-            this.delayRetry();
-        });
-        udpPort.on('data', (msg: Buffer) => {
+        oscSocket.on('error', (e: unknown) => this.error(e));
+        oscSocket.on('data', (msg: Buffer) => {
             const proxyPort = this.configMap.get('osc.proxy');
             if (proxyPort) {
                 for (let p of proxyPort.split(',')) {
@@ -85,7 +110,7 @@ export default class OscConnection extends (EventEmitter as new () => TypedEmitt
                 }
             }
         });
-        udpPort.on('message', (oscMsg: OscMessage) => {
+        oscSocket.on('message', (oscMsg: OscMessage) => {
             if (!receivedOne) {
                 receivedOne = true;
                 this.log("Received an OSC message. We are probably connected.");
@@ -122,21 +147,26 @@ export default class OscConnection extends (EventEmitter as new () => TypedEmitt
         });
 
         // Open the socket.
-        udpPort.open();
+        oscSocket.open();
     }
 
     delayRetry() {
-        if (this.socket) {
-            this.socket.close();
-            this.socket = undefined;
+        this.socketopen = false;
+        if (this.oscSocket) {
+            this.oscSocket.close();
+            this.oscSocket = undefined;
+        }
+        if (this.oscQuery) {
+            this.oscQuery.stop();
+            this.oscQuery = undefined;
         }
         clearTimeout(this.retryTimeout);
         this.retryTimeout = setTimeout(() => this.openSocket(), 1000);
     }
 
     send(paramName: string, value: number) {
-        if (!this.socket || !this.socketopen) return;
-        this.socket.send({
+        if (!this.oscSocket || !this.socketopen) return;
+        this.oscSocket.send({
             address: "/avatar/parameters/" + paramName,
             args: [
                 {
