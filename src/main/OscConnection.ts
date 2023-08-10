@@ -1,6 +1,6 @@
 import osc from 'osc';
 import type {OscMessage} from 'osc';
-import dgram from 'dgram';
+import dgram, {type RemoteInfo} from 'dgram';
 import EventEmitter from "events"
 import type TypedEmitter from "typed-emitter"
 import {
@@ -9,7 +9,7 @@ import {
     OSCQAccess,
 } from "oscquery";
 import portfinder from 'portfinder';
-import ip from 'ip';
+import * as os from "os";
 
 type MyEvents = {
     add: (key: string, value: OscValue) => void,
@@ -76,18 +76,14 @@ export default class OscConnection extends (EventEmitter as new () => TypedEmitt
     }
 
     private async openSocketUnsafe() {
-        const host = ip.address();
-        //const host = '127.0.0.1';
         const port = await portfinder.getPortPromise({
-            host: host,
             //port: Math.floor(Math.random()*100 + 43776),
             port: 43858
         });
-        this.log(`Selected port: ${host}:${port}`);
+        this.log(`Selected port: ${port}`);
 
         this.log(`Starting OSCQuery server...`);
         const oscQuery = this.oscQuery = new OSCQueryServer({
-            bindAddress: host,
             httpPort: port,
             serviceName: "OGB"
         });
@@ -97,9 +93,17 @@ export default class OscConnection extends (EventEmitter as new () => TypedEmitt
 
         let receivedOne = false;
 
+        const myAddresses = new Set(
+            Object.values(os.networkInterfaces())
+            .flatMap(infs => infs)
+            .map(inf => inf?.address)
+            .filter(address => address != undefined)
+            .map(address => address!)
+        );
+
         this.log(`Starting OSC server...`);
         const oscSocket = this.oscSocket = new osc.UDPPort({
-            localAddress: host,
+            localAddress: '0.0.0.0',
             localPort: port,
             remotePort: 9000,
             metadata: true
@@ -119,7 +123,14 @@ export default class OscConnection extends (EventEmitter as new () => TypedEmitt
                 }
             }
         });
-        oscSocket.on('message', (oscMsg: OscMessage) => {
+        oscSocket.on('message', (oscMsg: OscMessage, timeTag: unknown, rinfo: RemoteInfo) => {
+            const from = rinfo.address;
+            if (!myAddresses.has(from)) {
+                //this.log(`Received OSC packet from unknown address: ${from}`);
+                return;
+            }
+
+            //this.log(`Received OSC packet from: ${from}`);
             if (!receivedOne) {
                 receivedOne = true;
                 this.log("Received an OSC message. We are probably connected.");
