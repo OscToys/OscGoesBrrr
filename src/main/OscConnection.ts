@@ -27,6 +27,8 @@ export default class OscConnection extends (EventEmitter as new () => TypedEmitt
     private oscSocket: osc.UDPPort | undefined;
     socketopen = false;
     private retryTimeout: ReturnType<typeof setTimeout> | undefined;
+    private lastPacket: number = 0;
+    public port: number = 0;
 
     constructor(
         logger: (...args: unknown[]) => void,
@@ -41,9 +43,14 @@ export default class OscConnection extends (EventEmitter as new () => TypedEmitt
         this.openSocket();
 
         setInterval(() => {
+            if (!this.socketopen) return;
             if (this.recentlyRcvdOscCmds > 0) {
                 this.log("Received " + this.recentlyRcvdOscCmds + " OSC updates in the past 15 seconds");
                 this.recentlyRcvdOscCmds = 0;
+            }
+            if (this.lastPacket < Date.now() - 1000*15) {
+                this.log("Haven't received a packet in a while. Restarting to randomize port.");
+                this.delayRetry();
             }
         }, 15000);
     }
@@ -76,9 +83,8 @@ export default class OscConnection extends (EventEmitter as new () => TypedEmitt
     }
 
     private async openSocketUnsafe() {
-        const port = await portfinder.getPortPromise({
-            //port: Math.floor(Math.random()*100 + 43776),
-            port: 43858
+        const port = this.port = await portfinder.getPortPromise({
+            port: Math.floor(Math.random()*10000 + 33776),
         });
         this.log(`Selected port: ${port}`);
 
@@ -110,6 +116,8 @@ export default class OscConnection extends (EventEmitter as new () => TypedEmitt
         });
         oscSocket.on('ready', () => {
             this.socketopen = true;
+            this.recentlyRcvdOscCmds = 0;
+            this.lastPacket = Date.now();
             this.log('<-', 'OPEN');
             this.log("Waiting for first message from OSC ...");
         });
@@ -138,6 +146,7 @@ export default class OscConnection extends (EventEmitter as new () => TypedEmitt
                 receivedOne = true;
                 this.log("Received an OSC message. We are probably connected.");
             }
+            this.lastPacket = Date.now();
             this.recentlyRcvdOscCmds++;
             this.lastReceiveTime = Date.now();
 
