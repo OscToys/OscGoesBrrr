@@ -10,7 +10,8 @@ import DebugLog from "./DebugLog";
 import {FontAwesomeIcon} from "@fortawesome/react-fontawesome";
 import { faDiscord } from "@fortawesome/free-brands-svg-icons";
 import type {IconDefinition} from "@fortawesome/fontawesome-common-types";
-import {faCircleNodes, faHome, faPeopleGroup, faTerminal} from "@fortawesome/free-solid-svg-icons";
+import {faBarsStaggered, faCircleNodes, faHome, faPeopleGroup, faTerminal} from "@fortawesome/free-solid-svg-icons";
+import AvatarParams from "./AvatarParams";
 
 export default function Main() {
     const [page,setPage] = useState<string>("home");
@@ -29,6 +30,7 @@ export default function Main() {
             <img src={logoPath}/>
             {SelectButton("home", "Home", faHome)}
             {SelectButton("logs", "Debug Logs", faTerminal)}
+            {SelectButton("avatarParams", "Avatar Debugger", faBarsStaggered)}
             {SelectButton("discord", "Support Discord", faDiscord, () => window.open("https://osc.toys/discord", "_blank"))}
             {SelectButton("vrcgroup", "VRChat Group", faCircleNodes, () => window.open("https://vrchat.com/home/group/grp_b64197f9-2d97-499a-93d3-1e3a37c944ae", "_blank"))}
         </div>
@@ -36,6 +38,7 @@ export default function Main() {
         <div className="rightColumn">
             {page == "home" && <Home/>}
             {page == "logs" && <DebugLog/>}
+            {page == "avatarParams" && <AvatarParams/>}
         </div>
     </div>;
 }

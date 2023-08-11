@@ -208,16 +208,17 @@ ipcMain.handle('oscStatus:get', async (_event, text) => {
     sections.push("Other sources:\n" + globalSourcesLines.join('\n'));
   }
 
+  return sections.join('\n\n');
+});
+
+ipcMain.handle('avatarParams:get', async (_event, text) => {
+  const map = new Map<string,unknown>();
   if (oscConnection) {
-    const rawOscParams = Array.from(oscConnection.entries())
-        .map(([k, v]) => `${k}=${v.get()}`);
-    rawOscParams.sort();
-    if (rawOscParams.length > 0) {
-      sections.push('Raw OSC data:\n' + rawOscParams.join('\n'));
+    for (const [key,value] of oscConnection.entries()) {
+      map.set(key, value.get());
     }
   }
-
-  return sections.join('\n\n');
+  return map;
 });
 
 ipcMain.handle('config:save', (_event, text) => {
