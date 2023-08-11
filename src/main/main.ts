@@ -128,12 +128,39 @@ app.whenReady().then(() => {
 })
  */
 
-const buttLogger = (...args: unknown[]) => sendLog('bioLog', ...args);
-const oscLogger = (...args: unknown[]) => sendLog('oscLog', ...args);
-butt = new Buttplug(buttLogger, configMap);
-oscConnection = new OscConnection(oscLogger, configMap);
-const bridge = new Bridge(oscConnection, butt, buttLogger, configMap);
-new OscConfigDeleter(oscLogger, configMap);
+class Logger {
+  private readonly name;
+  private readonly history: string[] = [];
+  constructor(name: string) {
+    this.name = name;
+    ipcMain.handle(this.name+':history', async(_event, text) => {
+      return this.history;
+    });
+  }
+  log(...args: unknown[]) {
+    console.log(`[${this.name}]`, ...args);
+    const mainWindow = getMainWindow();
+    if (mainWindow) {
+      const lines = util.format(...args);
+      for (const line of lines.split('\n')) {
+        this.history.push(line);
+        mainWindow.webContents.send(`${this.name}:line`, line);
+      }
+      while (this.history.length > 1000) {
+        this.history.shift();
+      }
+    }
+  }
+}
+
+const buttLogger = new Logger('bioLog');
+const buttLog = buttLogger.log.bind(buttLogger);
+const oscLogger = new Logger('oscLog');
+const oscLog = oscLogger.log.bind(oscLogger);
+butt = new Buttplug(buttLog, configMap);
+oscConnection = new OscConnection(oscLog, configMap);
+const bridge = new Bridge(oscConnection, butt, buttLog, configMap);
+new OscConfigDeleter(oscLog, configMap);
 
 ipcMain.handle('bioStatus:get', async (_event, text) => {
   let bioStatus = '';

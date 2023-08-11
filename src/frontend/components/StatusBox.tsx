@@ -29,20 +29,32 @@ export default function StatusBox({getCmd, ...rest}: {
     />;
 }
 
-export function LogBox({eventName, ...rest}: {
-    eventName: string
+export function LogBox({name, ...rest}: {
+    name: string
 } & React.HTMLAttributes<HTMLTextAreaElement>) {
     const [status,setStatus] = useState("");
 
     useEffect(() => {
         const lines: string[] = [];
-        function onEvent(_event: Electron.IpcRendererEvent, text: any) {
+        let destroyed = false;
+        async function loadHistory() {
+            const history = await ipcRenderer.invoke(`${name}:history`);
+            if (destroyed) return;
+            lines.push(...history);
+            while (lines.length > 1000) lines.shift();
+            setStatus(lines.join('\n'));
+        }
+        loadHistory();
+        function onLine(_event: Electron.IpcRendererEvent, text: any) {
             lines.push(...text.split('\n'));
             while (lines.length > 1000) lines.shift();
             setStatus(lines.join('\n'));
         }
-        ipcRenderer.on(eventName, onEvent);
-        return () => { ipcRenderer.off(eventName, onEvent) };
+        ipcRenderer.on(`${name}:line`, onLine);
+        return () => {
+            ipcRenderer.off(`${name}:line`, onLine);
+            destroyed = true;
+        };
     }, []);
 
     return <FreezingBox
