@@ -6,7 +6,7 @@ import type TypedEmitter from "typed-emitter"
 import {
     OSCQueryServer,
     OSCTypeSimple,
-    OSCQAccess,
+    OSCQAccess, OSCQueryDiscovery, DiscoveredService, type OSCMethodDescription,
 } from "oscquery";
 import portfinder from 'portfinder';
 import * as os from "os";
@@ -29,6 +29,7 @@ export default class OscConnection extends (EventEmitter as new () => TypedEmitt
     private retryTimeout: ReturnType<typeof setTimeout> | undefined;
     private lastPacket: number = 0;
     public port: number = 0;
+    private myAddresses = new Set<string>();
 
     constructor(
         logger: (...args: unknown[]) => void,
@@ -99,7 +100,7 @@ export default class OscConnection extends (EventEmitter as new () => TypedEmitt
 
         let receivedOne = false;
 
-        const myAddresses = new Set(
+        const myAddresses = this.myAddresses = new Set(
             Object.values(os.networkInterfaces())
             .flatMap(infs => infs)
             .map(inf => inf?.address)
@@ -111,7 +112,6 @@ export default class OscConnection extends (EventEmitter as new () => TypedEmitt
         const oscSocket = this.oscSocket = new osc.UDPPort({
             localAddress: '0.0.0.0',
             localPort: port,
-            remotePort: 9000,
             metadata: true
         });
         oscSocket.on('ready', () => {
@@ -145,45 +145,110 @@ export default class OscConnection extends (EventEmitter as new () => TypedEmitt
             if (!receivedOne) {
                 receivedOne = true;
                 this.log("Received an OSC message. We are probably connected.");
+                this.updateBulk();
             }
             this.lastPacket = Date.now();
             this.recentlyRcvdOscCmds++;
             this.lastReceiveTime = Date.now();
 
-            const address = oscMsg.address;
-            if (!address) return;
+            const path = oscMsg.address;
+            if (!path) return;
 
-            if (address === '/avatar/change') {
+            if (path === '/avatar/change') {
                 this.log('<-', 'Avatar change');
-                this._entries.clear();
-                this.emit('clear');
+                this.clearValues();
+                this.updateBulk();
                 return;
             }
 
-            const arg = oscMsg.args?.[0];
-            if (!arg) return;
-            const rawValue = arg.value;
-
-            if (address.startsWith('/avatar/parameters/')) {
-                const key = address.substring('/avatar/parameters/'.length);
-                let value = this._entries.get(key);
-                let isNew = false;
-                if (!value) {
-                    value = new OscValue();
-                    this._entries.set(key, value);
-                    isNew = true;
-                }
-                value.receivedUpdate(rawValue);
-                if (isNew) this.emit('add', key, value);
-            }
+            const param = this.parseParamFromPath(path);
+            this.receivedParamValue(param, oscMsg.args?.[0]?.value, false);
         });
 
         // Open the socket.
         oscSocket.open();
     }
 
+    private clearValues() {
+        this._entries.clear();
+        this.emit('clear');
+    }
+
+    private receivedParamValue(param: string | undefined, rawValue: unknown, onlyUseIfNew: boolean) {
+        if (param === undefined) return;
+        if (rawValue === undefined) return;
+        let value = this._entries.get(param);
+        let isNew = false;
+        if (!value) {
+            value = new OscValue();
+            this._entries.set(param, value);
+            isNew = true;
+        } else if (onlyUseIfNew) {
+            return;
+        }
+        value.receivedUpdate(rawValue);
+        if (isNew) this.emit('add', param, value);
+    }
+
+    private parseParamFromPath(path: string) {
+        if (path.startsWith('/avatar/parameters/')) {
+            return path.substring('/avatar/parameters/'.length);
+        }
+        return undefined;
+    }
+
+    public waitingForBulk = false;
+    private updateBulkAttempt: unknown;
+    private sendAddress: string | undefined;
+    private sendPort: number | undefined;
+    private async updateBulk() {
+        this.waitingForBulk = true;
+        const myAttempt = this.updateBulkAttempt = {};
+        const isStillValid = () => this.updateBulkAttempt == myAttempt;
+        while(true) {
+            try {
+                await this._updateBulk(isStillValid);
+            } catch(e) {
+                this.log("Error fetching bulk info: " + e);
+                if (isStillValid()) continue;
+            }
+            this.waitingForBulk = false;
+            break;
+        }
+    }
+    private async _updateBulk(isRequestStillValid: ()=>boolean) {
+        const discovery = new OSCQueryDiscovery();
+        discovery.start();
+        let found;
+        try {
+            found = await new Promise<[string,number,OSCMethodDescription[]]>((resolve, reject) => {
+                discovery.on('up', (service: DiscoveredService) => {
+                    if (!service.hostInfo.name?.startsWith("VRChat-Client")) return;
+                    if (!this.myAddresses.has(service.address)) return;
+                    console.log(`FOUND OSCQUERY ${service.address} ${service.port}`);
+                    resolve([service.hostInfo.oscIp??"", service.hostInfo.oscPort??1, service.flat()]);
+                });
+                setTimeout(() => reject(new Error("Timed out")), 10000);
+            });
+        } finally {
+            discovery.stop();
+        }
+
+        const [ip,port,nodes] = found;
+        if (!isRequestStillValid()) return;
+        this.sendAddress = ip;
+        this.sendPort = port;
+        for (const node of nodes) {
+            const param = this.parseParamFromPath(node.full_path ?? '');
+            this.receivedParamValue(param, node.arguments?.[0]?.value, true);
+        }
+    }
+
     delayRetry() {
         this.socketopen = false;
+        this.updateBulkAttempt = undefined;
+        this.waitingForBulk = false;
+        this.clearValues();
         if (this.oscSocket) {
             this.oscSocket.close();
             this.oscSocket = undefined;
@@ -197,7 +262,7 @@ export default class OscConnection extends (EventEmitter as new () => TypedEmitt
     }
 
     send(paramName: string, value: number) {
-        if (!this.oscSocket || !this.socketopen) return;
+        if (!this.oscSocket || !this.socketopen || !this.sendAddress || !this.sendPort) return;
         this.oscSocket.send({
             address: "/avatar/parameters/" + paramName,
             args: [
@@ -206,7 +271,7 @@ export default class OscConnection extends (EventEmitter as new () => TypedEmitt
                     value: value
                 }
             ]
-        });
+        }, this.sendAddress, this.sendPort);
     }
 
     clearDeltas() {

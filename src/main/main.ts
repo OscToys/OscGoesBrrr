@@ -158,22 +158,26 @@ ipcMain.handle('oscStatus:get', async (_event, text) => {
   const gameDevices = Array.from(bridge.getGameDevices());
   const sections: string[] = [];
 
-  if (!oscConnection || !oscConnection.socketopen) {
-    sections.push(`OSC socket is starting ...`);
-  } else {
-    sections.push("OSC Port: " + oscConnection.port);
-  }
-
   if (vrcConfigCheck.oscEnabled === false) {
     sections.push(`OSC is disabled in your game.\nEnable it in the radial menu:\nOptions > OSC > Enabled`);
-  } else if (oscConnection && (!oscConnection.lastReceiveTime || oscConnection.lastReceiveTime < Date.now() - 60_000)) {
-    sections.push(`No data received.\nIs the game open and active?`);
   }
   if (vrcConfigCheck.selfInteractEnabled === false) {
     sections.push('Self-Interaction is disabled in your game.\nThis breaks many OGB features.\nEnable it in the quick menu:\nSettings > Avatar Interactions > Self Interact');
   }
   if (vrcConfigCheck.everyoneInteractEnabled === false) {
     sections.push('Interaction is not set to everyone in game.\nEnable it in the quick menu:\nSettings > Avatar Interactions > Everyone');
+  }
+
+  if (!oscConnection || !oscConnection.socketopen) {
+    sections.push(`OSC socket is starting ...`);
+  } else {
+    sections.push("OSC Port: " + oscConnection.port);
+    if (oscConnection && (!oscConnection.lastReceiveTime || oscConnection.lastReceiveTime < Date.now() - 60_000)) {
+      sections.push(`No data received.\nIs the game open and active?`);
+    }
+    if (oscConnection?.waitingForBulk) {
+      sections.push(`Waiting for bulk packet from OSCQuery`);
+    }
   }
 
   if (vrcConfigCheck.selfInteractEnabled !== false) {

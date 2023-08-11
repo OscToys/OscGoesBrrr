@@ -16,7 +16,7 @@ declare module 'osc' {
         on(ev: 'message', cb: (message: OscMessage, timeTag: unknown, rinfo: RemoteInfo) => void);
         open();
         close();
-        send(OscMessage);
+        send(OscMessage, address: string, port: number);
     }
 
     interface OscMessage {
