@@ -113,7 +113,10 @@ export default class OscConnection extends (EventEmitter as new () => TypedEmitt
             this.log('<-', 'OPEN');
             this.log("Waiting for first message from OSC ...");
         });
-        oscSocket.on('error', (e: unknown) => this.error(e));
+        oscSocket.on('error', (e: unknown) => {
+            // node osc throws errors for all sorts of invalid packets and things we often receive
+            // that otherwise shouldn't be fatal to the socket. Just ignore them.
+        });
         oscSocket.on('data', (msg: Buffer) => {
             const proxyPort = this.configMap.get('osc.proxy');
             if (proxyPort) {
