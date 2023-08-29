@@ -31,7 +31,6 @@ export default class GameDevice {
     private readonly _values = new Map<string, OscValue>();
     private recordedSelfLength = new GameDeviceLengthDetector();
     private recordedOthersLength = new GameDeviceLengthDetector();
-    private version: number | undefined;
 
     constructor(type: string, id: string, isTps: boolean) {
         this.type = type;
@@ -42,12 +41,6 @@ export default class GameDevice {
     addKey(key: string, value: OscValue) {
         this._values.set(key, value);
         value.on('change', () => this.onKeyChange(key));
-
-        const split = key.split('/');
-        if (split.length == 2 && split[0] == 'Version') {
-            const ver = parseInt(split[1]!);
-            if (!isNaN(ver)) this.version = ver;
-        }
     }
 
     onKeyChange(key: string) {
@@ -164,12 +157,7 @@ export default class GameDevice {
         for (const source of this.getSources()) {
             out.push(`  ${source.featureName}=${Math.round(source.value*100)}%`);
         }
-        out.push(`  version=${this.getVersion()}`);
         return out.join('\n');
-    }
-
-    getVersion() {
-        return this.version;
     }
 }
 

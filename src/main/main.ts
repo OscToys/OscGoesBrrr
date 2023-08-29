@@ -208,16 +208,23 @@ ipcMain.handle('oscStatus:get', async (_event, text) => {
   }
 
   if (vrcConfigCheck.selfInteractEnabled !== false) {
-    const outdated = gameDevices.some(device => {
-      if (device.type == 'Pen' && (device.getVersion() ?? 0) < 8) return true;
-      if (device.type == 'Orf' && (device.getVersion() ?? 0) < 9) return true;
-      return false;
-    });
-    if (outdated) {
+    const hasVrcfHaptics = gameDevices.some(device => device.type == 'Pen' || device.type == 'Orf');
+    let isVrcfHapticsUpToDate = false;
+    if (oscConnection) {
+      for (const [key,value] of oscConnection.entries()) {
+        if (key == "VFH/Version/9"
+            || (key.startsWith("OGB/Pen/") && key.endsWith("/Version/8"))
+            || (key.startsWith("OGB/Orf/") && key.endsWith("/Version/9"))
+        ) {
+          isVrcfHapticsUpToDate = true;
+          break;
+        }
+      }
+    }
+    if (hasVrcfHaptics && !isVrcfHapticsUpToDate) {
       sections.push('OUTDATED AVATAR DETECTED\n' +
           'Your avatar was not built using\nthe newest version of VRCFury Haptics.\n' +
-          'Penetration may not work or be less effective.\n' +
-          'If you are sure your avatar is updated already,\nbe sure "Self Interact" is on in your vrc settings.')
+          'Penetration may not work or be less effective.')
     }
   }
 
