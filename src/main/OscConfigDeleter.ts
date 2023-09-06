@@ -2,8 +2,8 @@ import {app} from 'electron';
 import Path from 'path';
 import fs from 'fs/promises';
 import existsAsync from "../common/existsAsync";
-import type {SubLogger} from "./services/LoggerService";
-import type OgbConfigService from "./services/OgbConfigService";
+import {SubLogger} from "./services/LoggerService";
+import OgbConfigService from "./services/OgbConfigService";
 
 const oscDir = Path.resolve(app.getPath('appData'), '../LocalLow/VRChat/VRChat/OSC');
 const bakDir = Path.resolve(oscDir, '../OSC.bak');

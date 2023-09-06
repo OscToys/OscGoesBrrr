@@ -1,12 +1,12 @@
 import WebSocket from 'ws';
 import {default as decodeType} from '../common/decodeType';
-import type {ButtplugMessageWithType, Device} from "./ButtplugSpec";
+import {ButtplugMessageWithType, Device} from "./ButtplugSpec";
 import {ButtplugPacket} from "./ButtplugSpec";
 import EventEmitter from "events";
-import type TypedEmitter from "typed-emitter";
+import TypedEmitter from "typed-emitter";
 import OscConnection from "./OscConnection";
-import type {SubLogger} from "./services/LoggerService";
-import type OgbConfigService from "./services/OgbConfigService";
+import {SubLogger} from "./services/LoggerService";
+import OgbConfigService from "./services/OgbConfigService";
 
 type MyEvents = {
     addFeature: (device: DeviceFeature) => void,

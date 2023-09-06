@@ -1,12 +1,11 @@
-import type {BrowserWindow} from "electron";
-import {Service} from "typedi";
+import {BrowserWindow} from "electron";
 
 export default class MainWindowService {
-    getter?: () => BrowserWindow | undefined;
-    //constructor(getter: () => BrowserWindow | undefined) {
-//        this.getter = getter;
-//    }
+    constructor(
+        private getter: () => BrowserWindow | undefined
+    ) {
+    }
     get() {
-        return this.getter!();
+        return this.getter();
     }
 }

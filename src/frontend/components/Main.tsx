@@ -9,7 +9,7 @@ import classNames from "classnames";
 import DebugLog from "./DebugLog";
 import {FontAwesomeIcon} from "@fortawesome/react-fontawesome";
 import { faDiscord } from "@fortawesome/free-brands-svg-icons";
-import type {IconDefinition} from "@fortawesome/fontawesome-common-types";
+import {IconDefinition} from "@fortawesome/fontawesome-common-types";
 import {faBarsStaggered, faCircleNodes, faHome, faPeopleGroup, faTerminal} from "@fortawesome/free-solid-svg-icons";
 import AvatarParams from "./AvatarParams";
 

@@ -126,9 +126,7 @@ try {
    */
 
   const container = Container;
-  const mainWindowService = new MainWindowService();
-  mainWindowService.getter = getMainWindow;
-  container.set(MainWindowService, mainWindowService);
+  container.set(MainWindowService, new MainWindowService(getMainWindow));
   container.set(OgbConfigService, configMap);
   const logger = container.get(LoggerService);
   const oscConnection = container.get(OscConnection);

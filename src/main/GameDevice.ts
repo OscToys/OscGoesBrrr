@@ -1,4 +1,4 @@
-import type {OscValue} from "./OscConnection";
+import {OscValue} from "./OscConnection";
 import {BridgeSource} from "./bridge";
 
 // These are just here so don't accidentally typo one of the OGB standard contact key names
@@ -155,6 +155,7 @@ export default class GameDevice {
         if (selfLength) out.push(`  Nearby self-penetrator length: ${selfLength.toFixed(2)}m`);
         if (othersLength) out.push(`  Nearby penetrator length: ${othersLength.toFixed(2)}m`);
         for (const source of this.getSources()) {
+            if (source.value == 0) continue;
             out.push(`  ${source.featureName}=${Math.round(source.value*100)}%`);
         }
         return out.join('\n');

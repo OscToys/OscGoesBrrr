@@ -1,10 +1,10 @@
-import type Buttplug from "./Buttplug";
-import type {OscValue} from "./OscConnection";
-import type OscConnection from "./OscConnection";
+import Buttplug from "./Buttplug";
+import {OscValue} from "./OscConnection";
+import OscConnection from "./OscConnection";
 import GameDevice from "./GameDevice";
-import type {DeviceFeature} from "./Buttplug";
-import type {SubLogger} from "./services/LoggerService";
-import type OgbConfigService from "./services/OgbConfigService";
+import {DeviceFeature} from "./Buttplug";
+import {SubLogger} from "./services/LoggerService";
+import OgbConfigService from "./services/OgbConfigService";
 
 export default class Bridge {
     private fftValue = 0;

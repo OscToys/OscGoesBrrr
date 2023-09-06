@@ -1,6 +1,6 @@
 import osc from 'osc';
-import type {OscMessage} from 'osc';
-import dgram, {type RemoteInfo} from 'dgram';
+import {OscMessage} from 'osc';
+import dgram, {RemoteInfo} from 'dgram';
 import EventEmitter from "events"
 import type TypedEmitter from "typed-emitter"
 import {
@@ -199,6 +199,7 @@ export default class OscConnection extends (EventEmitter as new () => TypedEmitt
                 await this._updateBulk(isStillValid);
             } catch(e) {
                 this.logger.log("Error fetching bulk info: " + e);
+                await new Promise((r) => setTimeout(r, 100));
                 if (isStillValid()) continue;
             }
             this.waitingForBulk = false;
