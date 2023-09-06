@@ -2,17 +2,18 @@ import {app} from 'electron';
 import Path from 'path';
 import fs from 'fs/promises';
 import existsAsync from "../common/existsAsync";
+import type {SubLogger} from "./services/LoggerService";
+import type OgbConfigService from "./services/OgbConfigService";
 
 const oscDir = Path.resolve(app.getPath('appData'), '../LocalLow/VRChat/VRChat/OSC');
 const bakDir = Path.resolve(oscDir, '../OSC.bak');
 const oldBakDir = Path.resolve(oscDir, 'bak');
 
 export default class OscConfigDeleter {
-    log;
-    configMap;
-    constructor(logger: (...args: unknown[]) => void, configMap: Map<string,string>) {
-        this.log = logger;
-        this.configMap = configMap;
+    constructor(
+        private logger: SubLogger,
+        private configMap: OgbConfigService
+    ) {
         setInterval(() => this.check(), 10*1000);
     }
 
@@ -22,7 +23,7 @@ export default class OscConfigDeleter {
                 await fs.rename(oldBakDir, bakDir);
             }
         } catch(e) {
-            this.log(e instanceof Error ? e.stack : e);
+            this.logger.log(e instanceof Error ? e.stack : e);
         }
         try {
             const skip = this.configMap.get('keepOscConfigs');
@@ -32,7 +33,7 @@ export default class OscConfigDeleter {
             if (!exists) return;
             await this.checkDir(oscDir);
         } catch(e) {
-            this.log(e instanceof Error ? e.stack : e);
+            this.logger.log(e instanceof Error ? e.stack : e);
         }
     }
 
@@ -51,19 +52,19 @@ export default class OscConfigDeleter {
     }
 
     async backupAndDelete(path: string) {
-        this.log("Removing OSC file:", path);
+        this.logger.log("Removing OSC file:", path);
         const filename = Path.basename(path);
         const stat = await fs.stat(path);
         const existingBackup = await this.findBackup(filename, stat.size);
         if (existingBackup) {
-            this.log("Backup already exists at: " + existingBackup);
+            this.logger.log("Backup already exists at: " + existingBackup);
             await fs.rm(path);
         } else {
             await fs.mkdir(bakDir, {recursive: true});
             for (let i = 0;;i++) {
                 const bakPath = Path.resolve(bakDir, filename + '.' + i);
                 if (!await existsAsync(bakPath)) {
-                    this.log("Backing up to: " + bakPath);
+                    this.logger.log("Backing up to: " + bakPath);
                     await fs.rename(path, bakPath);
                     break;
                 }
