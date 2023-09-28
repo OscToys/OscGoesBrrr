@@ -1,19 +1,29 @@
 import {DiscoveredService, OSCQueryDiscovery} from "oscquery";
 import MyAddressesService from "./MyAddressesService";
 import {Service} from "typedi";
+import LoggerService from "./LoggerService";
 
 /** Finds and keeps track of the local VRChat OSCQ service address */
 @Service()
 export default class VrchatOscqueryService {
-    service?: DiscoveredService;
+    private service?: DiscoveredService;
+    private readonly logger;
 
-    constructor(myAddress: MyAddressesService) {
+    constructor(
+        myAddress: MyAddressesService,
+        logger: LoggerService
+    ) {
+        this.logger = logger.get("vrcOscQuery");
+
         const discovery = new OSCQueryDiscovery();
         discovery.start();
 
         discovery.on('up', (service: DiscoveredService) => {
             if (!service.hostInfo.name?.startsWith("VRChat-Client")) return;
-            if (!myAddress.has(service.address)) return;
+            if (!myAddress.has(service.address)) {
+                this.logger.log(`Received OSCQuery broadcast from unknown address: ${service.address}`);
+                return;
+            }
             this.service = service;
         });
     }

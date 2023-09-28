@@ -128,7 +128,7 @@ export default class OscConnection extends (EventEmitter as new () => TypedEmitt
         oscSocket.on('message', (oscMsg: OscMessage, timeTag: unknown, rinfo: RemoteInfo) => {
             const from = rinfo.address;
             if (!this.myAddresses.has(from)) {
-                //this.log(`Received OSC packet from unknown address: ${from}`);
+                this.logger.log(`Received OSC packet from unknown address: ${from}`);
                 return;
             }
 
