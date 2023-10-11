@@ -14,6 +14,9 @@ import MyAddressesService from "./services/MyAddressesService";
 import OgbConfigService from "./services/OgbConfigService";
 import LoggerService from "./services/LoggerService";
 import VrchatOscqueryService from "./services/VrchatOscqueryService";
+import http from "node:http";
+import {Protocol} from "@homebridge/ciao";
+import { getResponder } from "@homebridge/ciao";
 
 type MyEvents = {
     add: (key: string, value: OscValue) => void,
@@ -88,14 +91,43 @@ export default class OscConnection extends (EventEmitter as new () => TypedEmitt
         });
         this.logger.log(`Selected port: ${port}`);
 
-        this.logger.log(`Starting OSCQuery server...`);
+        this.logger.log(`Starting OSCQuery handler...`);
         const oscQuery = this.oscQuery = new OSCQueryServer({
             httpPort: port,
             serviceName: "OGB"
         });
         oscQuery.addMethod("/avatar/change", { access: OSCQAccess.WRITEONLY });
-        const hostInfo = await oscQuery.start();
-        this.logger.log("OscQuery started on port " + hostInfo.oscPort);
+        this.logger.log(`Started`);
+
+        this.logger.log(`Starting OSCQuery HTTP server...`);
+        const httpServer = http.createServer(oscQuery._httpHandler.bind(oscQuery));
+        httpServer.on('error', e => this.logger.log(`HTTP server error ${e.stack}`));
+        await new Promise<void>((resolve, reject) => {
+            httpServer.listen(port, () => {
+                resolve();
+            }).on('error', (err) => {
+                reject(err);
+            });
+        });
+        this.logger.log(`Started on port ${port}`);
+
+        this.logger.log(`Starting OSCQuery MDNS server...`);
+        const mdns = getResponder();
+        const mdnsService = mdns.createService({
+            name: "OGB",
+            type: "oscjson",
+            port: port,
+            protocol: Protocol.TCP,
+        });
+        // Do this async, in case it never returns, which seems to happen for some reason
+        (async () => {
+            try {
+                await mdnsService.advertise();
+                this.logger.log(`MDNS is advertising`);
+            } catch (e) {
+                this.logger.log(`MDNS advertising error ${e instanceof Error ? e.stack : e}`);
+            }
+        })().then();
 
         let receivedOne = false;
 

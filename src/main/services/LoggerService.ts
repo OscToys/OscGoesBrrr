@@ -32,12 +32,11 @@ export default class LoggerService {
     log(prefix: string, ...args: unknown[]) {
         console.log(`[${prefix}]`, ...args);
         const mainWindow = this.mainWindowService!.get();
-        if (!mainWindow) return;
 
         const lines = util.format(...args);
         for (const line of lines.split('\n')) {
             this.history.push(line);
-            mainWindow.webContents.send(`log:line`, line);
+            mainWindow?.webContents.send(`log:line`, line);
         }
         while (this.history.length > 1000) {
             this.history.shift();
