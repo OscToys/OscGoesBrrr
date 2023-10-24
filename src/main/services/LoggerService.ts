@@ -3,6 +3,8 @@ import util from "util";
 import {Service} from "typedi";
 import MainWindowService from "./MainWindowService";
 
+const origConsoleLog = console.log;
+
 export class SubLogger {
     constructor(
         private prefix: string,
@@ -10,7 +12,7 @@ export class SubLogger {
     ) {}
 
     log(...args: unknown[]) {
-        this.logger.log(this.prefix, ...args);
+        this.logger.log(`[${this.prefix}]`, ...args);
     }
 }
 
@@ -29,8 +31,8 @@ export default class LoggerService {
         return new SubLogger(prefix, this);
     }
 
-    log(prefix: string, ...args: unknown[]) {
-        console.log(`[${prefix}]`, ...args);
+    log(...args: unknown[]) {
+        origConsoleLog(...args);
         const mainWindow = this.mainWindowService!.get();
 
         const lines = util.format(...args);

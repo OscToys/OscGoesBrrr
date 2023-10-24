@@ -132,6 +132,20 @@ try {
   const oscConnection = container.get(OscConnection);
   const vrchatOscqueryService = container.get(VrchatOscqueryService);
 
+  {
+    const systemLogger = logger.get('system');
+    console.log = (...args) => systemLogger.log("LOG", util.format(...args));
+    console.warn = (...args) => systemLogger.log("WARN", util.format(...args));
+    console.error = (...args) => systemLogger.log("ERROR", util.format(...args));
+    process
+        .on('unhandledRejection', (reason, p) => {
+          systemLogger.log('REJECTION', reason, p);
+        })
+        .on('uncaughtException', err => {
+          systemLogger.log('EXCEPTION', err);
+        });
+  }
+
   const buttLogger = logger.get('bioLog');
   butt = new Buttplug(buttLogger, configMap);
   const bridge = new Bridge(oscConnection, butt, buttLogger, configMap);
