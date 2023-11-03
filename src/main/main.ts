@@ -189,6 +189,7 @@ try {
     } else {
       sections.push(
         `OGB OSC: ${oscConnection.port}\n`
+        + `OGB OSCQ: ${oscConnection.useOscQuery ? 'Enabled' : 'Disabled'}\n`
         + `VRC OSC: ${vrchatOscqueryService.getOscAddress()?.join(':')}\n`
         + `VRC OSCQ: ${vrchatOscqueryService.getOscqueryAddress()?.join(':')}`
       );
