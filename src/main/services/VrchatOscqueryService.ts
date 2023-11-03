@@ -12,6 +12,7 @@ import {Service} from "typedi";
 import type {Service as BounjourService} from "bonjour-service";
 import got from "got";
 import { z } from 'zod';
+import VrchatLogFinder from "./VrchatLogFinder";
 
 const HostInfo = z.object({
     NAME: z.string().optional(),
@@ -34,6 +35,7 @@ export default class VrchatOscqueryService {
 
     constructor(
         private myAddress: MyAddressesService,
+        private logFinder: VrchatLogFinder,
         logger: LoggerService
     ) {
         this.logger = logger.get("vrcOscQuery");
@@ -116,30 +118,13 @@ export default class VrchatOscqueryService {
     }
 
     async getOscqueryPortFromLogs() {
-        const files = await fs.readdir(VrchatOscqueryService.logDir);
-        files.sort();
-        files.reverse();
-        const newestConfig = files
-            .filter(name => name.startsWith("output_log"))
-            [0];
-        if (!newestConfig) {
-            return undefined;
-        }
-        const filename = path.join(VrchatOscqueryService.logDir, newestConfig);
-
-        const input = fsPlain.createReadStream(filename)
         let port;
-        try {
-            const lineReader = readline.createInterface({input: input});
-            for await (const line of lineReader) {
-                const m = line.match("of type OSCQuery on (\\d+)");
-                if (m) {
-                    port = parseInt(m[1]!);
-                }
+        await this.logFinder.forEachLine(line => {
+            const m = line.match("of type OSCQuery on (\\d+)");
+            if (m) {
+                port = parseInt(m[1]!);
             }
-        } finally {
-            input.close();
-        }
+        });
         return port;
     }
 

@@ -20,6 +20,7 @@ import MainWindowService from "./services/MainWindowService";
 import OgbConfigService from "./services/OgbConfigService";
 import LoggerService from "./services/LoggerService";
 import VrchatOscqueryService from "./services/VrchatOscqueryService";
+import VrchatLogScanner from "./services/VrchatLogScanner";
 
 try {
   app.enableSandbox();
@@ -131,6 +132,7 @@ try {
   const logger = container.get(LoggerService);
   const oscConnection = container.get(OscConnection);
   const vrchatOscqueryService = container.get(VrchatOscqueryService);
+  const logScanner = container.get(VrchatLogScanner);
 
   {
     const systemLogger = logger.get('system');
@@ -182,6 +184,9 @@ try {
     }
     if (vrcConfigCheck.everyoneInteractEnabled === false) {
       sections.push('Interaction is not set to everyone in game.\nEnable it in the quick menu:\nSettings > Avatar Interactions > Everyone');
+    }
+    if (logScanner.failure) {
+      sections.push(`VRChat's log indicated that it failed to start OSC:\n${logScanner.failure}`);
     }
 
     if (!oscConnection || !oscConnection.socketopen) {

@@ -98,7 +98,7 @@ function FreezingBox({content, scrollOnChange = false, ...rest}: {
     return <textarea
         style={{flex: 1}}
         readOnly
-        wrap="off"
+        wrap="on"
         onMouseMove={resetFreezeTimerIfFrozen}
         onMouseDown={resetFreezeTimer}
         onScroll={resetFreezeTimer}
