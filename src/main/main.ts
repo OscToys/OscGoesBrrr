@@ -189,8 +189,8 @@ try {
     } else {
       sections.push(
         `OGB OSC: ${oscConnection.port}\n`
-        + `VRC OSC: ${vrchatOscqueryService.getOscAddress()}\n`
-        + `VRC OSCQuery: ${vrchatOscqueryService.getOscqueryAddress()}`
+        + `VRC OSC: ${vrchatOscqueryService.getOscAddress()?.join(':')}\n`
+        + `VRC OSCQ: ${vrchatOscqueryService.getOscqueryAddress()?.join(':')}`
       );
       if (oscConnection && (!oscConnection.lastReceiveTime || oscConnection.lastReceiveTime < Date.now() - 15_000)) {
         sections.push(`No updates received recently.\nIs the game open and active?`);

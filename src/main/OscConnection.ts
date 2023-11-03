@@ -239,18 +239,15 @@ export default class OscConnection extends (EventEmitter as new () => TypedEmitt
         }
     }
     private async _updateBulk(isRequestStillValid: ()=>boolean) {
-        const nodes = await Promise.race([
-            this.vrchatOscqueryService.getBulk(),
-            new Promise<OSCMethodDescription[]>((r,reject) => setTimeout(() => reject(new Error("Timed out")), 10000))
-        ]);
-        if (nodes == null) {
+        const nodes = await this.vrchatOscqueryService.getBulk();
+        if (!nodes) {
             throw new Error("VRChat OscQuery not discovered yet");
         }
 
         if (!isRequestStillValid()) return;
-        for (const node of nodes) {
-            const param = this.parseParamFromPath(node.full_path ?? '');
-            this.receivedParamValue(param, node.arguments?.[0]?.value, true);
+        for (const [key,value] of Object.entries(nodes)) {
+            const param = this.parseParamFromPath(key);
+            this.receivedParamValue(param, value, true);
         }
     }
 
