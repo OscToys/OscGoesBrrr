@@ -49,11 +49,13 @@ export default class Buttplug extends (EventEmitter as new () => TypedEmitter<My
 
         const [bAddress, bPort] = OscConnection.parsePort(this.configMap.get('bio.port'), '127.0.0.1', 12345);
         let address = `${bAddress}:${bPort}`;
-        this.logger.log("Opening connection to server at " + address);
+        const wss = ['true','1'].includes(this.configMap.get('bio.wss') ?? '');
+        const uri = `${wss ? 'wss' : 'ws'}://${address}`;
+        this.logger.log("Opening connection to server at " + uri);
 
         let ws;
         try {
-            ws = this.ws = new WebSocket('ws://' + address);
+            ws = this.ws = new WebSocket(uri);
         } catch(e) {
             this.logger.log('Init exception', e);
             this.delayRetry();
