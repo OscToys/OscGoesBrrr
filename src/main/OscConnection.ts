@@ -57,16 +57,24 @@ export default class OscConnection extends (EventEmitter as new () => TypedEmitt
     }
 
     public static parsePort(inputObj: string | undefined, defAddress: string, defPort: number): [string,number] {
-        let input = inputObj ?? '';
+        let input = (inputObj ?? '').trim();
         let outAddress = defAddress;
         let outPort = defPort;
+
+        let stringPort = "";
         if (input.includes(':')) {
             const split = input.split(':');
             outAddress = split[0]!;
-            input = split[1]!;
+            stringPort = split[1]!;
+        } else if (input.match(/^\d+$/)) {
+            stringPort = input;
+        } else {
+            outAddress = input;
         }
-        const parsedPort = parseInt(input);
+
+        const parsedPort = parseInt(stringPort);
         if (!isNaN(parsedPort) && parsedPort > 0) outPort = parsedPort;
+
         return [outAddress, outPort];
     }
 
