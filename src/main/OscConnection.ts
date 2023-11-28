@@ -93,7 +93,7 @@ export default class OscConnection extends (EventEmitter as new () => TypedEmitt
             stringPort = split[1]!;
         } else if (input.match(/^\d+$/)) {
             stringPort = input;
-        } else {
+        } else if (input) {
             outAddress = input;
         }
 
