@@ -5,6 +5,10 @@
     "@tsconfig/strictest/tsconfig.json"
   ],
   "compilerOptions": {
+    "sourceMap": true,
+    "verbatimModuleSyntax": false,
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
     "noUnusedLocals": false,
     "noUnusedParameters": false,
     "moduleResolution": "node",

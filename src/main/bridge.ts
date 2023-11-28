@@ -1,30 +1,23 @@
-import type Buttplug from "./Buttplug";
-import type {OscValue} from "./OscConnection";
-import type OscConnection from "./OscConnection";
+import Buttplug from "./Buttplug";
+import {OscValue} from "./OscConnection";
+import OscConnection from "./OscConnection";
 import GameDevice from "./GameDevice";
-import type {DeviceFeature} from "./Buttplug";
+import {DeviceFeature} from "./Buttplug";
+import {SubLogger} from "./services/LoggerService";
+import OgbConfigService from "./services/OgbConfigService";
 
 export default class Bridge {
-    private readonly logger;
-    private readonly configMap;
-    private readonly osc;
-    private readonly buttConnection;
     private fftValue = 0;
     private lastFftReceived = 0;
     private gameDevices = new Map<string,GameDevice>();
     private toys = new Set<BridgeToy>();
 
     constructor(
-        oscConnection: OscConnection,
-        buttConnection: Buttplug,
-        logger: (...args: unknown[]) => void,
-        configMap: Map<string,string>
+        private osc: OscConnection,
+        private buttConnection: Buttplug,
+        private logger: SubLogger,
+        private configMap: OgbConfigService
     ) {
-        this.osc = oscConnection;
-        this.buttConnection = buttConnection;
-        this.logger = logger;
-        this.configMap = configMap;
-
         this.osc.on('add', this.onOscAddKey);
         this.osc.on('clear', this.onOscClear);
         this.buttConnection.on('addFeature', f => {

@@ -29,8 +29,7 @@ export default function StatusBox({getCmd, ...rest}: {
     />;
 }
 
-export function LogBox({name, ...rest}: {
-    name: string
+export function LogBox({...rest}: {
 } & React.HTMLAttributes<HTMLTextAreaElement>) {
     const [status,setStatus] = useState("");
 
@@ -38,7 +37,7 @@ export function LogBox({name, ...rest}: {
         const lines: string[] = [];
         let destroyed = false;
         async function loadHistory() {
-            const history = await ipcRenderer.invoke(`${name}:history`);
+            const history = await ipcRenderer.invoke(`log:history`);
             if (destroyed) return;
             lines.push(...history);
             while (lines.length > 1000) lines.shift();
@@ -50,9 +49,9 @@ export function LogBox({name, ...rest}: {
             while (lines.length > 1000) lines.shift();
             setStatus(lines.join('\n'));
         }
-        ipcRenderer.on(`${name}:line`, onLine);
+        ipcRenderer.on(`log:line`, onLine);
         return () => {
-            ipcRenderer.off(`${name}:line`, onLine);
+            ipcRenderer.off(`log:line`, onLine);
             destroyed = true;
         };
     }, []);
@@ -99,7 +98,7 @@ function FreezingBox({content, scrollOnChange = false, ...rest}: {
     return <textarea
         style={{flex: 1}}
         readOnly
-        wrap="off"
+        wrap="on"
         onMouseMove={resetFreezeTimerIfFrozen}
         onMouseDown={resetFreezeTimer}
         onScroll={resetFreezeTimer}

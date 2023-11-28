@@ -40,17 +40,20 @@
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-use": "^17.4.0",
+    "reflect-metadata": "^0.1.13",
     "sass": "^1.54.0",
     "sass-loader": "^13.0.2",
     "source-map-support": "^0.5.21",
     "style-loader": "^3.3.1",
     "tmp-promise": "^3.0.3",
-    "ts-loader": "^9.4.2",
+    "ts-loader": "^9.4.4",
     "typed-emitter": "^2.1.0",
-    "typescript": "^5.0.2",
+    "typedi": "^0.10.0",
+    "typescript": "^5.2.2",
     "webpack": "^5.75.0",
     "webpack-cli": "^5.0.1",
-    "ws": "^8.8.1"
+    "ws": "^8.8.1",
+    "zod": "^3.22.4"
   },
   "build": {
     "appId": "toys.osc.oscgoesbrrr",

@@ -1,10 +1,12 @@
 import WebSocket from 'ws';
 import {default as decodeType} from '../common/decodeType';
-import type {ButtplugMessageWithType, Device} from "./ButtplugSpec";
+import {ButtplugMessageWithType, Device} from "./ButtplugSpec";
 import {ButtplugPacket} from "./ButtplugSpec";
 import EventEmitter from "events";
-import type TypedEmitter from "typed-emitter";
+import TypedEmitter from "typed-emitter";
 import OscConnection from "./OscConnection";
+import {SubLogger} from "./services/LoggerService";
+import OgbConfigService from "./services/OgbConfigService";
 
 type MyEvents = {
     addFeature: (device: DeviceFeature) => void,
@@ -12,7 +14,6 @@ type MyEvents = {
 }
 
 export default class Buttplug extends (EventEmitter as new () => TypedEmitter<MyEvents>) {
-    log;
     lastMessageId = 0;
     activeCallbacks = new Map<number,(msg:ButtplugMessageWithType|null,error?:any)=>void>();
     features = new Set<DeviceFeature>();
@@ -20,21 +21,18 @@ export default class Buttplug extends (EventEmitter as new () => TypedEmitter<My
     recentlySentCmds = 0;
     retryTimeout : ReturnType<typeof setInterval> | undefined;
     ws: WebSocket | undefined;
-    configMap: Map<string,string>;
 
     constructor(
-        logger: (...args: unknown[]) => void,
-        configMap: Map<string,string>
+        private logger: SubLogger,
+        private configMap: OgbConfigService
     ) {
         super();
-        this.log = logger;
-        this.configMap = configMap;
         this.retry();
         this.scanForever();
 
         setInterval(() => {
             if (this.recentlySentCmds > 0) {
-                this.log("Sent " + this.recentlySentCmds + " high-frequency commands in the last 15 seconds");
+                this.logger.log("Sent " + this.recentlySentCmds + " high-frequency commands in the last 15 seconds");
                 this.recentlySentCmds = 0;
             }
         }, 15000);
@@ -49,25 +47,23 @@ export default class Buttplug extends (EventEmitter as new () => TypedEmitter<My
 
         this.terminate();
 
-        if (this.configMap.get('bio.wss') != "true") {
-            const [bAddress, bPort] = OscConnection.parsePort(this.configMap.get('bio.port'), '127.0.0.1', 12345);
-            let address = 'ws://' + `${bAddress}:${bPort}`;
-        } else {
-            let address = 'wss://' + this.configMap.get('bio.port');
-        }
-        this.log("Opening connection to server at " + address);
+        const [bAddress, bPort] = OscConnection.parsePort(this.configMap.get('bio.port'), '127.0.0.1', 12345);
+        let address = `${bAddress}:${bPort}`;
+        const wss = ['true','1'].includes(this.configMap.get('bio.wss') ?? '');
+        const uri = `${wss ? 'wss' : 'ws'}://${address}`;
+        this.logger.log("Opening connection to server at " + uri);
 
         let ws;
         try {
-            ws = this.ws = new WebSocket(address);
+            ws = this.ws = new WebSocket(uri);
         } catch(e) {
-            this.log('Init exception', e);
+            this.logger.log('Init exception', e);
             this.delayRetry();
             return;
         }
         ws.on('message', data => this.onReceive(data));
         ws.on('error', e => {
-            this.log('error', e);
+            this.logger.log('error', e);
             this.delayRetry();
         })
         ws.on('close', e => {
@@ -75,14 +71,14 @@ export default class Buttplug extends (EventEmitter as new () => TypedEmitter<My
                 callback(null, new Error("Connection closed"));
             }
             this.clearDevices();
-            this.log('Connection closed');
+            this.logger.log('Connection closed');
             this.delayRetry();
         })
         ws.on('open', async () => {
             this.clearDevices();
             clearTimeout(this.connectionTimeout);
             this.connectionTimeout = undefined;
-            this.log('open');
+            this.logger.log('open');
             await this.send({
                 type: 'RequestServerInfo',
                 ClientName: 'OscGoesBrrr',
@@ -91,9 +87,9 @@ export default class Buttplug extends (EventEmitter as new () => TypedEmitter<My
             await this.send({ type: 'RequestDeviceList' });
         });
 
-        this.log('Opening websocket ...');
+        this.logger.log('Opening websocket ...');
         this.connectionTimeout = setTimeout(() => {
-            this.log('Timed out while opening socket');
+            this.logger.log('Timed out while opening socket');
             this.delayRetry();
         }, 3000);
     }
@@ -115,7 +111,7 @@ export default class Buttplug extends (EventEmitter as new () => TypedEmitter<My
         const type = params.type;
 
         if (type !== 'Ok') {
-            this.log('<-', params);
+            this.logger.log('<-', params);
         }
 
         if (type === 'DeviceRemoved') {
@@ -148,7 +144,7 @@ export default class Buttplug extends (EventEmitter as new () => TypedEmitter<My
         if (type === 'ScalarCmd' || type === 'LinearCmd' || type == 'RotateCmd' || type == 'FleshlightLaunchFW12Cmd') {
             this.recentlySentCmds++;
         } else {
-            this.log('->', type, newArgs);
+            this.logger.log('->', type, newArgs);
         }
 
         const json: ButtplugPacket = [{[type]: newArgs}];
@@ -182,7 +178,7 @@ export default class Buttplug extends (EventEmitter as new () => TypedEmitter<My
     delayRetry() {
         if (this.retryTimeout) return;
         this.terminate();
-        this.log('retrying shortly ...');
+        this.logger.log('retrying shortly ...');
         this.retryTimeout = setTimeout(() => this.retry(), 1000);
     }
 
@@ -191,7 +187,7 @@ export default class Buttplug extends (EventEmitter as new () => TypedEmitter<My
             try {
                 await this.scan();
             } catch(e) {
-                this.log('Error while scanning', e);
+                this.logger.log('Error while scanning', e);
             }
             await new Promise(r => setTimeout(r, 1000));
         }
