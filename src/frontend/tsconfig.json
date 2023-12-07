@@ -2,7 +2,6 @@
   "extends": "../tsconfig.json",
   "compilerOptions": {
     "lib": ["dom"],
-    "jsx": "react",
-    "sourceMap": true
+    "jsx": "react"
   }
 }

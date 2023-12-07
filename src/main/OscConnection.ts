@@ -161,7 +161,7 @@ export default class OscConnection extends (EventEmitter as new () => TypedEmitt
                 name: "OGB",
                 type: "oscjson",
                 port: port,
-                protocol: Protocol.TCP,
+                protocol: "tcp" as Protocol,
             });
             // Do this async, in case it never returns, which seems to happen for some reason
             (async () => {

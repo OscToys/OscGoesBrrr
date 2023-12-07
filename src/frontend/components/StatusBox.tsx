@@ -24,7 +24,7 @@ export default function StatusBox({getCmd, ...rest}: {
     }, []);
 
     return <FreezingBox
-        content={status}
+        body={status}
         {...rest}
     />;
 }
@@ -57,18 +57,18 @@ export function LogBox({...rest}: {
     }, []);
 
     return <FreezingBox
-        content={status}
+        body={status}
         scrollOnChange={true}
         {...rest}
     />;
 }
 
-function FreezingBox({content, scrollOnChange = false, ...rest}: {
-    content: string,
+function FreezingBox({body, scrollOnChange = false, ...rest}: {
+    body: string,
     scrollOnChange?: boolean
 } & React.HTMLAttributes<HTMLTextAreaElement>) {
-    const latestContent = useLatest(content);
-    const [liveContent,setLiveContent] = useState(content);
+    const latestContent = useLatest(body);
+    const [liveContent,setLiveContent] = useState(body);
     const lastMouse = useRef(0);
     const area = useRef<HTMLTextAreaElement>(null);
 

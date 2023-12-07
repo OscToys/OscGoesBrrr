@@ -1,7 +1,5 @@
 {
   "extends": [
-    "@tsconfig/node18/tsconfig.json",
-    "@tsconfig/esm/tsconfig.json",
     "@tsconfig/strictest/tsconfig.json"
   ],
   "compilerOptions": {
@@ -11,7 +9,10 @@
     "experimentalDecorators": true,
     "noUnusedLocals": false,
     "noUnusedParameters": false,
-    "moduleResolution": "node",
+    "lib": ["es2022"],
+    "target": "es2022",
+    "module": "es2022",
+    "moduleResolution": "bundler",
     "noImplicitOverride": true,
     "typeRoots": [
       "./types"
