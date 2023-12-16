@@ -1,12 +1,18 @@
 import React, {useEffect} from "react";
 import StatusBox, {LogBox} from "./StatusBox";
 import ToggleableAudioHandler from "./AudioHandler";
-import AdvancedConfig from "./AdvancedConfig";
 // @ts-ignore
 import logoPath from '../../icons/ogb-logo.png';
 
 export default function Home() {
     return <div style={{display: 'flex', flexDirection: 'column', height: '100%'}}>
+        {/*
+        <div style={{backgroundColor: "#500", padding: "5px", textAlign: "center"}}>
+            Having trouble since the new update? Please provide details on the <a href="https://osc.toys/discord" target="_blank">Discord</a>.<br/>
+            You can also try temporarily downgrading to <a href="https://github.com/OscToys/OscGoesBrrr/releases/download/release%2F1.11.0/OscGoesBrrr-setup.exe" target="_blank">OGB 1.11.0</a>.
+        </div>
+        */}
+
         <div style={{padding: '5px'}}>
             <h3 style={{textAlign: 'center'}}>Welcome to OscGoesBrrr!</h3>
             <ul style={{margin: 0}}>
@@ -30,10 +36,6 @@ export default function Home() {
             <div style={{display: 'flex', flexDirection: 'column', flex: 1, margin: '5px', textAlign: 'center'}}>
                 <h3>VRChat Status</h3>
                 <StatusBox style={{flex: 1}} getCmd="oscStatus:get" />
-            </div>
-            <div style={{display: 'flex', flexDirection: 'column', flex: 1, margin: '5px', textAlign: 'center'}}>
-                <h3>Settings <a href="https://osc.toys/settings" target="_blank">(?)</a></h3>
-                <AdvancedConfig/>
             </div>
         </div>
     </div>;

@@ -1,5 +1,7 @@
 declare module 'osc' {
 
+    import {RemoteInfo} from "dgram";
+
     export class UDPPort {
         constructor(opts: {
             localAddress: string,
@@ -11,10 +13,10 @@ declare module 'osc' {
         on(ev: 'ready', cb: () => void);
         on(ev: 'error', cb: (e: unknown) => void);
         on(ev: 'data', cb: (buffer: Buffer) => void);
-        on(ev: 'message', cb: (message: OscMessage, timeTag: unknown, rinfo: unknown) => void);
+        on(ev: 'message', cb: (message: OscMessage, timeTag: unknown, rinfo: RemoteInfo) => void);
         open();
         close();
-        send(OscMessage);
+        send(OscMessage, address: string, port: number);
     }
 
     interface OscMessage {

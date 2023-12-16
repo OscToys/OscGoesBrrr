@@ -1,48 +1,51 @@
-import {object, string, array, number, boolean, z} from 'zod';
+import {object, string, array, number, boolean, z, literal, union, discriminatedUnion} from 'zod';
 
-export const DeviceConfig = object({
-    scalar: object({
-        minLevel: number().min(0).max(1),
-        maxLevel: number().min(0).max(1),
-    })
-        .optional()
-        .refine(v => !v || v.maxLevel >= v.minLevel, {
-            message: 'Max level must be > min level'
-        }),
-    rotate: object({
-        minLevel: number().min(0).max(1),
-        maxLevel: number().min(0).max(1),
-    })
-        .optional()
-        .refine(v => !v || v.maxLevel >= v.minLevel, {
-            message: 'Max level must be > min level'
-        }),
-    linear: object({
-        minPosition: number().min(0).max(1),
-        maxPosition: number().min(0).max(1),
-        maxVelocity: number().min(0),
-        maxAcceleration: number().min(0),
-        restingPosition: number().min(0).max(1),
-        restingTime: number().min(0),
-    })
-        .optional()
-        .refine(v => !v || v.maxPosition >= v.minPosition, {
-            message: 'Max level must be > min level'
-        }),
-    sources: array(string()).default([]),
+export const RuleCondition = discriminatedUnion("type", [
+    object({ type: literal("outputTag"), tag: string() }),
+    object({ type: literal("outputTagNot"), tag: string() }),
+    object({ type: literal("sourceTag"), tag: string() }),
+    object({ type: literal("sourceTagNot"), tag: string() }),
+]);
+
+export const RuleAction = discriminatedUnion("type", [
+    object({type: literal('scale'), scale: number() }),
+    object({type: literal('movement'), }),
+]);
+
+export const Rule = object({
+    conditions: array(RuleCondition),
+    action: RuleAction
 });
-export type DeviceConfig = z.infer<typeof DeviceConfig>;
 
 export const Config = object({
-    intiface: object({
-        address: string().default('')
+    outputs: object({
+        intiface: object({
+            address: string().default(''),
+            linear: object({
+                minPosition: number().min(0).max(1).optional(),
+                maxPosition: number().min(0).max(1).optional(),
+                maxVelocity: number().min(0).optional(),
+                maxAcceleration: number().min(0).optional(),
+                restingPosition: number().min(0).max(1).optional(),
+                restingTime: number().min(0).optional(),
+                debugLog: boolean().default(false),
+            }).optional()
+        }).default({}),
     }).default({}),
-    vrchat: object({
-        receiveAddress: string().default(''),
-        proxy: array(object({
-            address: string().default('')
-        })).default([]),
+
+    sources: object({
+        vrchat: object({
+            proxy: array(object({
+                address: string().default('')
+            })).default([]),
+            maxLevelParam: string().optional(),
+            keepOscConfigs: boolean().default(false),
+        }).default({}),
+        audio: object({
+            enabled: boolean().default(false),
+        }).default({}),
     }).default({}),
-    devices: array(DeviceConfig).default([]),
+
+    rules: array(Rule).default([]),
 });
 export type Config = z.infer<typeof Config>;

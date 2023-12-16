@@ -1,34 +1,33 @@
-import type Buttplug from "./Buttplug";
-import type {OscValue} from "./OscConnection";
-import type OscConnection from "./OscConnection";
+import Buttplug from "./Buttplug";
+import {OscValue} from "./OscConnection";
+import OscConnection from "./OscConnection";
 import GameDevice from "./GameDevice";
-import type {DeviceFeature} from "./Buttplug";
+import {DeviceFeature} from "./Buttplug";
+import LoggerService, {SubLogger} from "./services/LoggerService";
+import {Config} from "../common/configTypes";
+import OgbMath from "./utils/OgbMath";
+import OgbConfigService from "./services/OgbConfigService";
+import {Service} from "typedi";
 
+@Service()
 export default class Bridge {
-    private readonly logger;
-    private readonly configMap;
-    private readonly osc;
-    private readonly buttConnection;
+    private logger: SubLogger;
     private fftValue = 0;
     private lastFftReceived = 0;
     private gameDevices = new Map<string,GameDevice>();
     private toys = new Set<BridgeToy>();
 
     constructor(
-        oscConnection: OscConnection,
-        buttConnection: Buttplug,
-        logger: (...args: unknown[]) => void,
-        configMap: Map<string,string>
+        private readonly osc: OscConnection,
+        private readonly buttConnection: Buttplug,
+        logger: LoggerService,
+        private readonly config: OgbConfigService
     ) {
-        this.osc = oscConnection;
-        this.buttConnection = buttConnection;
-        this.logger = logger;
-        this.configMap = configMap;
-
+        this.logger = logger.get('Bridge');
         this.osc.on('add', this.onOscAddKey);
         this.osc.on('clear', this.onOscClear);
         this.buttConnection.on('addFeature', f => {
-            this.toys.add(new BridgeToy(f,this.configMap,this.osc));
+            this.toys.add(new BridgeToy(f,config,this.osc));
         });
         this.buttConnection.on('removeFeature', f => {
             for (const toy of this.toys) {
@@ -46,6 +45,7 @@ export default class Bridge {
         if (split[0] == 'OGB' || split[0] == 'TPS_Internal') {
             const isTps = split[0] == 'TPS_Internal';
             const type = split[1];
+            if (type != 'Orf' && type != 'Pen') return;
             const id = split[2];
             const contactType = split.slice(3).join('/');
             if (!type || !id || !contactType) return;
@@ -63,28 +63,20 @@ export default class Bridge {
         this.gameDevices.clear();
     }
 
-    getGlobalSources(includeGameDevices = true) {
+    getSources() {
         const sources: BridgeSource[] = [];
 
-        if (includeGameDevices) {
-            for (const gameDevice of this.getGameDevices()) {
-                sources.push(...gameDevice.getSources());
-            }
-        }
+        const allGameDevices = Array.from(this.gameDevices.values());
+        const hasOGBDevice = allGameDevices.some(device => !device.isTps);
+        const gameDevicesToUse = Array.from(this.gameDevices.values())
+            .filter(device => !hasOGBDevice || !device.isTps);
+        sources.push(...gameDevicesToUse.flatMap(d => d.getSources()));
 
-        const audioLevel = parseFloat(this.configMap.get('audio') ?? '');
-        if (!isNaN(audioLevel) && audioLevel != 0 && this.lastFftReceived > Date.now() - 1000) {
-            sources.push(new BridgeSource('audio', 'audio', 'audio', audioLevel * this.fftValue));
+        if (this.config.get().sources.audio.enabled && this.lastFftReceived > Date.now() - 1000) {
+            sources.push(new BridgeSource(['audio'], this.fftValue));
         }
 
         return sources;
-    }
-
-    getGameDevices() {
-        const allGameDevices = Array.from(this.gameDevices.values());
-        const hasOGBDevice = allGameDevices.some(device => !device.isTps);
-        return Array.from(this.gameDevices.values())
-            .filter(device => !hasOGBDevice || !device.isTps);
     }
 
     getToys() {
@@ -94,14 +86,13 @@ export default class Bridge {
     pushToBio() {
         let maxLevel = 0;
 
-        const globalSources = this.getGlobalSources();
+        const globalSources = this.getSources();
         for (const toy of this.toys) {
            toy.pushToBio(globalSources);
            maxLevel = Math.max(maxLevel, toy.lastLevel);
         }
 
-        this.osc.clearDeltas();
-        const sendParam = this.configMap.get('maxLevelParam');
+        const sendParam = this.config.get().sources.vrchat.maxLevelParam;
         if (sendParam) {
             this.osc.send(sendParam, maxLevel);
         }
@@ -114,215 +105,90 @@ export default class Bridge {
 }
 
 export class BridgeSource {
-    deviceType;
-    deviceName;
-    featureName;
-    value;
-
     constructor(
-        deviceType: "orf" | "pen" | "audio" | "raw",
-        deviceName: string,
-        featureName: string,
-        value: number
+        public readonly tags: string[],
+        public readonly value: number
     ) {
-        this.deviceType = deviceType;
-        this.deviceName = deviceName;
-        this.featureName = featureName;
-        this.value = value;
     }
 
     getUniqueKey() {
-        return this.deviceType+"__"+this.deviceName+"__"+this.featureName;
+        return this.tags.join("|");
     }
 }
 
 class BridgeToy {
-    readonly bioFeature;
-    private readonly configMap;
-    private readonly osc;
     private lastSources: Map<string,BridgeSource> = new Map();
+    tags: string[] = [];
     lastLevel = 0;
     lastPushTime = 0;
-    linearTarget = 0;
-    linearVelocity = 0;
-    lastLinearSuck = 0;
 
-    constructor(bioFeature: DeviceFeature, configMap: Map<string,string>, osc: OscConnection) {
-        this.bioFeature = bioFeature;
-        this.configMap = configMap;
-        this.osc = osc;
+    constructor(
+        public readonly bioFeature: DeviceFeature,
+        private readonly config: OgbConfigService,
+        private readonly osc: OscConnection
+    ) {
+        this.tags.push(bioFeature.id);
         //console.log("New b.io feature loaded into BridgeToy: " + this.bioFeature.id);
     }
 
-    getRelevantSources(globalSources: BridgeSource[]) {
-        const bindType = this.getConfigParam('type') ?? 'all';
-        const bindIds = (this.getConfigParam('id') ?? '')
-            .split(',')
-            .map(id => id.trim())
-            .filter(id => id);
-        const bindKeys = (this.getConfigParam('key') ?? '')
-            .split(',')
-            .map(key => key.trim())
-            .filter(key => key);
-        const bindPen = bindType === 'pen' || bindType === 'all';
-        const bindOrf = bindType === 'orf' || bindType === 'all';
-        const defaultFeatures = ['touchOthers','penOthers','frotOthers'];
+    getLevelFromSource(source: BridgeSource, timeDelta: number): [number,boolean] {
+        let scale = 1;
+        let motionBased = false;
 
-        const sources: BridgeSource[] = [];
-        for (const source of globalSources) {
-            if (this.bioFeature.type == 'linear' && source.deviceType == 'audio') continue;
-            if (source.deviceType === 'pen' || source.deviceType === 'orf') {
-                if (source.deviceType === 'pen' && !bindPen) continue;
-                if (source.deviceType === 'orf' && !bindOrf) continue;
-                if (bindIds.length && !bindIds.includes(source.deviceName)) continue;
-                if (!this.getConfigBool(source.featureName, defaultFeatures.includes(source.featureName))) continue;
-            }
-            sources.push(source);
-        }
-        if (bindKeys.length) {
-            const entries = this.osc.entries();
-            for (let k of bindKeys) {
-                const valueUnknown = entries.get(k)?.get();
-                const value = (typeof valueUnknown == 'number') ? valueUnknown : 0;
-                sources.push(new BridgeSource('raw', 'raw', k, value));
+        for (const rule of this.config.get().rules) {
+            const ruleApplies = rule.conditions.every(rule => {
+                if (rule.type == "outputTag") return this.tags.includes(rule.tag);
+                if (rule.type == "outputTagNot") return !this.tags.includes(rule.tag);
+                if (rule.type == "sourceTag") return source.tags.includes(rule.tag);
+                if (rule.type == "sourceTagNot") return !source.tags.includes(rule.tag);
+                return false;
+            });
+            if (ruleApplies) {
+                if (rule.action.type == "scale") {
+                    scale *= rule.action.scale;
+                } else if (rule.action.type == "movement") {
+                    motionBased = true;
+                }
             }
         }
-        return sources;
+
+        let backward = false;
+        let value = source.value;
+
+        if (this.bioFeature.type != 'linear' && motionBased) {
+            const lastSource = this.lastSources.get(source.getUniqueKey());
+            const lastValue = lastSource?.value;
+            if (lastValue !== undefined) {
+                const delta = Math.abs(value - lastValue);
+                const diffPerSecond = delta / timeDelta * 1000;
+                value = diffPerSecond / 5;
+                backward = delta < 0;
+            }
+        }
+
+        value *= scale;
+
+        return [value,backward];
     }
 
-    pushToBio(globalSources: BridgeSource[]) {
+    pushToBio(sources: BridgeSource[]) {
         const now = Date.now();
         const timeDelta = Math.min(now - this.lastPushTime, 100); // safety limited
-        const motionBased = !this.getConfigBool('linear', true);
 
-        const sources = this.getRelevantSources(globalSources);
         let level = 0;
         let motionBasedBackward = false;
+
         for (const source of sources) {
-            const value = source.value;
-            if (this.bioFeature.type == 'linear') {
-                level = Math.max(level, value);
-            } else if (motionBased) {
-                const lastSource = this.lastSources.get(source.getUniqueKey());
-                const lastValue = lastSource?.value;
-                if (lastValue !== undefined) {
-                    const delta = Math.abs(value - lastValue);
-                    const diffPerSecond = delta / timeDelta * 1000;
-                    const intensity = diffPerSecond / 5;
-                    if (intensity > level) {
-                        level = intensity;
-                        motionBasedBackward = delta < 0;
-                    }
-                    level = Math.max(level, intensity);
-                }
-            } else {
-                level = Math.max(level, value);
+            const [sourceLevel, sourceBackward] = this.getLevelFromSource(source, timeDelta);
+            if (sourceLevel > level) {
+                level = sourceLevel;
+                motionBasedBackward = sourceBackward;
             }
         }
 
-        level = this.clamp(level, 0, 1);
+        level = OgbMath.clamp(level, 0, 1);
 
-        if (this.bioFeature.type == 'linear') {
-            const timeDeltaSeconds = timeDelta / 1000;
-            const oldVelocity = this.linearVelocity;
-            let maxVelocity = this.getConfigNumber('maxv', 3);
-            let maxAcceleration = this.getConfigNumber('maxa', 20);
-            const durationMult = 1;
-            const restingPos = this.clamp(this.getConfigNumber('restingPos', 0), 0, 1);
-            const restingTime = this.getConfigNumber('restingTime', 3) * 1000;
-
-            let targetPosition = 1 - level;
-            const min = this.getConfigNumber('min', 0);
-            const max = this.getConfigNumber('max', 1);
-            targetPosition = this.remap(targetPosition, 0, 1, min, max);
-
-            if (level > 0) {
-                this.lastLinearSuck = now;
-            } else if (this.lastLinearSuck < now - restingTime) {
-                targetPosition = restingPos;
-                maxAcceleration = 999;
-                maxVelocity = Math.min(maxVelocity, 1);
-            }
-
-            targetPosition = this.clamp(targetPosition, 0, 1);
-
-            const currentPosition = this.bioFeature.lastLevel;
-            const absDistanceRequiredToStopSmoothly = Math.pow(oldVelocity, 2) / (2 * maxAcceleration);
-            const stopPosition = currentPosition + (oldVelocity < 0 ? -1 : 1) * absDistanceRequiredToStopSmoothly;
-            const fromStopPositionToTarget = targetPosition - stopPosition;
-
-            // Test what would happen if we accelerate or decelerate
-            let newVelocityIfWeAdd = oldVelocity + maxAcceleration * timeDeltaSeconds;
-            let newVelocityIfWeSubtract = oldVelocity - maxAcceleration * timeDeltaSeconds;
-            if (Math.abs(newVelocityIfWeAdd) > maxVelocity) newVelocityIfWeAdd = (newVelocityIfWeAdd > 0 ? 1 : -1) * maxVelocity;
-            if (Math.abs(newVelocityIfWeSubtract) > maxVelocity) newVelocityIfWeSubtract = (newVelocityIfWeSubtract > 0 ? 1 : -1) * maxVelocity;
-
-            // If we'd hit the target with a velocity in between the accelerate and decelerate options, lock to the target
-            const newPosIfWeAdd = currentPosition + newVelocityIfWeAdd * timeDeltaSeconds;
-            const newPosIfWeSubtract = currentPosition + newVelocityIfWeSubtract * timeDeltaSeconds;
-            let newVelocity;
-            if (targetPosition == newPosIfWeAdd) {
-                newVelocity = newVelocityIfWeAdd;
-            } else if (targetPosition == newPosIfWeSubtract) {
-                newVelocity = newVelocityIfWeSubtract;
-            } else if (newPosIfWeAdd < targetPosition != newPosIfWeSubtract < targetPosition) {
-                newVelocity = (targetPosition - currentPosition) / timeDeltaSeconds;
-            } else {
-                // otherwise, head toward the target
-                newVelocity = fromStopPositionToTarget > 0 ? newVelocityIfWeAdd : newVelocityIfWeSubtract;
-            }
-
-            let newPosition = currentPosition + newVelocity * timeDeltaSeconds;
-
-            //console.log(`target=${targetPosition} velocity=${this.linearVelocity} stopDistance=${absDistanceRequiredToStopSmoothly} stopPos=${stopPosition} stopDelta=${fromStopPositionToTarget} pos=${currentPosition}->${newPosition} add=${add}`);
-            if (newPosition > 1) {
-                newPosition = 1;
-                newVelocity = 0;
-            }
-            if (newPosition < 0) {
-                newPosition = 0;
-                newVelocity = 0;
-            }
-            //newPosition = level;
-            if (this.bioFeature.lastLevel != newPosition) {
-                this.bioFeature.setLevel(newPosition, Math.round(timeDelta * durationMult));
-            }
-
-            this.linearVelocity = newVelocity;
-            this.linearTarget = targetPosition;
-
-            const debug = this.getConfigBool('debugLog');
-            if (debug) {
-                const width = 60;
-                const currentPos = Math.floor(newPosition * width);
-                const targetPos = Math.floor(targetPosition * width);
-                let out = '';
-                out += '|';
-                for (let i = 0; i < width; i++) {
-                    if (i == currentPos) out += '#';
-                    else if (i == targetPos) out += '*';
-                    else out += ' ';
-                }
-                out += '|';
-                console.log(out);
-            }
-        } else {
-            const idle = this.getConfigNumber('idle', 0);
-            const scale = this.getConfigNumber('scale', 1);
-            if (scale !== undefined) {
-                level = level * scale;
-            }
-            if (idle) {
-                level = level * (1 - idle) + idle;
-            }
-            level = this.clamp(level, 0, 1);
-
-            if (this.bioFeature.type == 'rotate') {
-                this.bioFeature.setLevel(level * (motionBasedBackward ? -1 : 1));
-            } else {
-                this.bioFeature.setLevel(level);
-            }
-        }
+        this.bioFeature.setLevel(level, motionBasedBackward, now, timeDelta);
 
         this.lastLevel = this.bioFeature.lastLevel;
         this.lastSources.clear();
@@ -332,31 +198,6 @@ class BridgeToy {
         this.lastPushTime = now;
     }
 
-    remap(num: number, fromMin: number, fromMax: number, toMin: number, toMax: number) {
-        const normalized = (num - fromMin) / (fromMax-fromMin);
-        return normalized * (toMax-toMin) + toMin;
-    }
-    clamp(num: number, min: number, max: number) {
-        if (isNaN(num)) return min;
-        return Math.max(min, Math.min(max, num));
-    }
-
-    getConfigParam(subkey: string) {
-        return this.configMap.get(this.bioFeature.id+'.'+subkey) ?? this.configMap.get('all.'+subkey);
-    }
-    getConfigBool(subkey: string, def = false) {
-        const p = this.getConfigParam(subkey);
-        if (p === '1' || p === 'true') return true;
-        if (p === '0' || p === 'false') return false;
-        return def;
-    }
-    getConfigNumber(subkey: string, def = 0) {
-        const p = this.getConfigParam(subkey);
-        if (p === undefined) return def;
-        const num = parseFloat(p);
-        if (isNaN(num)) return def;
-        return num;
-    }
     getStatus() {
         const lines = [];
         lines.push(`${this.bioFeature.id} = ${Math.round(this.lastLevel*100)}%`);
@@ -364,7 +205,7 @@ class BridgeToy {
         const sourceLines = [];
         for (const source of this.lastSources.values()) {
             //if (source.value == 0) continue;
-            sourceLines.push(`  ${source.deviceType}.${source.deviceName}.${source.featureName} = ${Math.round(source.value*100)}%`);
+            sourceLines.push(`  ${source.tags.join(",")} = ${Math.round(source.value*100)}%`);
         }
         sourceLines.sort();
         lines.push(...sourceLines);

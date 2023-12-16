@@ -1,143 +1,311 @@
 import osc from 'osc';
-import type {OscMessage} from 'osc';
-import dgram from 'dgram';
+import {OscMessage} from 'osc';
+import dgram, {RemoteInfo} from 'dgram';
 import EventEmitter from "events"
 import type TypedEmitter from "typed-emitter"
+import {
+    OSCQueryServer,
+    OSCTypeSimple,
+    OSCQAccess, OSCQueryDiscovery, DiscoveredService, type OSCMethodDescription,
+} from "oscquery";
+import portfinder from 'portfinder';
+import {Service} from "typedi";
+import MyAddressesService from "./services/MyAddressesService";
+import LoggerService from "./services/LoggerService";
+import VrchatOscqueryService from "./services/VrchatOscqueryService";
+import http from "node:http";
+import {Protocol} from "@homebridge/ciao";
+import { getResponder } from "@homebridge/ciao";
+import Bonjour from "bonjour-service";
 import type {Config} from "../common/configTypes";
+import OgbConfigService from "./services/OgbConfigService";
 
 type MyEvents = {
     add: (key: string, value: OscValue) => void,
     clear: () => void
 }
 
+@Service()
 export default class OscConnection extends (EventEmitter as new () => TypedEmitter<MyEvents>) {
     private readonly _entries = new Map<string,OscValue>();
     private recentlyRcvdOscCmds = 0;
     lastReceiveTime = 0;
-    private readonly config;
     private readonly udpClient;
-    private readonly log;
-    private socket: osc.UDPPort | undefined;
+    private readonly logger;
+    private oscQuery: OSCQueryServer | undefined;
+    private oscSocket: osc.UDPPort | undefined;
     socketopen = false;
-    private retryTimeout: ReturnType<typeof setTimeout> | undefined;
+    private lastPacket: number = 0;
+    public port: number = 0;
+    private shutdown: (()=>void)[] = [];
+    public useOscQuery: boolean = true;
 
     constructor(
-        logger: (...args: unknown[]) => void,
-        config: Config
+        private myAddresses: MyAddressesService,
+        private config: OgbConfigService,
+        private vrchatOscqueryService: VrchatOscqueryService,
+        logger: LoggerService
     ) {
         super();
 
-        this.log = logger;
-        this.config = config;
+        this.logger = logger.get('oscLog');
         this.udpClient = dgram.createSocket('udp4');
 
         this.openSocket();
 
         setInterval(() => {
+            if (!this.socketopen) return;
             if (this.recentlyRcvdOscCmds > 0) {
-                this.log("Received " + this.recentlyRcvdOscCmds + " OSC updates in the past 15 seconds");
+                this.logger.log("Received " + this.recentlyRcvdOscCmds + " OSC updates in the past 15 seconds");
                 this.recentlyRcvdOscCmds = 0;
             }
         }, 15000);
+
+        const mdns = new Bonjour();
+        const mdnsBrowser = mdns.find({
+            type: "oscjson",
+            protocol: "tcp"
+        });
+        const mdnsTimeout = setTimeout(() => {
+            this.logger.log("Mdns watchdog timed out! Mdns must not work on this machine. Reverting to legacy port 9001 mode.");
+            this.useOscQuery = false;
+            this.openSocket();
+        }, 5000);
+        mdnsBrowser.on('up', service => {
+            if (service.port != this.port) return;
+            const ip = service.addresses?.[0];
+            if (!ip) return;
+            if (!this.myAddresses.has(ip)) return;
+            this.logger.log("Mdns watchdog found own oscquery announcement");
+            clearTimeout(mdnsTimeout);
+            mdns.destroy();
+        })
     }
 
-    public static parsePort(inputObj: string | undefined, defAddress: string, defPort: number): [string,number] {
-        let input = inputObj ?? '';
-        let outAddress = defAddress;
-        let outPort = defPort;
-        if (input.includes(':')) {
-            const split = input.split(':');
-            outAddress = split[0]!;
-            input = split[1]!;
+    public static parsePort(inputObj: string | undefined, defAddress: string, defPort: number): URL {
+        let input = (inputObj ?? '').trim();
+
+        let parse;
+        if (input.match(/^\d+$/)) {
+            parse = defAddress + ":" + input;
+        } else if (input) {
+            parse = input;
+        } else {
+            parse = defAddress;
         }
-        const parsedPort = parseInt(input);
-        if (!isNaN(parsedPort) && parsedPort > 0) outPort = parsedPort;
-        return [outAddress, outPort];
+
+        if (!parse.includes('://')) {
+            parse = 'ws://' + parse;
+        }
+
+        try {
+            const parsed = new URL(parse);
+            if (!parsed.port) parsed.port = defPort+"";
+            return parsed;
+        } catch(e) {
+            return new URL("ws://" + defAddress + ":" + defPort);
+        }
     }
 
-    private openSocket() {
-        let receivedOne = false;
-        const [oscAddress, oscPort] = OscConnection.parsePort(
-            this.config.vrchat?.receiveAddress, '127.0.0.1', 9001);
+    private error(e: unknown) {
+        this.logger.log('<-', 'ERROR', e);
+    }
 
-        this.log(`Opening server on port ${oscAddress}:${oscPort}`);
-        const udpPort = this.socket = new osc.UDPPort({
-            localAddress: oscAddress,
-            localPort: oscPort,
-            remotePort: 9000,
+    private async openSocket() {
+        try {
+            await this.openSocketUnsafe();
+        } catch (e) {
+            this.error(e);
+        }
+    }
+
+    private async openSocketUnsafe() {
+        // Shutdown old service
+        const vrchatConfig = this.config.get().sources.vrchat;
+        this.updateBulkAttempt = undefined;
+        this.waitingForBulk = false;
+        this.clearValues();
+        for(const s of this.shutdown) { s(); }
+        this.shutdown.length = 0;
+
+        let port = 9001;
+        if (this.useOscQuery) {
+            port = this.port = await portfinder.getPortPromise({
+                port: 33776,
+            });
+        }
+        this.logger.log(`Selected port: ${port}`);
+
+        if (this.useOscQuery) {
+            this.logger.log(`Starting OSCQuery handler...`);
+            const oscQuery = this.oscQuery = new OSCQueryServer({
+                httpPort: port,
+                serviceName: "OGB"
+            });
+            this.shutdown.push(() => oscQuery.stop());
+            oscQuery.addMethod("/avatar/change", { access: OSCQAccess.WRITEONLY });
+            this.logger.log(`Started`);
+
+            this.logger.log(`Starting OSCQuery HTTP server...`);
+            const httpServer = http.createServer(oscQuery._httpHandler.bind(oscQuery));
+            this.shutdown.push(() => httpServer.close());
+            httpServer.on('error', e => this.logger.log(`HTTP server error ${e.stack}`));
+            await new Promise<void>((resolve, reject) => {
+                httpServer.listen(port, () => {
+                    resolve();
+                }).on('error', (err) => {
+                    reject(err);
+                });
+            });
+            this.logger.log(`Started on port ${port}`);
+
+            this.logger.log(`Starting OSCQuery MDNS server...`);
+            const mdns = getResponder();
+            this.shutdown.push(() => mdns.shutdown());
+            const mdnsService = mdns.createService({
+                name: "OGB",
+                type: "oscjson",
+                port: port,
+                protocol: "tcp" as Protocol,
+            });
+            // Do this async, in case it never returns, which seems to happen for some reason
+            (async () => {
+                try {
+                    await mdnsService.advertise();
+                    this.logger.log(`MDNS is advertising`);
+                } catch (e) {
+                    this.logger.log(`MDNS advertising error ${e instanceof Error ? e.stack : e}`);
+                }
+            })().then();
+        }
+
+        let receivedOne = false;
+
+        this.logger.log(`Starting OSC server...`);
+        const oscSocket = this.oscSocket = new osc.UDPPort({
+            localAddress: '0.0.0.0',
+            localPort: port,
             metadata: true
         });
-        udpPort.on('ready', () => {
+        this.shutdown.push(() => oscSocket.close());
+        oscSocket.on('ready', () => {
             this.socketopen = true;
-            this.log('<-', 'OPEN');
-            this.log("Waiting for first message from OSC ...");
+            this.recentlyRcvdOscCmds = 0;
+            this.lastPacket = 0;
+            this.logger.log('<-', 'OPEN');
+            this.logger.log("Waiting for first message from OSC ...");
         });
-        udpPort.on('error', (e: unknown) => {
-            this.socketopen = false;
-            this.log('<-', 'ERROR', e);
-            this.delayRetry();
+        this.shutdown.push(() => this.socketopen = false);
+        oscSocket.on('error', (e: unknown) => {
+            // node osc throws errors for all sorts of invalid packets and things we often receive
+            // that otherwise shouldn't be fatal to the socket. Just ignore them.
         });
-        udpPort.on('data', (msg: Buffer) => {
-            const proxyPort = this.configMap.get('osc.proxy');
-            if (proxyPort) {
-                for (let p of proxyPort.split(',')) {
-                    const [address,port] = OscConnection.parsePort(p.trim(), '127.0.0.1', 0);
-                    if (port > 0) this.udpClient.send(msg, port, address);
-                }
+        oscSocket.on('data', (msg: Buffer) => {
+            for (let {address:p} of vrchatConfig.proxy) {
+                const proxyUrl = OscConnection.parsePort(p.trim(), '127.0.0.1', 0);
+                const proxyPortNum = parseInt(proxyUrl.port);
+                if (proxyPortNum > 0) this.udpClient.send(msg, proxyPortNum, proxyUrl.hostname);
             }
         });
-        udpPort.on('message', (oscMsg: OscMessage) => {
-            if (!receivedOne) {
-                receivedOne = true;
-                this.log("Received an OSC message. We are probably connected.");
-            }
-            this.recentlyRcvdOscCmds++;
-            this.lastReceiveTime = Date.now();
-
-            const address = oscMsg.address;
-            if (!address) return;
-
-            if (address === '/avatar/change') {
-                this.log('<-', 'Avatar change');
-                this._entries.clear();
-                this.emit('clear');
+        oscSocket.on('message', (oscMsg: OscMessage, timeTag: unknown, rinfo: RemoteInfo) => {
+            const from = rinfo.address;
+            if (!this.myAddresses.has(from)) {
+                this.logger.log(`Received OSC packet from unknown address: ${from}`);
                 return;
             }
 
-            const arg = oscMsg.args?.[0];
-            if (!arg) return;
-            const rawValue = arg.value;
-
-            if (address.startsWith('/avatar/parameters/')) {
-                const key = address.substring('/avatar/parameters/'.length);
-                let value = this._entries.get(key);
-                let isNew = false;
-                if (!value) {
-                    value = new OscValue();
-                    this._entries.set(key, value);
-                    isNew = true;
-                }
-                value.receivedUpdate(rawValue);
-                if (isNew) this.emit('add', key, value);
+            //this.log(`Received OSC packet from: ${from}`);
+            if (!receivedOne) {
+                receivedOne = true;
+                this.logger.log("Received an OSC message. We are probably connected.");
+                this.updateBulk();
             }
+            this.lastPacket = Date.now();
+            this.recentlyRcvdOscCmds++;
+            this.lastReceiveTime = Date.now();
+
+            const path = oscMsg.address;
+            if (!path) return;
+
+            if (path === '/avatar/change') {
+                this.logger.log('<-', 'Avatar change');
+                this.clearValues();
+                this.updateBulk();
+                return;
+            }
+
+            const param = this.parseParamFromPath(path);
+            this.receivedParamValue(param, oscMsg.args?.[0]?.value, false);
         });
 
         // Open the socket.
-        udpPort.open();
+        oscSocket.open();
     }
 
-    delayRetry() {
-        if (this.socket) {
-            this.socket.close();
-            this.socket = undefined;
+    private clearValues() {
+        this._entries.clear();
+        this.emit('clear');
+    }
+
+    private receivedParamValue(param: string | undefined, rawValue: unknown, onlyUseIfNew: boolean) {
+        if (param === undefined) return;
+        if (rawValue === undefined) return;
+        let value = this._entries.get(param);
+        let isNew = false;
+        if (!value) {
+            value = new OscValue();
+            this._entries.set(param, value);
+            isNew = true;
+        } else if (onlyUseIfNew) {
+            return;
         }
-        clearTimeout(this.retryTimeout);
-        this.retryTimeout = setTimeout(() => this.openSocket(), 1000);
+        value.receivedUpdate(rawValue);
+        if (isNew) this.emit('add', param, value);
+    }
+
+    private parseParamFromPath(path: string) {
+        if (path.startsWith('/avatar/parameters/')) {
+            return path.substring('/avatar/parameters/'.length);
+        }
+        return undefined;
+    }
+
+    public waitingForBulk = false;
+    private updateBulkAttempt: unknown;
+    private async updateBulk() {
+        this.waitingForBulk = true;
+        const myAttempt = this.updateBulkAttempt = {};
+        const isStillValid = () => this.updateBulkAttempt == myAttempt;
+        while(true) {
+            try {
+                await this._updateBulk(isStillValid);
+            } catch(e) {
+                this.logger.log("Error fetching bulk info: " + e);
+                await new Promise((r) => setTimeout(r, 100));
+                if (isStillValid()) continue;
+            }
+            this.waitingForBulk = false;
+            break;
+        }
+    }
+    private async _updateBulk(isRequestStillValid: ()=>boolean) {
+        const nodes = await this.vrchatOscqueryService.getBulk();
+        if (!nodes) {
+            throw new Error("VRChat OscQuery not discovered yet");
+        }
+
+        if (!isRequestStillValid()) return;
+        for (const [key,value] of Object.entries(nodes)) {
+            const param = this.parseParamFromPath(key);
+            this.receivedParamValue(param, value, true);
+        }
     }
 
     send(paramName: string, value: number) {
-        if (!this.socket || !this.socketopen) return;
-        this.socket.send({
+        if (!this.oscSocket || !this.socketopen) return;
+        const sendAddr = this.vrchatOscqueryService.getOscAddress();
+        if (!sendAddr) return;
+        this.oscSocket.send({
             address: "/avatar/parameters/" + paramName,
             args: [
                 {
@@ -145,13 +313,7 @@ export default class OscConnection extends (EventEmitter as new () => TypedEmitt
                     value: value
                 }
             ]
-        });
-    }
-
-    clearDeltas() {
-        for (const entry of this._entries.values()) {
-            entry.clearDelta();
-        }
+        }, sendAddr[0], sendAddr[1]);
     }
 
     entries() {
@@ -165,26 +327,14 @@ type ValueEvents = {
 
 export class OscValue extends (EventEmitter as new () => TypedEmitter<ValueEvents>) {
     private value: unknown = undefined;
-    private delta = 0;
-
-    clearDelta() {
-        this.delta = 0;
-    }
 
     receivedUpdate(newValue: unknown) {
         const oldValue = this.value;
-        if (typeof oldValue == 'number' && typeof newValue == 'number') {
-            this.delta += Math.abs(newValue - oldValue);
-        }
         this.value = newValue;
         this.emit('change', oldValue, newValue);
     }
 
     get() {
         return this.value;
-    }
-
-    getDelta() {
-        return this.delta;
     }
 }

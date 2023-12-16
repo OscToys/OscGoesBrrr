@@ -1,7 +1,6 @@
 import React, {useEffect, useState} from "react";
 import StatusBox, {LogBox} from "./StatusBox";
 import ToggleableAudioHandler from "./AudioHandler";
-import AdvancedConfig from "./AdvancedConfig";
 // @ts-ignore
 import logoPath from '../../icons/ogb-logo.png';
 import Home from "./Home";
@@ -9,8 +8,9 @@ import classNames from "classnames";
 import DebugLog from "./DebugLog";
 import {FontAwesomeIcon} from "@fortawesome/react-fontawesome";
 import { faDiscord } from "@fortawesome/free-brands-svg-icons";
-import type {IconDefinition} from "@fortawesome/fontawesome-common-types";
-import {faCircleNodes, faHome, faPeopleGroup, faTerminal} from "@fortawesome/free-solid-svg-icons";
+import {IconDefinition} from "@fortawesome/fontawesome-common-types";
+import {faBarsStaggered, faCircleNodes, faHome, faPeopleGroup, faTerminal} from "@fortawesome/free-solid-svg-icons";
+import AvatarParams from "./AvatarParams";
 import {faGear} from "@fortawesome/free-solid-svg-icons/faGear";
 import Settings from "./Settings";
 
@@ -32,6 +32,7 @@ export default function Main() {
             {SelectButton("home", "Home", faHome)}
             {SelectButton("logs", "Debug Logs", faTerminal)}
             {SelectButton("settings", "Settings", faGear)}
+            {SelectButton("avatarParams", "Avatar Debugger", faBarsStaggered)}
             {SelectButton("discord", "Support Discord", faDiscord, () => window.open("https://osc.toys/discord", "_blank"))}
             {SelectButton("vrcgroup", "VRChat Group", faCircleNodes, () => window.open("https://vrchat.com/home/group/grp_b64197f9-2d97-499a-93d3-1e3a37c944ae", "_blank"))}
         </div>
@@ -40,6 +41,7 @@ export default function Main() {
             {page == "home" && <Home/>}
             {page == "logs" && <DebugLog/>}
             {page == "settings" && <Settings/>}
+            {page == "avatarParams" && <AvatarParams/>}
         </div>
     </div>;
 }

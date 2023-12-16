@@ -24,40 +24,51 @@ export default function StatusBox({getCmd, ...rest}: {
     }, []);
 
     return <FreezingBox
-        content={status}
+        body={status}
         {...rest}
     />;
 }
 
-export function LogBox({eventName, ...rest}: {
-    eventName: string
+export function LogBox({...rest}: {
 } & React.HTMLAttributes<HTMLTextAreaElement>) {
     const [status,setStatus] = useState("");
 
     useEffect(() => {
         const lines: string[] = [];
-        function onEvent(_event: Electron.IpcRendererEvent, text: any) {
+        let destroyed = false;
+        async function loadHistory() {
+            const history = await ipcRenderer.invoke(`log:history`);
+            if (destroyed) return;
+            lines.push(...history);
+            while (lines.length > 1000) lines.shift();
+            setStatus(lines.join('\n'));
+        }
+        loadHistory();
+        function onLine(_event: Electron.IpcRendererEvent, text: any) {
             lines.push(...text.split('\n'));
             while (lines.length > 1000) lines.shift();
             setStatus(lines.join('\n'));
         }
-        ipcRenderer.on(eventName, onEvent);
-        return () => { ipcRenderer.off(eventName, onEvent) };
+        ipcRenderer.on(`log:line`, onLine);
+        return () => {
+            ipcRenderer.off(`log:line`, onLine);
+            destroyed = true;
+        };
     }, []);
 
     return <FreezingBox
-        content={status}
+        body={status}
         scrollOnChange={true}
         {...rest}
     />;
 }
 
-function FreezingBox({content, scrollOnChange = false, ...rest}: {
-    content: string,
+function FreezingBox({body, scrollOnChange = false, ...rest}: {
+    body: string,
     scrollOnChange?: boolean
 } & React.HTMLAttributes<HTMLTextAreaElement>) {
-    const latestContent = useLatest(content);
-    const [liveContent,setLiveContent] = useState(content);
+    const latestContent = useLatest(body);
+    const [liveContent,setLiveContent] = useState(body);
     const lastMouse = useRef(0);
     const area = useRef<HTMLTextAreaElement>(null);
 
@@ -87,7 +98,7 @@ function FreezingBox({content, scrollOnChange = false, ...rest}: {
     return <textarea
         style={{flex: 1}}
         readOnly
-        wrap="off"
+        wrap="on"
         onMouseMove={resetFreezeTimerIfFrozen}
         onMouseDown={resetFreezeTimer}
         onScroll={resetFreezeTimer}

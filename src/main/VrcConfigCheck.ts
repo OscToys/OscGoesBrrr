@@ -1,7 +1,14 @@
+import {Service} from "typedi";
+
+@Service()
 export default class VrcConfigCheck {
     oscEnabled?: boolean;
     selfInteractEnabled?: boolean;
     everyoneInteractEnabled?: boolean;
+
+    constructor() {
+        this.start();
+    }
 
     async start() {
         const reg = await import('native-reg');

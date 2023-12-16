@@ -1,6 +1,6 @@
 import {type ReactNode, useEffect, useState} from 'react';
 import {ipcRenderer} from "electron";
-import {Config, DeviceConfig} from '../../common/configTypes';
+import {Config} from '../../common/configTypes';
 import React from 'react';
 import {
     type FieldPath,
@@ -39,7 +39,7 @@ export default function Settings() {
     const onSubmit = handleSubmit(
         async data => {
             console.log("submit", data);
-            //await ipcRenderer.invoke('config:set', data);
+            await ipcRenderer.invoke('config:set', data);
         }
     );
 
@@ -49,19 +49,12 @@ export default function Settings() {
     return <FormProvider {...form}><form onSubmit={onSubmit} className="settings">
         <h1>Intiface</h1>
         <label>Intiface Server Port or IP:Port</label>
-        <Field name="intiface.address" placeholder="Default: 12345" />
+        <Field name="outputs.intiface.address" placeholder="Default: 12345" />
 
         <h1>VRChat</h1>
-        <label>VRChat OSC Receive Port</label>
-        <Field name="vrchat.receiveAddress" placeholder="Default: 9001" />
         <label>Forward OSC Data to Port or IP:Port</label>
-        <FieldArray name="vrchat.proxy">{name =>
+        <FieldArray name="sources.vrchat.proxy">{name =>
             <Field name={`${name}.address`} placeholder="Ex: 9002 or 192.168.0.5:9000"/>
-        }</FieldArray>
-
-        <h1>Devices</h1>
-        <FieldArray name="devices">{name =>
-            <div>Hello world {name}</div>
         }</FieldArray>
 
         {isDirty && <input type="submit" value="Save"/>}
@@ -69,11 +62,13 @@ export default function Settings() {
     </form></FormProvider>;
 }
 
+/*
 function DeviceEditor<T extends FieldValues>({name}: {
     name: FieldPathByValue<T, DeviceConfig>
 }) {
 
 }
+ */
 
 function Field({name, placeholder}: {
     name: FieldPath<Config>,

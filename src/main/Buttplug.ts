@@ -1,19 +1,24 @@
 import WebSocket from 'ws';
 import {default as decodeType} from '../common/decodeType';
-import type {ButtplugMessageWithType, Device} from "./ButtplugSpec";
+import {ButtplugMessageWithType, Device} from "./ButtplugSpec";
 import {ButtplugPacket} from "./ButtplugSpec";
 import EventEmitter from "events";
-import type TypedEmitter from "typed-emitter";
+import TypedEmitter from "typed-emitter";
 import OscConnection from "./OscConnection";
+import LoggerService, {SubLogger} from "./services/LoggerService";
 import type {Config} from "../common/configTypes";
+import OgbMath from "./utils/OgbMath";
+import OgbConfigService from "./services/OgbConfigService";
+import {Service} from "typedi";
 
 type MyEvents = {
     addFeature: (device: DeviceFeature) => void,
     removeFeature: (device: DeviceFeature) => void
 }
 
+@Service()
 export default class Buttplug extends (EventEmitter as new () => TypedEmitter<MyEvents>) {
-    log;
+    private readonly logger;
     lastMessageId = 0;
     activeCallbacks = new Map<number,(msg:ButtplugMessageWithType|null,error?:any)=>void>();
     features = new Set<DeviceFeature>();
@@ -21,24 +26,26 @@ export default class Buttplug extends (EventEmitter as new () => TypedEmitter<My
     recentlySentCmds = 0;
     retryTimeout : ReturnType<typeof setInterval> | undefined;
     ws: WebSocket | undefined;
-    config: Config;
 
     constructor(
-        logger: (...args: unknown[]) => void,
-        config: Config
+        logger: LoggerService,
+        private config: OgbConfigService
     ) {
         super();
-        this.log = logger;
-        this.config = config;
+        this.logger = logger.get('Buttplug');
         this.retry();
         this.scanForever();
 
         setInterval(() => {
             if (this.recentlySentCmds > 0) {
-                this.log("Sent " + this.recentlySentCmds + " high-frequency commands in the last 15 seconds");
+                this.logger.log("Sent " + this.recentlySentCmds + " high-frequency commands in the last 15 seconds");
                 this.recentlySentCmds = 0;
             }
         }, 15000);
+    }
+
+    public getIntifaceConfig() {
+        return this.config.get().outputs.intiface;
     }
 
     connectionTimeout: ReturnType<typeof setTimeout> | undefined;
@@ -50,21 +57,20 @@ export default class Buttplug extends (EventEmitter as new () => TypedEmitter<My
 
         this.terminate();
 
-        const [bAddress, bPort] = OscConnection.parsePort(this.config.intiface?.address, '127.0.0.1', 12345);
-        let address = `${bAddress}:${bPort}`;
-        this.log("Opening connection to server at " + address);
+        const url = OscConnection.parsePort(this.getIntifaceConfig().address, '127.0.0.1', 12345);
+        this.logger.log("Opening connection to server at " + url);
 
         let ws;
         try {
-            ws = this.ws = new WebSocket('ws://' + address);
+            ws = this.ws = new WebSocket(url);
         } catch(e) {
-            this.log('Init exception', e);
+            this.logger.log('Init exception', e);
             this.delayRetry();
             return;
         }
         ws.on('message', data => this.onReceive(data));
         ws.on('error', e => {
-            this.log('error', e);
+            this.logger.log('error', e);
             this.delayRetry();
         })
         ws.on('close', e => {
@@ -72,14 +78,14 @@ export default class Buttplug extends (EventEmitter as new () => TypedEmitter<My
                 callback(null, new Error("Connection closed"));
             }
             this.clearDevices();
-            this.log('Connection closed');
+            this.logger.log('Connection closed');
             this.delayRetry();
         })
         ws.on('open', async () => {
             this.clearDevices();
             clearTimeout(this.connectionTimeout);
             this.connectionTimeout = undefined;
-            this.log('open');
+            this.logger.log('open');
             await this.send({
                 type: 'RequestServerInfo',
                 ClientName: 'OscGoesBrrr',
@@ -88,9 +94,9 @@ export default class Buttplug extends (EventEmitter as new () => TypedEmitter<My
             await this.send({ type: 'RequestDeviceList' });
         });
 
-        this.log('Opening websocket ...');
+        this.logger.log('Opening websocket ...');
         this.connectionTimeout = setTimeout(() => {
-            this.log('Timed out while opening socket');
+            this.logger.log('Timed out while opening socket');
             this.delayRetry();
         }, 3000);
     }
@@ -112,7 +118,7 @@ export default class Buttplug extends (EventEmitter as new () => TypedEmitter<My
         const type = params.type;
 
         if (type !== 'Ok') {
-            this.log('<-', params);
+            this.logger.log('<-', params);
         }
 
         if (type === 'DeviceRemoved') {
@@ -145,7 +151,7 @@ export default class Buttplug extends (EventEmitter as new () => TypedEmitter<My
         if (type === 'ScalarCmd' || type === 'LinearCmd' || type == 'RotateCmd' || type == 'FleshlightLaunchFW12Cmd') {
             this.recentlySentCmds++;
         } else {
-            this.log('->', type, newArgs);
+            this.logger.log('->', type, newArgs);
         }
 
         const json: ButtplugPacket = [{[type]: newArgs}];
@@ -179,7 +185,7 @@ export default class Buttplug extends (EventEmitter as new () => TypedEmitter<My
     delayRetry() {
         if (this.retryTimeout) return;
         this.terminate();
-        this.log('retrying shortly ...');
+        this.logger.log('retrying shortly ...');
         this.retryTimeout = setTimeout(() => this.retry(), 1000);
     }
 
@@ -188,7 +194,7 @@ export default class Buttplug extends (EventEmitter as new () => TypedEmitter<My
             try {
                 await this.scan();
             } catch(e) {
-                this.log('Error while scanning', e);
+                this.logger.log('Error while scanning', e);
             }
             await new Promise(r => setTimeout(r, 1000));
         }
@@ -231,15 +237,15 @@ export default class Buttplug extends (EventEmitter as new () => TypedEmitter<My
         let featureId = 0;
         const scalarCmds = d.DeviceMessages?.ScalarCmd ?? [];
         for (let i = 0; i < scalarCmds.length; i++) {
-            this.addFeature(new DeviceFeature(id + '-' + featureId++, id, 'vibrate', d.DeviceIndex, i, this, scalarCmds[i]!.ActuatorType));
+            this.addFeature(new DeviceFeature(this, id + '-' + featureId++, id, 'vibrate', d.DeviceIndex, i, this, scalarCmds[i]!.ActuatorType));
         }
         const linearCmds = d.DeviceMessages?.LinearCmd ?? [];
         for (let i = 0; i < linearCmds.length; i++) {
-            this.addFeature(new DeviceFeature(id + '-' + featureId++, id, 'linear', d.DeviceIndex, i, this, ''));
+            this.addFeature(new DeviceFeature(this, id + '-' + featureId++, id, 'linear', d.DeviceIndex, i, this, ''));
         }
         const rotateCmds = d.DeviceMessages?.RotateCmd ?? [];
         for (let i = 0; i < rotateCmds.length; i++) {
-            this.addFeature(new DeviceFeature(id + '-' + featureId++, id, 'rotate', d.DeviceIndex, i, this, ''));
+            this.addFeature(new DeviceFeature(this, id + '-' + featureId++, id, 'rotate', d.DeviceIndex, i, this, ''));
         }
     }
 
@@ -254,26 +260,24 @@ export default class Buttplug extends (EventEmitter as new () => TypedEmitter<My
 }
 
 export class DeviceFeature {
-    readonly id;
-    readonly deviceId;
-    readonly type;
-    readonly bioDeviceIndex;
-    private readonly bioSubIndex;
-    private readonly parent;
-    private readonly actuatorType;
     lastLevel = 0;
+    private linearTarget = 0;
+    private linearVelocity = 0;
+    private lastLinearSuck = 0;
 
-    constructor(fullFeatureId: string, deviceId: string, type: 'linear'|'vibrate'|'rotate', bioDeviceIndex: number, bioSubIndex: number, parent: Buttplug, actuatorType: string) {
-        this.id = fullFeatureId;
-        this.deviceId = deviceId;
-        this.type = type;
-        this.bioDeviceIndex = bioDeviceIndex;
-        this.bioSubIndex = bioSubIndex;
-        this.parent = parent;
-        this.actuatorType = actuatorType;
+    constructor(
+        private readonly owner: Buttplug,
+        public readonly id: string,
+        public readonly deviceId: string,
+        public readonly type: 'linear'|'vibrate'|'rotate',
+        public readonly bioDeviceIndex: number,
+        private readonly bioSubIndex: number,
+        private readonly parent: Buttplug,
+        private readonly actuatorType: string
+    ) {
     }
 
-    setLevel(level: number, duration = 0) {
+    private setLevelRaw(level: number, duration = 0) {
         if (this.type == 'linear') {
             this.parent.send({
                 type: 'LinearCmd',
@@ -296,5 +300,105 @@ export class DeviceFeature {
             }
         }
         this.lastLevel = level;
+    }
+
+    public setLevel(level: number, backward: boolean, now: number, timeDelta: number) {
+        const config = this.owner.getIntifaceConfig();
+
+        if (this.type == 'linear') {
+            const linearConfig = this.owner.getIntifaceConfig().linear;
+
+            const timeDeltaSeconds = timeDelta / 1000;
+            const oldVelocity = this.linearVelocity;
+            let maxVelocity = linearConfig?.maxVelocity ?? 3;
+            let maxAcceleration = linearConfig?.maxAcceleration ?? 20;
+            const durationMult = 1;
+            const restingPos = OgbMath.clamp(linearConfig?.restingPosition ?? 0, 0, 1);
+            const restingTime = (linearConfig?.restingTime ?? 3) * 1000;
+
+            let targetPosition = 1 - level;
+            const min = linearConfig?.minPosition ?? 0;
+            const max = linearConfig?.maxPosition ?? 1;
+            targetPosition = OgbMath.remap(targetPosition, 0, 1, min, max);
+
+            if (level > 0) {
+                this.lastLinearSuck = now;
+            } else if (this.lastLinearSuck < now - restingTime) {
+                targetPosition = restingPos;
+                maxAcceleration = 999;
+                maxVelocity = Math.min(maxVelocity, 1);
+            }
+
+            targetPosition = OgbMath.clamp(targetPosition, 0, 1);
+
+            const currentPosition = this.lastLevel;
+            const absDistanceRequiredToStopSmoothly = Math.pow(oldVelocity, 2) / (2 * maxAcceleration);
+            const stopPosition = currentPosition + (oldVelocity < 0 ? -1 : 1) * absDistanceRequiredToStopSmoothly;
+            const fromStopPositionToTarget = targetPosition - stopPosition;
+
+            // Test what would happen if we accelerate or decelerate
+            let newVelocityIfWeAdd = oldVelocity + maxAcceleration * timeDeltaSeconds;
+            let newVelocityIfWeSubtract = oldVelocity - maxAcceleration * timeDeltaSeconds;
+            if (Math.abs(newVelocityIfWeAdd) > maxVelocity) newVelocityIfWeAdd = (newVelocityIfWeAdd > 0 ? 1 : -1) * maxVelocity;
+            if (Math.abs(newVelocityIfWeSubtract) > maxVelocity) newVelocityIfWeSubtract = (newVelocityIfWeSubtract > 0 ? 1 : -1) * maxVelocity;
+
+            // If we'd hit the target with a velocity in between the accelerate and decelerate options, lock to the target
+            const newPosIfWeAdd = currentPosition + newVelocityIfWeAdd * timeDeltaSeconds;
+            const newPosIfWeSubtract = currentPosition + newVelocityIfWeSubtract * timeDeltaSeconds;
+            let newVelocity;
+            if (targetPosition == newPosIfWeAdd) {
+                newVelocity = newVelocityIfWeAdd;
+            } else if (targetPosition == newPosIfWeSubtract) {
+                newVelocity = newVelocityIfWeSubtract;
+            } else if (newPosIfWeAdd < targetPosition != newPosIfWeSubtract < targetPosition) {
+                newVelocity = (targetPosition - currentPosition) / timeDeltaSeconds;
+            } else {
+                // otherwise, head toward the target
+                newVelocity = fromStopPositionToTarget > 0 ? newVelocityIfWeAdd : newVelocityIfWeSubtract;
+            }
+
+            let newPosition = currentPosition + newVelocity * timeDeltaSeconds;
+
+            //console.log(`target=${targetPosition} velocity=${this.linearVelocity} stopDistance=${absDistanceRequiredToStopSmoothly} stopPos=${stopPosition} stopDelta=${fromStopPositionToTarget} pos=${currentPosition}->${newPosition} add=${add}`);
+            if (newPosition > 1) {
+                newPosition = 1;
+                newVelocity = 0;
+            }
+            if (newPosition < 0) {
+                newPosition = 0;
+                newVelocity = 0;
+            }
+            //newPosition = level;
+            if (this.lastLevel != newPosition) {
+                this.setLevelRaw(newPosition, Math.round(timeDelta * durationMult));
+            }
+
+            this.linearVelocity = newVelocity;
+            this.linearTarget = targetPosition;
+
+            const debug = linearConfig?.debugLog ?? false;
+            if (debug) {
+                const width = 60;
+                const currentPos = Math.floor(newPosition * width);
+                const targetPos = Math.floor(targetPosition * width);
+                let out = '';
+                out += '|';
+                for (let i = 0; i < width; i++) {
+                    if (i == currentPos) out += '#';
+                    else if (i == targetPos) out += '*';
+                    else out += ' ';
+                }
+                out += '|';
+                console.log(out);
+            }
+            return;
+        }
+
+        if (this.type == 'rotate') {
+            this.setLevelRaw(level * (backward ? -1 : 1));
+            return;
+        }
+
+        this.setLevelRaw(level);
     }
 }
