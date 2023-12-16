@@ -30,23 +30,28 @@ export default function Settings() {
         }
     });
     const {
+        control,
+        reset,
         register,
         setValue,
         resetField,
         handleSubmit,
+        getValues,
         formState: { errors, isValid, isDirty, isSubmitting, dirtyFields, isLoading }
     } = form;
+    const { append: appendRule } = useFieldArray({ control: control, name: "rules", });
     const onSubmit = handleSubmit(
         async data => {
             console.log("submit", data);
             await ipcRenderer.invoke('config:set', data);
+            reset(data);
         }
     );
 
     if (loadError) return <>{loadError}</>;
     if (isLoading) return <>Loading configuration ...</>;
 
-    return <FormProvider {...form}><form onSubmit={onSubmit} className="settings">
+    return <FormProvider {...form}><form onSubmit={onSubmit} className="settings"><fieldset disabled={isSubmitting}>
         <h1>Intiface</h1>
         <label>Intiface Server Port or IP:Port</label>
         <Field name="outputs.intiface.address" placeholder="Default: 12345" />
@@ -57,9 +62,29 @@ export default function Settings() {
             <Field name={`${name}.address`} placeholder="Ex: 9002 or 192.168.0.5:9000"/>
         }</FieldArray>
 
+        <h1>Rules</h1>
+        <FieldArray name="rules">{name => {
+            const conditions = <FieldArray name={`${name}.conditions`}>{conditionId => {
+                const conditionType = getValues(`${conditionId}.type`);
+                return <div>Condition {conditionType}</div>;
+            }}</FieldArray>;
+            const type = getValues(`${name}.action.type`);
+            return <>
+                <div>Rule {name}</div>
+                <div>Conditions:</div>
+                {conditions}
+                <div>Action: {type}</div>
+            </>;
+        }}</FieldArray>
+        <input type="button" onClick={_ => appendRule({action: {type: "scale"}} as any)} value="Add Scale Rule"/>
+
         {isDirty && <input type="submit" value="Save"/>}
-        {isSubmitting && <div>Saving...</div>}
-    </form></FormProvider>;
+        {Object.keys(errors).length > 0 && <span style={{whiteSpace: 'pre-wrap'}}>
+            Error:
+            {JSON.stringify(errors, null, 2)}
+        </span>}
+
+    </fieldset></form></FormProvider>;
 }
 
 /*

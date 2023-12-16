@@ -8,12 +8,12 @@ export const RuleCondition = discriminatedUnion("type", [
 ]);
 
 export const RuleAction = discriminatedUnion("type", [
-    object({type: literal('scale'), scale: number() }),
+    object({type: literal('scale'), scale: number().default(1) }),
     object({type: literal('movement'), }),
 ]);
 
 export const Rule = object({
-    conditions: array(RuleCondition),
+    conditions: array(RuleCondition).default([]),
     action: RuleAction
 });
 
