@@ -24,7 +24,7 @@ export default function Main() {
         </div>;
     }
 
-    return <div style={{display: 'flex', flexDirection: 'row', height: '100%'}}>
+    return <div style={{display: 'flex', flexDirection: 'row', height: '100%'}} data-bs-theme="dark">
         <ToggleableAudioHandler/>
 
         <div className="leftColumn">

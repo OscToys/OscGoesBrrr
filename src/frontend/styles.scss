@@ -1,3 +1,5 @@
+@import '~bootstrap/scss/bootstrap';
+
 html,body {
     height: 100%;
 }
@@ -62,35 +64,69 @@ textarea {
 
 .settings {
     padding: 20px;
-    h1 {
-        padding: 20px 0;
-        margin: 0;
-    }
-    label {
-        display: block;
-        margin: 0;
-    }
     .error {
         padding: 5px;
         border-radius: 5px;
         background-color: #900;
     }
-    .listItem {
-        position: relative;
-        background-color: rgba(255,255,255,0.05);
-        border-radius: 5px;
-        overflow: hidden;
-        margin: 2px;
-        padding: 5px;
-
-        .remove {
+    .list-group {
+        >button:not(:first-child), >.dropdown:not(:first-child)>button {
+            width: 100%;
+            border-top-left-radius: 0;
+            border-top-right-radius: 0;
+        }
+        >button:not(:last-child), >.dropdown:not(:last-child)>button {
+            width: 100%;
+            border-bottom-left-radius: 0;
+            border-bottom-right-radius: 0;
+        }
+    }
+    .list-group-item {
+        margin-bottom: 0; // Fixes borders missing for some reason
+        >.corner {
             position: absolute;
             top: 0;
             right: 0;
-            cursor: pointer;
             border-bottom-left-radius: 5px;
-            padding: 0px 6px;
-            background-color: #600;
+            overflow: hidden;
+            .remove, .up, .down {
+                cursor: pointer;
+                padding: 0px 6px;
+                background-color: #600;
+                float: left;
+                vertical-align: middle;
+            }
+        }
+    }
+    .badge {
+        display: inline-flex;
+        >.remove {
+            padding: 6px;
+            line-height: 0.9;
+            background-color: rgba(0,0,0,0.2);
+            border: 0;
+            margin-left: 5px;
+            margin-right: -8px;
+            margin-top: -5px;
+            margin-bottom: -4px;
+            border-bottom-left-radius: 0;
+            border-top-left-radius: 0;
+            align-self: stretch;
+        }
+    }
+    .conditions {
+        >.badge, >.dropdown>button {
+            height: 30px;
+            vertical-align: middle;
+            display: inline-flex;
+            justify-content: center;
+            align-items: center;
+        }
+        >.dropdown {
+            display: inline;
+            >button::after {
+                display: none; // remove the triangle
+            }
         }
     }
 }

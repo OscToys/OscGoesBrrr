@@ -1,6 +1,6 @@
-import {type ReactNode, useEffect, useState} from 'react';
+import {Fragment, type ReactNode, useEffect, useState} from 'react';
 import {ipcRenderer} from "electron";
-import {Config} from '../../common/configTypes';
+import {Config, Rule, RuleCondition} from '../../common/configTypes';
 import React from 'react';
 import {
     type FieldPath,
@@ -15,6 +15,7 @@ import {
 } from "react-hook-form";
 import {zodResolver} from "@hookform/resolvers/zod";
 import {ErrorMessage} from "@hookform/error-message";
+import {DropdownButton, Dropdown, Button, Badge, Toast, ToastContainer, ListGroup} from "react-bootstrap";
 
 export default function Settings() {
     const [loadError, setLoadError] = useState('');
@@ -53,55 +54,97 @@ export default function Settings() {
 
     return <FormProvider {...form}><form onSubmit={onSubmit} className="settings"><fieldset disabled={isSubmitting}>
         <h1>Intiface</h1>
-        <label>Intiface Server Port or IP:Port</label>
+        <div>Intiface Server Port or IP:Port</div>
         <Field name="outputs.intiface.address" placeholder="Default: 12345" />
 
         <h1>VRChat</h1>
-        <label>Forward OSC Data to Port or IP:Port</label>
-        <FieldArray name="sources.vrchat.proxy">{name =>
+        <div>Forward OSC Data to Port or IP:Port</div>
+        <FieldArray name="sources.vrchat.proxy" appendText="Add Proxy">{name =>
             <Field name={`${name}.address`} placeholder="Ex: 9002 or 192.168.0.5:9000"/>
         }</FieldArray>
 
-        <h1>Rules</h1>
-        <FieldArray name="rules">{name => {
-            const conditions = <FieldArray name={`${name}.conditions`}>{conditionId => {
-                const conditionType = getValues(`${conditionId}.type`);
-                return <div>Condition {conditionType}</div>;
-            }}</FieldArray>;
-            const type = getValues(`${name}.action.type`);
-            return <>
-                <div>Rule {name}</div>
-                <div>Conditions:</div>
-                {conditions}
-                <div>Action: {type}</div>
-            </>;
-        }}</FieldArray>
-        <input type="button" onClick={_ => appendRule({action: {type: "scale"}} as any)} value="Add Scale Rule"/>
+        <h1>Custom Rules</h1>
+        <FieldArray name="rules" appendText="Add Rule" appendOptions={[
+            ["Multiply Level", {action: {type: "scale"}}],
+            ["Vibrate based on movement", {action: {type: "movement"}}],
+        ]}>
+            {name => <RuleEditor name={name}/>}
+        </FieldArray>
 
-        {isDirty && <input type="submit" value="Save"/>}
+        <ToastContainer position="bottom-center"><Toast style={{width:'auto'}} show={isDirty}>
+            <Toast.Body>You have unsaved changes <Button as="input" type="submit" variant="success" value="Save" /></Toast.Body>
+        </Toast></ToastContainer>
         {Object.keys(errors).length > 0 && <span style={{whiteSpace: 'pre-wrap'}}>
             Error:
-            {JSON.stringify(errors, null, 2)}
         </span>}
 
     </fieldset></form></FormProvider>;
 }
 
-/*
-function DeviceEditor<T extends FieldValues>({name}: {
-    name: FieldPathByValue<T, DeviceConfig>
-}) {
+function RuleEditor({name}: {name: FieldPathByValue<Config, Rule>}) {
+    const {register, getValues} = useFormContext<Config>();
+    const type = getValues(`${name}.action.type`);
 
+    let body;
+    if (type == "scale") {
+        body = <>Multiply level by <Field name={`${name}.action.scale`} type="number"/></>;
+    } else if (type == "movement") {
+        body = <>Vibrate based on movement, rather than depth</>;
+    }
+    return <>
+        <ConditionsEditor rulePath={name}/>
+        {body}
+    </>;
 }
- */
 
-function Field({name, placeholder}: {
+function ConditionsEditor({rulePath}: {rulePath: FieldPathByValue<Config, Rule>}) {
+    const {register, getValues} = useFormContext<Config>();
+    const appendOptions: [string,any][] = [
+        ["Source or output contains a tag", {type:'tag'}],
+        ["Source or output DOES NOT contain a tag", {type:'notTag'}],
+    ];
+
+    const {control} = useFormContext<Config>();
+    const conditionsField = useFieldArray({
+        control: control,
+        name: `${rulePath}.conditions`,
+    });
+
+    let conditions;
+    if (conditionsField.fields.length == 0) {
+        conditions = <Badge>Always</Badge>;
+    } else {
+        conditions = conditionsField.fields.map((field, index) => {
+            const conditionId: FieldPathByValue<Config, RuleCondition> = `${rulePath}.conditions.${index}`
+            const conditionType = getValues(`${conditionId}.type`);
+            let inner, bg;
+            if (conditionType == 'tag') { inner = <><Field name={`${conditionId}.tag`}/></>; bg="success"; }
+            else if (conditionType == 'notTag') { inner = <><Field name={`${conditionId}.tag`}/></>; bg="danger"; }
+            else { inner = "?"; bg=""; }
+            return <Fragment key={index}>
+                <Badge bg={bg} style={{verticalAlign: 'middle'}}>
+                    {inner}
+                    <Button className="remove" size="sm" onClick={() => conditionsField.remove(index)}>
+                        X
+                    </Button>
+                </Badge>
+                {' '}
+            </Fragment>;
+        });
+    }
+    const addButton = <DropdownButton size="sm" title={"+"}>
+        {appendOptions.map(([name,obj]) => <Dropdown.Item key={name} onClick={_ => conditionsField.append(obj)}>{name}</Dropdown.Item>)}
+    </DropdownButton>
+    return <div className="conditions">When:{' '}{conditions}{' '}{addButton}</div>;
+}
+
+function Field({name, placeholder, ...rest}: {
     name: FieldPath<Config>,
     placeholder?: string
-}) {
+} & React.ComponentProps<"input">) {
     const {register, formState: { errors }} = useFormContext<Config>();
     return <>
-        <input {...register(name) } placeholder={placeholder} />
+        <input {...register(name)} placeholder={placeholder} {...rest} />
         <ErrorMessage
             errors={errors}
             name={name}
@@ -110,30 +153,57 @@ function Field({name, placeholder}: {
     </>;
 }
 
-function FieldArray<P extends FieldArrayPath<Config>>({name, children}: {
+function FieldArray<P extends FieldArrayPath<Config>>({name, children, appendOptions, appendText, appendObject, emptyElement, allowReordering}: {
     name: P,
-    children: (path: `${P}.${number}`) => ReactNode
+    children: (path: `${P}.${number}`) => ReactNode,
+    appendOptions?: [string,any][],
+    appendText?: string,
+    appendObject?: any,
+    emptyElement?: ReactNode,
+    allowReordering?: boolean
 }) {
     const {control} = useFormContext<Config>();
     const {
         fields,
         append,
+        move,
         remove
     } = useFieldArray({
         control: control,
         name: name,
     });
-    return <>
-        {fields.map((field, index) =>
-            <div className="listItem" key={field.id}>
+    if (!appendText) appendText = "Add";
+
+    let addButton;
+    if (appendOptions) {
+        addButton = <DropdownButton id="dropdown-basic-button" title={appendText}>
+            {appendOptions.map(([name,obj]) => <Dropdown.Item key={name} onClick={_ => append(obj)}>{name}</Dropdown.Item>)}
+        </DropdownButton>
+    } else {
+        addButton = <Button onClick={_ => append(appendObject ?? {})}>{appendText}</Button>
+    }
+
+    return <ListGroup>
+        {fields.length == 0 && emptyElement && <ListGroup.Item>{emptyElement}</ListGroup.Item>}
+        {' '}
+        {fields.map((field, index) => {
+            return <ListGroup.Item key={field.id}>
                 {children(`${name}.${index}`)}
-                <div className="remove" onClick={() => remove(index)}>
-                    X
+                <div className="corner">
+                    {(allowReordering ?? true) && <>
+                        <div className="up" onClick={() => index != 0 && move(index, index - 1)}>
+                            🡱
+                        </div>
+                        <div className="down" onClick={() => index != fields.length - 1 && move(index, index + 1)}>
+                            🡳
+                        </div>
+                    </>}
+                    <div className="remove" onClick={() => remove(index)}>
+                        X
+                    </div>
                 </div>
-            </div>
-        )}
-        <div>
-            <input type="button" onClick={_ => append({} as any)} value="Add"/>
-        </div>
-    </>;
+            </ListGroup.Item>
+        })}
+        {addButton}
+    </ListGroup>;
 }
