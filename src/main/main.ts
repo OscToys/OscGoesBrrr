@@ -212,6 +212,7 @@ try {
       if (oscConnection) {
         for (const [key, value] of oscConnection.entries()) {
           if (key == "VFH/Version/9"
+              || key == "VFH/Version/10"
               || (key.startsWith("OGB/Pen/") && key.endsWith("/Version/8"))
               || (key.startsWith("OGB/Orf/") && key.endsWith("/Version/9"))
           ) {
