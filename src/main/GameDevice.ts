@@ -5,9 +5,7 @@ import {BridgeSource} from "./bridge";
 
 type allowedGetValues =
     'TouchSelf'
-    | 'TouchSelfNew'
     | 'TouchOthers'
-    | 'TouchOthersNew'
     | 'PenSelf'
     | 'PenOthers'
     | 'FrotOthers'
@@ -97,15 +95,10 @@ export default class GameDevice {
         const sources: BridgeSource[] = [];
         if (!this.isTps) {
             if (this.type === 'Orf') {
-                const getTouchLevel = (legacyClose: allowedGetBools, legacyLevel: allowedGetValues, newLevel: allowedGetValues) => {
-                    const legacyVal = this.getBool(legacyClose) ? this.getNumber(legacyLevel) ?? 0 : 0;
-                    const newVal = this.getNumber(newLevel);
-                    return newVal ?? legacyVal;
-                }
                 sources.push(new BridgeSource('orf', this.id, 'touchSelf',
-                    getTouchLevel('TouchSelfClose', 'TouchSelf', 'TouchSelfNew')));
+                    this.getBool('TouchSelfClose') ? this.getNumber('TouchSelf') ?? 0 : 0));
                 sources.push(new BridgeSource('orf', this.id, 'touchOthers',
-                    getTouchLevel('TouchOthersClose', 'TouchOthers', 'TouchOthersNew')));
+                    this.getBool('TouchOthersClose') ? this.getNumber('TouchOthers') ?? 0 : 0));
 
                 const penSelfLegacy = this.getNumber('PenSelf');
                 const penSelfNew = this.getNewPenAmount(true);
