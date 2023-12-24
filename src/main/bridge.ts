@@ -50,6 +50,19 @@ export default class Bridge {
             }
             gameDevice.addKey(contactType, value);
         }
+        if (split[0] == 'VFH' && split[1] == 'Zone') {
+            const type = split[2];
+            const id = split[3];
+            const contactType = split[4];
+            if (!type || !id || !contactType) return;
+            const key = type + '__' + id;
+            let gameDevice = this.gameDevices.get(key);
+            if (!gameDevice) {
+                gameDevice = new GameDevice(type, id, false);
+                this.gameDevices.set(key, gameDevice);
+            }
+            gameDevice.addKey(contactType, value);
+        }
     }
 
     onOscClear = () => {
@@ -113,7 +126,7 @@ export class BridgeSource {
     value;
 
     constructor(
-        deviceType: "orf" | "pen" | "audio" | "raw",
+        deviceType: "orf" | "pen" | "audio" | "raw" | "touch",
         deviceName: string,
         featureName: string,
         value: number

@@ -16,6 +16,8 @@ type allowedGetValues =
     | 'PenOthersNewRoot'
     | 'PenOthersNewTip'
     | 'PenOthersClose'
+    | 'Self'
+    | 'Others'
     ;
 type allowedGetBools =
     'TouchSelfClose'
@@ -133,6 +135,12 @@ export default class GameDevice {
                     this.getNumber('PenOthers') ?? 0));
                 sources.push(new BridgeSource('pen', this.id, 'frotOthers',
                     this.getBool('FrotOthersClose') ? this.getNumber('FrotOthers') ?? 0 : 0));
+            }
+            if (this.type === 'Touch') {
+                sources.push(new BridgeSource('touch', this.id, 'touchSelf',
+                    this.getNumber('Self') ?? 0));
+                sources.push(new BridgeSource('touch', this.id, 'touchOthers',
+                    this.getNumber('Others') ?? 0));
             }
         } else {
             if (this.type === 'Orf') {
