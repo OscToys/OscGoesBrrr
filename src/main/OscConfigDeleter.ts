@@ -5,7 +5,7 @@ import existsAsync from "../common/existsAsync";
 import {SubLogger} from "./services/LoggerService";
 import OgbConfigService from "./services/OgbConfigService";
 
-const oscDir = Path.resolve(app.getPath('appData'), '../LocalLow/VRChat/VRChat/OSC');
+const oscDir = process.platform == 'win32' ? Path.resolve(app.getPath('appData'), '../LocalLow/VRChat/VRChat/OSC') : Path.resolve(app.getPath('home'), '.local/share/Steam/steamapps/compatdata/438100/pfx/drive_c/users/steamuser/AppData/LocalLow/VRChat/VRChat/OSC');
 const bakDir = Path.resolve(oscDir, '../OSC.bak');
 const oldBakDir = Path.resolve(oscDir, 'bak');
 
