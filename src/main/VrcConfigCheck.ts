@@ -6,7 +6,7 @@ export default class VrcConfigCheck {
     async start() {
         const reg = await import('native-reg');
         while (true) {
-            try { await this.check(); } catch { }
+            try { await this.check(); } catch {}
             console.log(`OSC=${this.oscEnabled} SELF=${this.selfInteractEnabled} EVERYONE=${this.everyoneInteractEnabled}`);
             await new Promise(r => setTimeout(r, 5000));
         }
@@ -28,7 +28,7 @@ export default class VrcConfigCheck {
                 const searchLower = subKey.toLowerCase();
                 const realKey = subKeys.find(key => {
                     const lower = key.toLowerCase();
-                    return lower == searchLower || lower.startsWith(searchLower + "_h")
+                    return lower == searchLower || lower.startsWith(searchLower+"_h")
                 });
                 if (!realKey) return null;
                 return reg.queryValue(vrChatKey, realKey);
