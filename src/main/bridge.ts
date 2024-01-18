@@ -180,6 +180,8 @@ class BridgeToy {
             if (source.deviceType === 'pen' || source.deviceType === 'orf') {
                 if (source.deviceType === 'pen' && !bindPen) continue;
                 if (source.deviceType === 'orf' && !bindOrf) continue;
+            }
+            if (source.deviceType === 'pen' || source.deviceType === 'orf' || source.deviceType === 'touch') {
                 if (bindIds.length && !bindIds.includes(source.deviceName)) continue;
                 if (!this.getConfigBool(source.featureName, defaultFeatures.includes(source.featureName))) continue;
             }
