@@ -95,8 +95,6 @@ try {
   container.get(FrontendDataService);
   container.get(Bridge);
   container.get(VrcConfigCheck);
-
-
 } catch(e) {
   console.log("Startup error:");
   console.log((e instanceof ServiceNotFoundError) ? e.message : e);

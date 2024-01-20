@@ -8,6 +8,7 @@ import {Config} from "../common/configTypes";
 import OgbMath from "./utils/OgbMath";
 import OgbConfigService from "./services/OgbConfigService";
 import {Service} from "typedi";
+import TagMatcher from "../common/TagMatcher";
 
 @Service()
 export default class Bridge {
@@ -53,6 +54,19 @@ export default class Bridge {
             let gameDevice = this.gameDevices.get(key);
             if (!gameDevice) {
                 gameDevice = new GameDevice(type, id, isTps);
+                this.gameDevices.set(key, gameDevice);
+            }
+            gameDevice.addKey(contactType, value);
+        }
+        if (split[0] == 'VFH' && split[1] == 'Zone') {
+            const type = split[2];
+            const id = split[3];
+            const contactType = split[4];
+            if (!type || !id || !contactType) return;
+            const key = type + '__' + id;
+            let gameDevice = this.gameDevices.get(key);
+            if (!gameDevice) {
+                gameDevice = new GameDevice(type, id, false);
                 this.gameDevices.set(key, gameDevice);
             }
             gameDevice.addKey(contactType, value);
@@ -136,13 +150,8 @@ class BridgeToy {
         let motionBased = false;
 
         for (const rule of this.config.get().rules) {
-            const ruleApplies = rule.conditions.every(rule => {
-                if (rule.type == "outputTag") return this.tags.includes(rule.tag);
-                if (rule.type == "outputTagNot") return !this.tags.includes(rule.tag);
-                if (rule.type == "sourceTag") return source.tags.includes(rule.tag);
-                if (rule.type == "sourceTagNot") return !source.tags.includes(rule.tag);
-                return false;
-            });
+            const matcher = new TagMatcher(rule.condition);
+            const ruleApplies = matcher.matches(this.tags);
             if (ruleApplies) {
                 if (rule.action.type == "scale") {
                     scale *= rule.action.scale;

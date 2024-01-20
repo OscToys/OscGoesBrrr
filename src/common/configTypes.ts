@@ -1,18 +1,12 @@
 import {object, string, array, number, boolean, z, literal, union, discriminatedUnion} from 'zod';
 
-export const RuleCondition = discriminatedUnion("type", [
-    object({ type: literal("tag"), tag: string().default('') }),
-    object({ type: literal("notTag"), tag: string().default('') }),
-]);
-export type RuleCondition = z.infer<typeof RuleCondition>;
-
 export const RuleAction = discriminatedUnion("type", [
     object({type: literal('scale'), scale: z.coerce.number().default(1) }),
     object({type: literal('movement'), }),
 ]);
 
 export const Rule = object({
-    conditions: array(RuleCondition).default([]),
+    condition: string().default(''),
     action: RuleAction
 });
 export type Rule = z.infer<typeof Rule>;

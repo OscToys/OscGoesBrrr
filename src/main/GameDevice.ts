@@ -5,8 +5,9 @@ import {GameDeviceLengthDetector} from "./utils/GameDeviceLengthDetector";
 // These are just here so don't accidentally typo one of the OGB standard contact key names
 
 export const VrchatTag = "vrchat";
-export const PenTag = "pen";
-export const OrfTag = "orf";
+export const PenTag = "plug";
+export const OrfTag = "socket";
+export const TouchTag = "touch";
 
 type allowedGetValues =
     'TouchSelf'
@@ -21,6 +22,8 @@ type allowedGetValues =
     | 'PenOthersNewRoot'
     | 'PenOthersNewTip'
     | 'PenOthersClose'
+    | 'Self'
+    | 'Others'
     ;
 type allowedGetBools =
     'TouchSelfClose'
@@ -35,7 +38,7 @@ export default class GameDevice {
     private recordedOthersLength = new GameDeviceLengthDetector();
 
     constructor(
-        private readonly type: 'Orf'|'Pen',
+        private readonly type: 'Orf'|'Pen'|'Touch',
         private readonly id: string,
         public readonly isTps: boolean
     ) {
@@ -136,6 +139,12 @@ export default class GameDevice {
                     this.getNumber('PenOthers') ?? 0));
                 sources.push(new BridgeSource([VrchatTag, PenTag, this.id, 'frotOthers'],
                     this.getBool('FrotOthersClose') ? this.getNumber('FrotOthers') ?? 0 : 0));
+            }
+            if (this.type === 'Touch') {
+                sources.push(new BridgeSource([VrchatTag, TouchTag, this.id, 'touchSelf'],
+                    this.getNumber('Self') ?? 0));
+                sources.push(new BridgeSource([VrchatTag, TouchTag, this.id, 'touchOthers'],
+                    this.getNumber('Others') ?? 0));
             }
         } else {
             if (this.type === 'Orf') {
