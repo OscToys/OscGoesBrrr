@@ -1,6 +1,6 @@
-import {Fragment, type ReactNode, useEffect, useState} from 'react';
+import {Fragment, LegacyRef, type ReactNode, useEffect, useRef, useState} from 'react';
 import {ipcRenderer} from "electron";
-import {Config, Rule, RuleCondition} from '../../common/configTypes';
+import {Config, Rule} from '../../common/configTypes';
 import React from 'react';
 import {
     type FieldPath,
@@ -11,11 +11,26 @@ import {
     useFormContext,
     type FieldPathByValue,
     type FieldValues,
-    type FieldArray
+    type FieldArray, Controller
 } from "react-hook-form";
 import {zodResolver} from "@hookform/resolvers/zod";
 import {ErrorMessage} from "@hookform/error-message";
-import {DropdownButton, Dropdown, Button, Badge, Toast, ToastContainer, ListGroup} from "react-bootstrap";
+import {
+    DropdownButton,
+    Dropdown,
+    Button,
+    Badge,
+    Toast,
+    ToastContainer,
+    ListGroup,
+    ListGroupItem, Card, InputGroup, FormCheck, Row
+} from "react-bootstrap";
+import {DragDropContext, Droppable, Draggable, DropResult, ResponderProvided} from "react-beautiful-dnd";
+import {FontAwesomeIcon} from "@fortawesome/react-fontawesome";
+import {faBars, faCross, faXmark} from "@fortawesome/free-solid-svg-icons";
+import classNames from "classnames";
+import FormCheckLabel from "react-bootstrap/FormCheckLabel";
+import FormCheckInput from "react-bootstrap/FormCheckInput";
 
 export default function Settings() {
     const [loadError, setLoadError] = useState('');
@@ -53,19 +68,35 @@ export default function Settings() {
     if (isLoading) return <>Loading configuration ...</>;
 
     return <FormProvider {...form}><form onSubmit={onSubmit} className="settings"><fieldset disabled={isSubmitting}>
-        <h1>Intiface</h1>
+        <div className="sectionHeader">Intiface</div>
         <div>Intiface Server Port or IP:Port</div>
-        <Field name="outputs.intiface.address" placeholder="Default: 12345" />
+        <Field name="outputs.intiface.address" placeholder="12345" />
 
-        <h1>VRChat</h1>
-        <div>Forward OSC Data to Port or IP:Port</div>
-        <FieldArray name="sources.vrchat.proxy" appendText="Add Proxy">{name =>
-            <Field name={`${name}.address`} placeholder="Ex: 9002 or 192.168.0.5:9000"/>
+        <div className="sectionHeader">VRChat</div>
+
+        <Field name="sources.vrchat.allowSelfTouch" mode="check" checkLabel="Allow Hand Touch from self"/>
+        <Field name="sources.vrchat.allowSelfPlug" mode="check" checkLabel="Allow Plug/Socket interaction from self"/>
+
+        <FieldArray title="Forward OSC Data to another application" name="sources.vrchat.proxy" appendText="Add Proxy Port" flush={true} className="mt-4">{name =>
+            <Field name={`${name}.address`} placeholder="Example: 9002 or 192.168.0.5:9000" style={{border: 0}}/>
         }</FieldArray>
 
-        <h1>Custom Rules</h1>
+        <FieldArray title="Use custom avatar parameters as sources" name="sources.vrchat.customSourceParams" appendText="Add Level Parameter" className="mt-4">{name =>
+            <>
+                <div style={{display:'flex', flexDirection:'row', alignItems:'center'}}>
+                    <div style={{width:"150px", flexShrink:0}}>Parameter Name</div>
+                    <Field name={`${name}.name`}/>
+                </div>
+                <div style={{display:'flex', flexDirection:'row', alignItems:'center'}}>
+                    <div style={{width:"150px", flexShrink:0}}>Limit to Output Tags</div>
+                    <Field name={`${name}.name`} placeholder="All"/>
+                </div>
+            </>
+        }</FieldArray>
+
+        <div className="sectionHeader">Advanced Rules</div>
         <FieldArray name="rules" appendText="Add Rule" appendOptions={[
-            ["Multiply Level", {action: {type: "scale"}}],
+            ["Multiply Intensity", {action: {type: "scale", scale: 1}}],
             ["Vibrate based on movement", {action: {type: "movement"}}],
         ]}>
             {name => <RuleEditor name={name}/>}
@@ -87,7 +118,12 @@ function RuleEditor({name}: {name: FieldPathByValue<Config, Rule>}) {
 
     let body;
     if (type == "scale") {
-        body = <>Multiply level by <Field name={`${name}.action.scale`} type="number"/></>;
+        body = <div className="conditions">
+            <div style={{display:'flex', flexDirection:'row', alignItems:'center'}}>
+                <div style={{flexShrink:0, paddingRight:5}}>Multiply intensity by</div>
+                <Field style={{width:80}} name={`${name}.action.scale`} mode="number" type="number" step="any" min="0"/>
+            </div>
+        </div>;
     } else if (type == "movement") {
         body = <>Vibrate based on movement, rather than depth</>;
     }
@@ -98,53 +134,63 @@ function RuleEditor({name}: {name: FieldPathByValue<Config, Rule>}) {
 }
 
 function ConditionsEditor({rulePath}: {rulePath: FieldPathByValue<Config, Rule>}) {
-    const {register, getValues} = useFormContext<Config>();
-    const appendOptions: [string,any][] = [
-        ["Source or output contains a tag", {type:'tag'}],
-        ["Source or output DOES NOT contain a tag", {type:'notTag'}],
-    ];
-
-    const {control} = useFormContext<Config>();
-    const conditionsField = useFieldArray({
-        control: control,
-        name: `${rulePath}.conditions`,
-    });
-
-    let conditions;
-    if (conditionsField.fields.length == 0) {
-        conditions = <Badge>Always</Badge>;
-    } else {
-        conditions = conditionsField.fields.map((field, index) => {
-            const conditionId: FieldPathByValue<Config, RuleCondition> = `${rulePath}.conditions.${index}`
-            const conditionType = getValues(`${conditionId}.type`);
-            let inner, bg;
-            if (conditionType == 'tag') { inner = <><Field name={`${conditionId}.tag`}/></>; bg="success"; }
-            else if (conditionType == 'notTag') { inner = <><Field name={`${conditionId}.tag`}/></>; bg="danger"; }
-            else { inner = "?"; bg=""; }
-            return <Fragment key={index}>
-                <Badge bg={bg} style={{verticalAlign: 'middle'}}>
-                    {inner}
-                    <Button className="remove" size="sm" onClick={() => conditionsField.remove(index)}>
-                        X
-                    </Button>
-                </Badge>
-                {' '}
-            </Fragment>;
-        });
+    const [loadedTags, setLoadedTags] = useState<string[]>();
+    const conditionPath: FieldPathByValue<Config, string> = `${rulePath}.condition`;
+    const {setValue,getValues} = useFormContext<Config>();
+    function addTag(tag: string) {
+        let value = getValues(conditionPath);
+        if (value == undefined) value = '';
+        if (value != '' && !value.endsWith(' ') && !value.endsWith('-')) value += ' ';
+        value += tag;
+        setValue(conditionPath, value, { shouldDirty: true });
     }
-    const addButton = <DropdownButton size="sm" title={"+"}>
-        {appendOptions.map(([name,obj]) => <Dropdown.Item key={name} onClick={_ => conditionsField.append(obj)}>{name}</Dropdown.Item>)}
-    </DropdownButton>
-    return <div className="conditions">When:{' '}{conditions}{' '}{addButton}</div>;
+    let conditions = <InputGroup>
+        <Field name={conditionPath} placeholder="Always"/>
+        <DropdownButton variant="outline-primary" title="Select Tag" onToggle={async (nextShow) => {
+            if (nextShow) {
+                setLoadedTags(await ipcRenderer.invoke("tags:get"));
+            } else {
+                setLoadedTags(undefined);
+            }
+        }}>
+            {loadedTags && loadedTags.map(tag =>
+                <Dropdown.Item key={tag} onClick={_ => addTag(tag)}>{tag}</Dropdown.Item>
+            )}
+        </DropdownButton>
+    </InputGroup>;
+    return <div className="conditions">
+        <div style={{display:'flex', flexDirection:'row', alignItems:'center'}}>
+            <div style={{flexShrink:0, paddingRight:5}}>When</div>
+            {conditions}
+        </div>
+    </div>;
 }
 
-function Field({name, placeholder, ...rest}: {
+function Field({name, placeholder, mode, checkLabel, ...rest}: {
     name: FieldPath<Config>,
-    placeholder?: string
+    placeholder?: string,
+    mode?: 'check' | 'number'
+    checkLabel?: React.ReactNode
 } & React.ComponentProps<"input">) {
-    const {register, formState: { errors }} = useFormContext<Config>();
+    const {register, setValue, getValues, formState: { errors }} = useFormContext<Config>();
+    let input;
+    if (mode == 'check') {
+        input = <FormCheck
+            id={`form_${name}`}
+            defaultChecked={!!getValues(name)}
+            onChange={e => {
+                console.log("NEW VALUE", name, e.target.checked);
+                setValue(name, e.target.checked, { shouldDirty: true })
+            }}
+            label={checkLabel}
+        />;
+    } else if (mode == 'number') {
+        input = <input {...register(name, { valueAsNumber: true })} placeholder={placeholder} className="form-control" {...rest} />;
+    } else {
+        input = <input {...register(name)} placeholder={placeholder} className="form-control" {...rest} />;
+    }
     return <>
-        <input {...register(name)} placeholder={placeholder} {...rest} />
+        {input}
         <ErrorMessage
             errors={errors}
             name={name}
@@ -153,14 +199,17 @@ function Field({name, placeholder, ...rest}: {
     </>;
 }
 
-function FieldArray<P extends FieldArrayPath<Config>>({name, children, appendOptions, appendText, appendObject, emptyElement, allowReordering}: {
+function FieldArray<P extends FieldArrayPath<Config>>({name, title, flush, children, appendOptions, appendText, appendObject, emptyElement, allowReordering, className}: {
     name: P,
+    title?: string,
+    flush?: boolean,
     children: (path: `${P}.${number}`) => ReactNode,
     appendOptions?: [string,any][],
     appendText?: string,
     appendObject?: any,
     emptyElement?: ReactNode,
-    allowReordering?: boolean
+    allowReordering?: boolean,
+    className?: string
 }) {
     const {control} = useFormContext<Config>();
     const {
@@ -176,34 +225,60 @@ function FieldArray<P extends FieldArrayPath<Config>>({name, children, appendOpt
 
     let addButton;
     if (appendOptions) {
-        addButton = <DropdownButton id="dropdown-basic-button" title={appendText}>
+        addButton = <DropdownButton variant="outline-primary" title={appendText}>
             {appendOptions.map(([name,obj]) => <Dropdown.Item key={name} onClick={_ => append(obj)}>{name}</Dropdown.Item>)}
         </DropdownButton>
     } else {
-        addButton = <Button onClick={_ => append(appendObject ?? {})}>{appendText}</Button>
+        addButton = <Button variant="outline-primary" onClick={_ => append(appendObject ?? {})}>{appendText}</Button>
     }
 
-    return <ListGroup>
-        {fields.length == 0 && emptyElement && <ListGroup.Item>{emptyElement}</ListGroup.Item>}
-        {' '}
-        {fields.map((field, index) => {
-            return <ListGroup.Item key={field.id}>
-                {children(`${name}.${index}`)}
-                <div className="corner">
-                    {(allowReordering ?? true) && <>
-                        <div className="up" onClick={() => index != 0 && move(index, index - 1)}>
-                            🡱
+    function onDragEnd(result: DropResult, provided: ResponderProvided) {
+        console.log(result, provided);
+        if (!result.destination) {
+            return;
+        }
+        move(result.source.index, result.destination.index);
+    }
+
+    return <>
+        <Card className={className}>
+        <ListGroup variant="flush">
+            {title && <ListGroup.Item className="title">{title}</ListGroup.Item>}
+            {fields.length == 0 && emptyElement && <ListGroup.Item>{emptyElement}</ListGroup.Item>}
+            <ListGroup.Item>
+            <DragDropContext onDragEnd={onDragEnd}>
+                <Droppable droppableId="droppable">
+                    {(provided, snapshot) => (
+                        <div
+                            {...provided.droppableProps}
+                            ref={provided.innerRef}
+                        >
+                            {fields.map((field, index) =>
+                                <Draggable key={field.id} draggableId={field.id} index={index}>
+                                    {(provided, snapshot) => (
+                                        <ListGroup.Item key={field.id} ref={provided.innerRef} {...provided.draggableProps}>
+                                            <div className={classNames("main", {"flush": flush})}>
+                                                <div className="handle" {...provided.dragHandleProps}>
+                                                    <FontAwesomeIcon icon={faBars}/>
+                                                </div>
+                                                <div className="body">
+                                                    {children(`${name}.${index}`)}
+                                                </div>
+                                                <FontAwesomeIcon icon={faXmark} className="remove" onClick={() => remove(index)}/>
+                                            </div>
+                                        </ListGroup.Item>
+                                    )}
+                                </Draggable>
+                            )}
+                            {provided.placeholder}
                         </div>
-                        <div className="down" onClick={() => index != fields.length - 1 && move(index, index + 1)}>
-                            🡳
-                        </div>
-                    </>}
-                    <div className="remove" onClick={() => remove(index)}>
-                        X
-                    </div>
-                </div>
+                    )}
+                </Droppable>
+            </DragDropContext>
             </ListGroup.Item>
-        })}
-        {addButton}
-    </ListGroup>;
+            {addButton}
+        </ListGroup>
+        </Card>
+    </>;
+
 }

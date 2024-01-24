@@ -5,7 +5,7 @@ TagMatcher {
   Exp
     = statementWithSpace
     | whitespace? -- empty
-  tag = ~("or" whitespace) (letter | digit | "_" | "-")+
+  tag = ~("or" whitespace) (letter | digit | "_" | "-" | ":")+
   whitespace = space+
   andSeparator
     = (whitespace? "&&" whitespace?) -- sep1

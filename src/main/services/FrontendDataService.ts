@@ -41,6 +41,13 @@ export default class FrontendDataService {
             return bioStatus;
         });
 
+        ipcMain.handle('tags:get', async () => {
+            let tags = bridge.getSources().flatMap(source => source.tags);
+            let tagsDistinct = new Set(tags);
+            let tagsSorted = Array.from(tagsDistinct).sort();
+            return tagsSorted;
+        });
+
         ipcMain.handle('oscStatus:get', async (_event, text) => {
 
             const sources = bridge.getSources();
@@ -99,9 +106,9 @@ export default class FrontendDataService {
 
             if (sources.length > 0) {
                 const globalSourcesLines = sources
-                    .map(source => source.tags.join(':') + '=' + source.value);
+                    .map(source => source.tags.join('\n') + '\n= ' + source.value);
                 globalSourcesLines.sort();
-                sections.push(globalSourcesLines.join('\n'));
+                sections.push(globalSourcesLines.join('\n\n'));
             }
 
             return sections.join('\n\n');

@@ -60,6 +60,7 @@ export default class Bridge {
         }
         if (split[0] == 'VFH' && split[1] == 'Zone') {
             const type = split[2];
+            if (type != 'Touch') return;
             const id = split[3];
             const contactType = split[4];
             if (!type || !id || !contactType) return;

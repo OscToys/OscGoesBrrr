@@ -4,10 +4,10 @@ import {GameDeviceLengthDetector} from "./utils/GameDeviceLengthDetector";
 
 // These are just here so don't accidentally typo one of the OGB standard contact key names
 
-export const VrchatTag = "vrchat";
-export const PenTag = "plug";
-export const OrfTag = "socket";
-export const TouchTag = "touch";
+export const VrchatTag = "source:vrchat";
+export const PenTag = `${VrchatTag}:plug`;
+export const OrfTag = `${VrchatTag}:socket`;
+export const TouchTag = `${VrchatTag}:touch`;
 
 type allowedGetValues =
     'TouchSelf'
@@ -101,58 +101,58 @@ export default class GameDevice {
         const sources: BridgeSource[] = [];
         if (!this.isTps) {
             if (this.type === 'Orf') {
-                sources.push(new BridgeSource([VrchatTag, OrfTag, this.id, 'touchSelf'],
+                sources.push(new BridgeSource([VrchatTag, OrfTag, `${VrchatTag}:id:${this.id}`, `${VrchatTag}:touchSelf`],
                     this.getBool('TouchSelfClose') ? this.getNumber('TouchSelf') ?? 0 : 0));
-                sources.push(new BridgeSource([VrchatTag, OrfTag, this.id, 'touchOthers'],
+                sources.push(new BridgeSource([VrchatTag, OrfTag, `${VrchatTag}:id:${this.id}`, `${VrchatTag}:touchOthers`],
                     this.getBool('TouchOthersClose') ? this.getNumber('TouchOthers') ?? 0 : 0));
 
                 const penSelfLegacy = this.getNumber('PenSelf');
                 const penSelfNew = this.getNewPenAmount(true);
-                sources.push(new BridgeSource([VrchatTag, OrfTag, this.id, 'penSelfLegacy'],
+                sources.push(new BridgeSource([VrchatTag, OrfTag, `${VrchatTag}:id:${this.id}`, `${VrchatTag}:penSelfLegacy`],
                     penSelfLegacy ?? 0));
-                sources.push(new BridgeSource([VrchatTag, OrfTag, this.id, 'penSelfNew'],
+                sources.push(new BridgeSource([VrchatTag, OrfTag, `${VrchatTag}:id:${this.id}`, `${VrchatTag}:penSelfNew`],
                     penSelfNew ?? 0));
-                sources.push(new BridgeSource([VrchatTag, OrfTag, this.id, 'penSelf'],
+                sources.push(new BridgeSource([VrchatTag, OrfTag, `${VrchatTag}:id:${this.id}`, `${VrchatTag}:penSelf`],
                     penSelfNew ?? penSelfLegacy ?? 0));
 
                 const penOthersLegacyClose = this.getBool('PenOthersClose') || this.get('PenOthersClose') == undefined;
                 const penOthersLegacy = penOthersLegacyClose ? this.getNumber('PenOthers') : undefined;
                 const penOthersNew = this.getNewPenAmount(false);
-                sources.push(new BridgeSource([VrchatTag, OrfTag, this.id, 'penOthersLegacy'],
+                sources.push(new BridgeSource([VrchatTag, OrfTag, `${VrchatTag}:id:${this.id}`, `${VrchatTag}:penOthersLegacy`],
                     penOthersLegacy ?? 0));
-                sources.push(new BridgeSource([VrchatTag, OrfTag, this.id, 'penOthersNew'],
+                sources.push(new BridgeSource([VrchatTag, OrfTag, `${VrchatTag}:id:${this.id}`, `${VrchatTag}:penOthersNew`],
                     penOthersNew ?? 0));
-                sources.push(new BridgeSource([VrchatTag, OrfTag, this.id, 'penOthers'],
+                sources.push(new BridgeSource([VrchatTag, OrfTag, `${VrchatTag}:id:${this.id}`, `${VrchatTag}:penOthers`],
                     penOthersNew ?? penOthersLegacy ?? 0));
 
-                sources.push(new BridgeSource([VrchatTag, OrfTag, this.id, 'frotOthers'],
+                sources.push(new BridgeSource([VrchatTag, OrfTag, `${VrchatTag}:id:${this.id}`, `${VrchatTag}:frotOthers`],
                     this.getNumber('FrotOthers') ?? 0));
             }
             if (this.type === 'Pen') {
-                sources.push(new BridgeSource([VrchatTag, PenTag, this.id, 'touchSelf'],
+                sources.push(new BridgeSource([VrchatTag, PenTag, `${VrchatTag}:id:${this.id}`, `${VrchatTag}:touchSelf`],
                     this.getBool('TouchSelfClose') ? this.getNumber('TouchSelf') ?? 0 : 0));
-                sources.push(new BridgeSource([VrchatTag, PenTag, this.id, 'touchOthers'],
+                sources.push(new BridgeSource([VrchatTag, PenTag, `${VrchatTag}:id:${this.id}`, `${VrchatTag}:touchOthers`],
                     this.getBool('TouchOthersClose') ? this.getNumber('TouchOthers') ?? 0 : 0));
-                sources.push(new BridgeSource([VrchatTag, PenTag, this.id, 'penSelf'],
+                sources.push(new BridgeSource([VrchatTag, PenTag, `${VrchatTag}:id:${this.id}`, `${VrchatTag}:penSelf`],
                     this.getNumber('PenSelf') ?? 0));
-                sources.push(new BridgeSource([VrchatTag, PenTag, this.id, 'penOthers'],
+                sources.push(new BridgeSource([VrchatTag, PenTag, `${VrchatTag}:id:${this.id}`, `${VrchatTag}:penOthers`],
                     this.getNumber('PenOthers') ?? 0));
-                sources.push(new BridgeSource([VrchatTag, PenTag, this.id, 'frotOthers'],
+                sources.push(new BridgeSource([VrchatTag, PenTag, `${VrchatTag}:id:${this.id}`, `${VrchatTag}:frotOthers`],
                     this.getBool('FrotOthersClose') ? this.getNumber('FrotOthers') ?? 0 : 0));
             }
             if (this.type === 'Touch') {
-                sources.push(new BridgeSource([VrchatTag, TouchTag, this.id, 'touchSelf'],
+                sources.push(new BridgeSource([VrchatTag, TouchTag, `${VrchatTag}:id:${this.id}`, `${VrchatTag}:touchSelf`],
                     this.getNumber('Self') ?? 0));
-                sources.push(new BridgeSource([VrchatTag, TouchTag, this.id, 'touchOthers'],
+                sources.push(new BridgeSource([VrchatTag, TouchTag, `${VrchatTag}:id:${this.id}`, `${VrchatTag}:touchOthers`],
                     this.getNumber('Others') ?? 0));
             }
         } else {
             if (this.type === 'Orf') {
-                sources.push(new BridgeSource([VrchatTag, OrfTag, this.id, 'penOthers'],
+                sources.push(new BridgeSource([VrchatTag, OrfTag, `${VrchatTag}:id:${this.id}`, `${VrchatTag}:penOthers`],
                     this.getNumber('Depth_In') ?? 0));
             }
             if (this.type === 'Pen') {
-                sources.push(new BridgeSource([VrchatTag, PenTag, this.id, 'penOthers'],
+                sources.push(new BridgeSource([VrchatTag, PenTag, `${VrchatTag}:id:${this.id}`, `${VrchatTag}:penOthers`],
                     this.getNumber('RootRoot') ?? 0));
             }
         }
