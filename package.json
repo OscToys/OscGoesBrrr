@@ -7,7 +7,9 @@
     "start": "electron .",
     "startFromWsl": "build/startFromWsl.sh",
     "watchFrontend": "cd src/frontend && webpack --watch",
-    "watchMain": "cd src/main && webpack --watch"
+    "watchMain": "cd src/main && webpack --watch",
+    "build": "cd src/main && webpack && cd ../frontend && webpack",
+    "rebuild": "npm run build && npm run start"
   },
   "repository": "https://github.com/OscToys/OscGoesBrrr",
   "license": "CC BY-NC-SA 4.0",
@@ -62,6 +64,11 @@
       "target": "nsis",
       "icon": "src/icons/ogb-logo.ico",
       "artifactName": "OscGoesBrrr-setup.exe"
+    },
+    "linux": {
+      "target": "AppImage",
+      "icon": "src/icons/ogb-logo.png",
+      "artifactName": "OscGoesBrrr.AppImage"
     },
     "nsis": {
       "installerIcon": "src/icons/ogb-installer.ico"

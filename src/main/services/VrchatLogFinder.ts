@@ -9,7 +9,7 @@ import fsPlain from "fs";
 /** Finds and keeps track of the local VRChat OSCQ service address */
 @Service()
 export default class VrchatLogFinder {
-    private static readonly logDir = Path.resolve(app.getPath('appData'), '../LocalLow/VRChat/VRChat');
+    private static readonly logDir = process.platform == 'win32' ? Path.resolve(app.getPath('appData'), '../LocalLow/VRChat/VRChat') : Path.resolve(app.getPath('home'), '.local/share/Steam/steamapps/compatdata/438100/pfx/drive_c/users/steamuser/AppData/LocalLow/VRChat/VRChat/');
 
     public async getLatestLog() {
         const files = await fs.readdir(VrchatLogFinder.logDir);

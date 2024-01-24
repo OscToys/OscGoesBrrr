@@ -30,6 +30,11 @@ export default class Updater {
         }
     }
     async checkAndNotifyUnsafe() {
+        if (process.platform !== 'win32') {
+            console.log("Not checking for updates, not on windows");
+            return;
+        }
+
         console.log("Checking for updates ...");
 
         let myversion = app.getVersion();

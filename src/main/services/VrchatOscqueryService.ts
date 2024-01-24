@@ -25,8 +25,6 @@ const HostInfo = z.object({
 export default class VrchatOscqueryService {
     private readonly logger;
 
-    private static readonly logDir = Path.resolve(app.getPath('appData'), '../LocalLow/VRChat/VRChat');
-
     private oscqAddress?: string;
     private oscqPort?: number;
     private oscAddress?: string;
