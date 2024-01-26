@@ -45,7 +45,7 @@ export default class Buttplug extends (EventEmitter as new () => TypedEmitter<My
     }
 
     public getIntifaceConfig() {
-        return this.config.get().outputs.intiface;
+        return this.config.get().plugins.intiface;
     }
 
     connectionTimeout: ReturnType<typeof setTimeout> | undefined;

@@ -23,11 +23,11 @@ import {
     Toast,
     ToastContainer,
     ListGroup,
-    ListGroupItem, Card, InputGroup, FormCheck, Row
+    ListGroupItem, Card, InputGroup, FormCheck, Row, Tab, Tabs, Collapse
 } from "react-bootstrap";
 import {DragDropContext, Droppable, Draggable, DropResult, ResponderProvided} from "react-beautiful-dnd";
 import {FontAwesomeIcon} from "@fortawesome/react-fontawesome";
-import {faBars, faCross, faXmark} from "@fortawesome/free-solid-svg-icons";
+import {faBars, faCaretDown, faCross, faXmark} from "@fortawesome/free-solid-svg-icons";
 import classNames from "classnames";
 import FormCheckLabel from "react-bootstrap/FormCheckLabel";
 import FormCheckInput from "react-bootstrap/FormCheckInput";
@@ -68,39 +68,45 @@ export default function Settings() {
     if (isLoading) return <>Loading configuration ...</>;
 
     return <FormProvider {...form}><form onSubmit={onSubmit} className="settings"><fieldset disabled={isSubmitting}>
-        <div className="sectionHeader">Intiface</div>
-        <div>Intiface Server Port or IP:Port</div>
-        <Field name="outputs.intiface.address" placeholder="12345" />
+        <Tabs className="mb-3">
+            <Tab eventKey="Intiface" title="Intiface">
+                <div>Intiface Server Port or IP:Port</div>
+                <Field name="plugins.intiface.address" placeholder="12345" />
+            </Tab>
+            <Tab eventKey="VRChat" title="VRChat">
+                <Field name="plugins.vrchat.allowSelfTouch" mode="check" checkLabel="Allow Hand Touch from self"/>
+                <Field name="plugins.vrchat.allowSelfPlug" mode="check" checkLabel="Allow Plug/Socket interaction from self"/>
 
-        <div className="sectionHeader">VRChat</div>
+                <FieldArray title="Forward OSC Data to another application" name="plugins.vrchat.proxy" appendText="Add Proxy Port" flush={true} className="mt-4">{name =>
+                    <Field name={`${name}.address`} placeholder="Example: 9002 or 192.168.0.5:9000" style={{border: 0}}/>
+                }</FieldArray>
 
-        <Field name="sources.vrchat.allowSelfTouch" mode="check" checkLabel="Allow Hand Touch from self"/>
-        <Field name="sources.vrchat.allowSelfPlug" mode="check" checkLabel="Allow Plug/Socket interaction from self"/>
+                <FieldArray title="Use custom avatar parameters as sources" name="plugins.vrchat.customSourceParams" appendText="Add Level Parameter" className="mt-4">{name =>
+                    <>
+                        <div style={{display:'flex', flexDirection:'row', alignItems:'center'}}>
+                            <div style={{width:"150px", flexShrink:0}}>Parameter Name</div>
+                            <Field name={`${name}.name`}/>
+                        </div>
+                        <div style={{display:'flex', flexDirection:'row', alignItems:'center'}}>
+                            <div style={{width:"150px", flexShrink:0}}>Limit to Output Tags</div>
+                            <Field name={`${name}.name`} placeholder="All"/>
+                        </div>
+                    </>
+                }</FieldArray>
 
-        <FieldArray title="Forward OSC Data to another application" name="sources.vrchat.proxy" appendText="Add Proxy Port" flush={true} className="mt-4">{name =>
-            <Field name={`${name}.address`} placeholder="Example: 9002 or 192.168.0.5:9000" style={{border: 0}}/>
-        }</FieldArray>
-
-        <FieldArray title="Use custom avatar parameters as sources" name="sources.vrchat.customSourceParams" appendText="Add Level Parameter" className="mt-4">{name =>
-            <>
-                <div style={{display:'flex', flexDirection:'row', alignItems:'center'}}>
-                    <div style={{width:"150px", flexShrink:0}}>Parameter Name</div>
-                    <Field name={`${name}.name`}/>
-                </div>
-                <div style={{display:'flex', flexDirection:'row', alignItems:'center'}}>
-                    <div style={{width:"150px", flexShrink:0}}>Limit to Output Tags</div>
-                    <Field name={`${name}.name`} placeholder="All"/>
-                </div>
-            </>
-        }</FieldArray>
-
-        <div className="sectionHeader">Advanced Rules</div>
-        <FieldArray name="rules" appendText="Add Rule" appendOptions={[
-            ["Multiply Intensity", {action: {type: "scale", scale: 1}}],
-            ["Vibrate based on movement", {action: {type: "movement"}}],
-        ]}>
-            {name => <RuleEditor name={name}/>}
-        </FieldArray>
+                <Advanced className="mt-3">
+                    <Field name="plugins.vrchat.resetOscConfigs" mode="check" checkLabel="Automatically refresh OSC Configs"/>
+                </Advanced>
+            </Tab>
+            <Tab eventKey="Rules" title="Rules">
+                <FieldArray title="Custom Interaction Rules" name="rules" appendText="Add Rule" appendOptions={[
+                    ["Multiply Intensity", {action: {type: "scale", scale: 1}}],
+                    ["Vibrate based on movement", {action: {type: "movement"}}],
+                ]}>
+                    {name => <RuleEditor name={name}/>}
+                </FieldArray>
+            </Tab>
+        </Tabs>
 
         <ToastContainer position="bottom-center"><Toast style={{width:'auto'}} show={isDirty}>
             <Toast.Body>You have unsaved changes <Button as="input" type="submit" variant="success" value="Save" /></Toast.Body>
@@ -146,7 +152,7 @@ function ConditionsEditor({rulePath}: {rulePath: FieldPathByValue<Config, Rule>}
     }
     let conditions = <InputGroup>
         <Field name={conditionPath} placeholder="Always"/>
-        <DropdownButton variant="outline-primary" title="Select Tag" onToggle={async (nextShow) => {
+        <DropdownButton variant="outline-primary" title="Select Tag" style={{overflowY: 'auto', maxHeight: 400}} onToggle={async (nextShow) => {
             if (nextShow) {
                 setLoadedTags(await ipcRenderer.invoke("tags:get"));
             } else {
@@ -281,4 +287,20 @@ function FieldArray<P extends FieldArrayPath<Config>>({name, title, flush, child
         </Card>
     </>;
 
+}
+
+function Advanced({children, className}: {
+    children: React.ReactElement,
+    className?: string,
+}) {
+    const [open,setOpen] = useState(false);
+
+    return <div className={className}>
+        <a href="#" onClick={() => setOpen(!open)}>Advanced <FontAwesomeIcon icon={faCaretDown}/></a>
+        <Collapse in={open}>
+            <div>
+                {children}
+            </div>
+        </Collapse>
+    </div>
 }

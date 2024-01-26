@@ -134,7 +134,7 @@ export default class FrontendDataService {
         setInterval(() => {
             const mainWindow = mainWindowService.get();
             if (!mainWindow) return;
-            mainWindow.webContents.send(config.get().sources.audio.enabled ? 'fft:start' : 'fft:stop');
+            mainWindow.webContents.send(config.get().plugins.audio.enabled ? 'fft:start' : 'fft:stop');
         }, 1000);
     }
 }

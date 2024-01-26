@@ -121,7 +121,7 @@ export default class OscConnection extends (EventEmitter as new () => TypedEmitt
 
     private async openSocketUnsafe() {
         // Shutdown old service
-        const vrchatConfig = this.config.get().sources.vrchat;
+        const vrchatConfig = this.config.get().plugins.vrchat;
         this.updateBulkAttempt = undefined;
         this.waitingForBulk = false;
         this.clearValues();

@@ -87,7 +87,7 @@ export default class Bridge {
             .filter(device => !hasOGBDevice || !device.isTps);
         sources.push(...gameDevicesToUse.flatMap(d => d.getSources()));
 
-        if (this.config.get().sources.audio.enabled && this.lastFftReceived > Date.now() - 1000) {
+        if (this.config.get().plugins.audio.enabled && this.lastFftReceived > Date.now() - 1000) {
             sources.push(new BridgeSource(['audio'], this.fftValue));
         }
 
@@ -107,7 +107,7 @@ export default class Bridge {
            maxLevel = Math.max(maxLevel, toy.lastLevel);
         }
 
-        const sendParam = this.config.get().sources.vrchat.maxLevelParam;
+        const sendParam = this.config.get().plugins.vrchat.maxLevelParam;
         if (sendParam) {
             this.osc.send(sendParam, maxLevel);
         }

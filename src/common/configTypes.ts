@@ -12,7 +12,7 @@ export const Rule = object({
 export type Rule = z.infer<typeof Rule>;
 
 export const Config = object({
-    outputs: object({
+    plugins: object({
         intiface: object({
             address: string().default(''),
             linear: object({
@@ -25,9 +25,6 @@ export const Config = object({
                 debugLog: boolean().default(false),
             }).optional()
         }).default({}),
-    }).default({}),
-
-    sources: object({
         vrchat: object({
             proxy: array(object({
                 address: string().default('')
@@ -38,7 +35,7 @@ export const Config = object({
             allowSelfTouch: boolean().default(false),
             allowSelfPlug: boolean().default(false),
             maxLevelParam: string().optional(),
-            keepOscConfigs: boolean().default(false),
+            resetOscConfigs: boolean().default(true),
         }).default({}),
         audio: object({
             enabled: boolean().default(false),

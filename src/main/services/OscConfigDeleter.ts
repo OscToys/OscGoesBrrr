@@ -31,7 +31,7 @@ export default class OscConfigDeleter {
             this.logger.log(e instanceof Error ? e.stack : e);
         }
         try {
-            if (this.config.get().sources.vrchat.keepOscConfigs) return;
+            if (!this.config.get().plugins.vrchat.resetOscConfigs) return;
             //this.log("Scanning " + oscDir);
             let exists = await existsAsync(oscDir);
             if (!exists) return;
