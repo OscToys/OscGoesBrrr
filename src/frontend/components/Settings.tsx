@@ -1,6 +1,6 @@
 import {Fragment, LegacyRef, type ReactNode, useEffect, useRef, useState} from 'react';
 import {ipcRenderer} from "electron";
-import {Config, Rule} from '../../common/configTypes';
+import {Config, Plugins, Rule} from '../../common/configTypes';
 import React from 'react';
 import {
     type FieldPath,
@@ -11,7 +11,7 @@ import {
     useFormContext,
     type FieldPathByValue,
     type FieldValues,
-    type FieldArray, Controller
+    type FieldArray, Controller, useWatch
 } from "react-hook-form";
 import {zodResolver} from "@hookform/resolvers/zod";
 import {ErrorMessage} from "@hookform/error-message";
@@ -36,6 +36,7 @@ export default function Settings() {
     const [loadError, setLoadError] = useState('');
     const form = useForm({
         resolver: zodResolver(Config),
+        shouldUnregister: true,
         defaultValues: async () => {
             try {
                 return await Config.parseAsync(await ipcRenderer.invoke('config:get'));
@@ -46,16 +47,10 @@ export default function Settings() {
         }
     });
     const {
-        control,
         reset,
-        register,
-        setValue,
-        resetField,
         handleSubmit,
-        getValues,
         formState: { errors, isValid, isDirty, isSubmitting, dirtyFields, isLoading }
     } = form;
-    const { append: appendRule } = useFieldArray({ control: control, name: "rules", });
     const onSubmit = handleSubmit(
         async data => {
             console.log("submit", data);
@@ -69,15 +64,15 @@ export default function Settings() {
 
     return <FormProvider {...form}><form onSubmit={onSubmit} className="settings"><fieldset disabled={isSubmitting}>
         <Tabs className="mb-3">
-            <Tab eventKey="Intiface" title="Intiface">
+            {MakePluginTab("intiface", "Intiface", <>
                 <div>Intiface Server Port or IP:Port</div>
                 <Field name="plugins.intiface.address" placeholder="12345" />
-            </Tab>
-            <Tab eventKey="VRChat" title="VRChat">
-                <Field name="plugins.vrchat.allowSelfTouch" mode="check" checkLabel="Allow Hand Touch from self"/>
-                <Field name="plugins.vrchat.allowSelfPlug" mode="check" checkLabel="Allow Plug/Socket interaction from self"/>
+            </>)}
+            {MakePluginTab("vrchat", "VRChat", <>
+                <Field name="plugins.vrchat.allowSelfTouch" mode="check" checkLabel="Allow self hand > self socket/plug interaction"/>
+                <Field name="plugins.vrchat.allowSelfPlug" mode="check" checkLabel="Allow self socket > self plug interaction"/>
 
-                <FieldArray title="Forward OSC Data to another application" name="plugins.vrchat.proxy" appendText="Add Proxy Port" flush={true} className="mt-4">{name =>
+                <FieldArray title="Forward VRChat's OSC Data to another application" name="plugins.vrchat.proxy" appendText="Add Proxy Port" flush={true} className="mt-4">{name =>
                     <Field name={`${name}.address`} placeholder="Example: 9002 or 192.168.0.5:9000" style={{border: 0}}/>
                 }</FieldArray>
 
@@ -97,30 +92,60 @@ export default function Settings() {
                 <Advanced className="mt-3">
                     <Field name="plugins.vrchat.resetOscConfigs" mode="check" checkLabel="Automatically refresh OSC Configs"/>
                 </Advanced>
-            </Tab>
-            <Tab eventKey="Rules" title="Rules">
-                <FieldArray title="Custom Interaction Rules" name="rules" appendText="Add Rule" appendOptions={[
+            </>)}
+            {MakePluginTab("idle", "Idle", <>
+                <Field name="plugins.idle.level" mode="number" min="0" max="1"/>
+            </>)}
+            {MakePluginTab("rules", "Rules", <>
+                <FieldArray title="Custom Interaction Rules" name="plugins.rules.rules" appendText="Add Rule" appendOptions={[
                     ["Multiply Intensity", {action: {type: "scale", scale: 1}}],
                     ["Vibrate based on movement", {action: {type: "movement"}}],
                 ]}>
                     {name => <RuleEditor name={name}/>}
                 </FieldArray>
-            </Tab>
+            </>)}
         </Tabs>
 
         <ToastContainer position="bottom-center"><Toast style={{width:'auto'}} show={isDirty}>
-            <Toast.Body>You have unsaved changes <Button as="input" type="submit" variant="success" value="Save" /></Toast.Body>
+            <Toast.Body>
+                {Object.keys(errors).length > 0 && <div>There's an error in one of your selections</div>}
+                You have unsaved changes <Button as="input" type="submit" variant="success" value="Save" />
+            </Toast.Body>
         </Toast></ToastContainer>
-        {Object.keys(errors).length > 0 && <span style={{whiteSpace: 'pre-wrap'}}>
-            Error:
-        </span>}
 
     </fieldset></form></FormProvider>;
 }
 
+function MakePluginTab(pluginId: keyof Plugins, title: string, children: React.ReactNode) {
+    return <Tab eventKey={pluginId} title={title}>
+        <PluginToggle name={pluginId} label={`Enable ${title}`}>
+            {children}
+        </PluginToggle>
+    </Tab>;
+}
+
+function PluginToggle({name, label, children}: {name: keyof Plugins, label: string, children: React.ReactNode}) {
+    const {control, setValue} = useFormContext<Config>();
+    const value = useWatch({control, name: `plugins.${name}`});
+    const checked = name !== undefined;
+    return <>
+        <FormCheck
+            id={`form_${name}`}
+            checked={checked}
+            onChange={e => {
+                const newValue = undefined
+                if (e.target.checked) newValue.push(name);
+                setValue('enabledPlugins', newValue, { shouldDirty: true })
+            }}
+            label={label}
+        />
+        {checked && children}
+    </>;
+}
+
 function RuleEditor({name}: {name: FieldPathByValue<Config, Rule>}) {
-    const {register, getValues} = useFormContext<Config>();
-    const type = getValues(`${name}.action.type`);
+    const {control} = useFormContext<Config>();
+    const type = useWatch({control, name:`${name}.action.type`});
 
     let body;
     if (type == "scale") {
@@ -140,7 +165,6 @@ function RuleEditor({name}: {name: FieldPathByValue<Config, Rule>}) {
 }
 
 function ConditionsEditor({rulePath}: {rulePath: FieldPathByValue<Config, Rule>}) {
-    const [loadedTags, setLoadedTags] = useState<string[]>();
     const conditionPath: FieldPathByValue<Config, string> = `${rulePath}.condition`;
     const {setValue,getValues} = useFormContext<Config>();
     function addTag(tag: string) {
@@ -152,17 +176,7 @@ function ConditionsEditor({rulePath}: {rulePath: FieldPathByValue<Config, Rule>}
     }
     let conditions = <InputGroup>
         <Field name={conditionPath} placeholder="Always"/>
-        <DropdownButton variant="outline-primary" title="Select Tag" style={{overflowY: 'auto', maxHeight: 400}} onToggle={async (nextShow) => {
-            if (nextShow) {
-                setLoadedTags(await ipcRenderer.invoke("tags:get"));
-            } else {
-                setLoadedTags(undefined);
-            }
-        }}>
-            {loadedTags && loadedTags.map(tag =>
-                <Dropdown.Item key={tag} onClick={_ => addTag(tag)}>{tag}</Dropdown.Item>
-            )}
-        </DropdownButton>
+        <TagsDropdown onSelect={addTag}/>
     </InputGroup>;
     return <div className="conditions">
         <div style={{display:'flex', flexDirection:'row', alignItems:'center'}}>
@@ -172,26 +186,41 @@ function ConditionsEditor({rulePath}: {rulePath: FieldPathByValue<Config, Rule>}
     </div>;
 }
 
+function TagsDropdown({onSelect}: {onSelect: (tag:string)=>void}) {
+    const [loadedTags, setLoadedTags] = useState<string[]>();
+    return <DropdownButton variant="outline-primary" title="Select Tag" style={{overflowY: 'auto', maxHeight: 400}} onToggle={async (nextShow) => {
+        if (nextShow) {
+            setLoadedTags(await ipcRenderer.invoke("tags:get"));
+        } else {
+            setLoadedTags(undefined);
+        }
+    }}>
+        {loadedTags && loadedTags.map(tag =>
+            <Dropdown.Item key={tag} onClick={_ => onSelect(tag)}>{tag}</Dropdown.Item>
+        )}
+    </DropdownButton>
+}
+
 function Field({name, placeholder, mode, checkLabel, ...rest}: {
     name: FieldPath<Config>,
     placeholder?: string,
     mode?: 'check' | 'number'
     checkLabel?: React.ReactNode
 } & React.ComponentProps<"input">) {
-    const {register, setValue, getValues, formState: { errors }} = useFormContext<Config>();
+    const {control, register, setValue, formState: { errors }} = useFormContext<Config>();
+    const value = useWatch({control, name:name});
     let input;
     if (mode == 'check') {
         input = <FormCheck
             id={`form_${name}`}
-            defaultChecked={!!getValues(name)}
+            defaultChecked={!!value}
             onChange={e => {
-                console.log("NEW VALUE", name, e.target.checked);
                 setValue(name, e.target.checked, { shouldDirty: true })
             }}
             label={checkLabel}
         />;
     } else if (mode == 'number') {
-        input = <input {...register(name, { valueAsNumber: true })} placeholder={placeholder} className="form-control" {...rest} />;
+        input = <input {...register(name, { valueAsNumber: true })} placeholder={placeholder} className="form-control" type="number" step="any" {...rest} />;
     } else {
         input = <input {...register(name)} placeholder={placeholder} className="form-control" {...rest} />;
     }
