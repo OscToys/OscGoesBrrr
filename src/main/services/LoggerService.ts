@@ -19,6 +19,8 @@ export class SubLogger {
 @Service()
 export default class LoggerService {
     private readonly history: string[] = [];
+    private sending = false;
+
     constructor(
         private mainWindowService: MainWindowService
     ) {
@@ -33,15 +35,21 @@ export default class LoggerService {
 
     log(...args: unknown[]) {
         origConsoleLog(...args);
-        const mainWindow = this.mainWindowService!.get();
+        if (this.sending) return;
+        this.sending = true;
+        try {
+            const mainWindow = this.mainWindowService!.get();
 
-        const lines = util.format(...args);
-        for (const line of lines.split('\n')) {
-            this.history.push(line);
-            mainWindow?.webContents.send(`log:line`, line);
-        }
-        while (this.history.length > 1000) {
-            this.history.shift();
+            const lines = util.format(...args);
+            for (const line of lines.split('\n')) {
+                this.history.push(line);
+                mainWindow?.webContents.send(`log:line`, line);
+            }
+            while (this.history.length > 1000) {
+                this.history.shift();
+            }
+        } finally {
+            this.sending = false;
         }
     }
 }
