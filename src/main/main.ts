@@ -9,7 +9,6 @@ import fsPlain from 'fs';
 import Updater from './updater';
 import OscConnection from "./OscConnection";
 import Buttplug from "./Buttplug";
-import OscConfigDeleter from "./OscConfigDeleter";
 import VrcConfigCheck from "./VrcConfigCheck";
 // @ts-ignore
 import iconPath from '../icons/ogb-logo.ico';
@@ -151,7 +150,6 @@ try {
   const buttLogger = logger.get('bioLog');
   butt = new Buttplug(buttLogger, configMap);
   const bridge = new Bridge(oscConnection, butt, buttLogger, configMap);
-  new OscConfigDeleter(logger.get("ConfigDeleter"), configMap);
 
   ipcMain.handle('bioStatus:get', async (_event, text) => {
     let bioStatus = '';
