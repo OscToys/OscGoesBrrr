@@ -200,7 +200,13 @@ class BridgeToy {
 
     pushToBio(globalSources: BridgeSource[]) {
         const now = Date.now();
-        const timeDelta = Math.min(now - this.lastPushTime, 100); // safety limited
+        const timeDeltaReal = now - this.lastPushTime;
+        const updatesPerSecond = this.getConfigNumber('updatesPerSecond', 0);
+        if (updatesPerSecond > 0 && timeDeltaReal < (1000/updatesPerSecond)) {
+            return;
+        }
+
+        const timeDelta = Math.min(timeDeltaReal, 250); // safety limited
         const motionBased = !this.getConfigBool('linear', true);
 
         const sources = this.getRelevantSources(globalSources);
