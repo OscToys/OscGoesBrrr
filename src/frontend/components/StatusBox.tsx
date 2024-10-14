@@ -2,9 +2,8 @@ import React, {useEffect, useRef, useState} from "react";
 import {ipcRenderer} from "electron";
 import {useLatest} from "react-use";
 
-export default function StatusBox({getCmd, onSolaceFound, ...rest}: {
-    getCmd: string,
-    onSolaceFound?: ()=>void
+export default function StatusBox({getCmd, ...rest}: {
+    getCmd: string
 } & React.HTMLAttributes<HTMLTextAreaElement>) {
     const [status,setStatus] = useState("");
 
@@ -15,7 +14,6 @@ export default function StatusBox({getCmd, onSolaceFound, ...rest}: {
             const status = await ipcRenderer.invoke(getCmd);
             if (destroyed) return;
             setStatus(status);
-            if (onSolaceFound && status.includes('solace')) onSolaceFound();
             timer = setTimeout(update, 100);
         }
         update();

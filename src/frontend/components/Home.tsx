@@ -6,16 +6,7 @@ import AdvancedConfig from "./AdvancedConfig";
 import logoPath from '../../icons/ogb-logo.png';
 
 export default function Home() {
-    const [solaceFound,setSolaceFound] = useState(false);
     return <div style={{display: 'flex', flexDirection: 'column', height: '100%'}}>
-        {
-            solaceFound &&
-        <div style={{backgroundColor: "#500", padding: "5px", textAlign: "center"}}>
-            Lovense Solace detected. An intiface 2.6.1+ bug causes solace to vibrate unexpectedly.<br/>
-            Try downgrading to Intiface 2.6.0 if possible if you have issues.<br/>
-            <a href="https://discord.com/channels/353303527587708932/1289446133982171138" target="_blank">Bug report on the intiface discord</a>.
-        </div>
-        }
 
         <div style={{padding: '5px'}}>
             <h3 style={{textAlign: 'center'}}>Welcome to OscGoesBrrr!</h3>
@@ -35,7 +26,7 @@ export default function Home() {
         <div style={{display: 'flex', flex: 1}}>
             <div style={{display: 'flex', flexDirection: 'column', flex: 1, margin: '5px', textAlign: 'center'}}>
                 <h3>Intiface Status</h3>
-                <StatusBox style={{flex: 1}} getCmd="bioStatus:get" onSolaceFound={()=>setSolaceFound(true)} />
+                <StatusBox style={{flex: 1}} getCmd="bioStatus:get" />
             </div>
             <div style={{display: 'flex', flexDirection: 'column', flex: 1, margin: '5px', textAlign: 'center'}}>
                 <h3>VRChat Status</h3>
