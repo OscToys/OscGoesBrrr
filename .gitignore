@@ -1,5 +1,11 @@
+# JS stuff
 node_modules
 /.idea
 /config.txt
 /dist
 /app
+
+# Nix stuff
+/result
+/.envrc
+/.direnv
