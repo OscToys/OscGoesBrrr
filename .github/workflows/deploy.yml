@@ -17,10 +17,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v3
-      - uses: actions/setup-node@v3
+        uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
         with:
-          node-version: 18
+          node-version: 24
       - name: Determine Version
         run: |
           pushd .github/workflows/scripts
@@ -37,7 +37,7 @@ jobs:
           git diff --quiet || git commit -am "Release $VERSION"
           git tag "$OGB_TAGNAME"
           git push origin "$OGB_TAGNAME"
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v5
         with:
           name: packageJson
           path: package.json
@@ -52,11 +52,11 @@ jobs:
       image: electronuserland/builder:wine
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v3
-      - uses: actions/download-artifact@v3
+        uses: actions/checkout@v5
+      - uses: actions/download-artifact@v6
         with:
           name: packageJson
-      - uses: actions/setup-node@v3
+      - uses: actions/setup-node@v6
         with:
           node-version: 18
       - name: Build
@@ -78,17 +78,17 @@ jobs:
     environment: prod
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v3
+        uses: actions/checkout@v5
         with:
           path: repo
       - name: Checkout version manifest
-        uses: actions/checkout@v3
+        uses: actions/checkout@v5
         with:
           path: versions
           repository: OSCToys/ogb-updater-manifest
           ssh-key: ${{ secrets.VERSION_DEPLOY_KEY }}
       - name: Download artifacts
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v6
         with:
           name: windows
           path: windows
@@ -100,9 +100,9 @@ jobs:
           name: Release ${{ needs.version.outputs.version }}
           files: |
             windows/OscGoesBrrr-setup.exe
-      - uses: actions/setup-node@v3
+      - uses: actions/setup-node@v6
         with:
-          node-version: 18
+          node-version: 24
       - name: Update Version Manifest
         run: |
           pushd repo/.github/workflows/scripts
@@ -122,3 +122,4 @@ jobs:
           git config user.email noreply@osc.toys
           git diff --quiet || git commit -am "Release from $GITHUB_SHA"
           git push
+
