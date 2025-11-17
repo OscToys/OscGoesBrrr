@@ -67,7 +67,7 @@ jobs:
           npx electron-builder --win
         env:
           HOME: /root
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v5
         with:
           name: windows
           path: dist/OscGoesBrrr-setup.exe
@@ -122,4 +122,5 @@ jobs:
           git config user.email noreply@osc.toys
           git diff --quiet || git commit -am "Release from $GITHUB_SHA"
           git push
+
 
