@@ -9,17 +9,6 @@ import LoggerService from "./LoggerService";
 import OgbConfigService from "./OgbConfigService";
 import VdfParser from "vdf-parser";
 
-interface SteamLibraryFolders {
-    libraryfolders: {
-        [index: string]: {
-            path: string;
-            apps: {
-              [index: string]: string;
-            };
-        }
-    }
-}
-
 /** Finds and keeps track of the local VRChat OSCQ service address */
 @Service()
 export default class VrchatLogFinder {
@@ -73,7 +62,16 @@ export default class VrchatLogFinder {
                 return fallbackPath;
             }
 
-            const libraryFoldersParsed = VdfParser.parse<SteamLibraryFolders>(libraryFolders);
+            const libraryFoldersParsed = VdfParser.parse<{
+                libraryfolders: {
+                    [index: string]: {
+                        path: string;
+                        apps: {
+                          [index: string]: string;
+                        };
+                    }
+                }
+            }>(libraryFolders);
             const libraries = Object.values(libraryFoldersParsed.libraryfolders);
             const targetLibrary = libraries.find((l) => Object.keys(l.apps).includes("438100"));
 
