@@ -8,8 +8,6 @@ import fsPlain from "fs";
 import LoggerService from "./LoggerService";
 import OgbConfigService from "./OgbConfigService";
 import VdfParser from "vdf-parser";
-import { log } from "console";
-import { prefix } from "@fortawesome/free-solid-svg-icons";
 
 interface SteamLibraryFolders {
     libraryfolders: {
@@ -60,7 +58,7 @@ export default class VrchatLogFinder {
             let basePath;
             try {
                 fsPlain.accessSync(Path.resolve(app.getPath('home'), ".var/app/com.valvesoftware.Steam"), fsPlain.constants.F_OK);
-                console.log("Flatpak Steam installation detected");
+                this.logger.log("Flatpak Steam installation detected");
                 basePath = Path.join(app.getPath('home'), '.var/app/com.valvesoftware.Steam/.local/share/Steam/');
             } catch {
                 basePath = Path.join(app.getPath('home'), '.local/share/Steam/');
