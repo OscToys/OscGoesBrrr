@@ -20,9 +20,9 @@ export default class VrchatLogFinder {
       logger: LoggerService,
       configMap: OgbConfigService
     ) {
-      this.logger = logger.get("LogFinder");
-      this.configMap = configMap;
-      this.fetchedLogDir = this.fetchLogDir();
+        this.logger = logger.get("LogFinder");
+        this.configMap = configMap;
+        this.fetchedLogDir = this.fetchLogDir();
     }
 
     private get logDir() {
@@ -58,7 +58,7 @@ export default class VrchatLogFinder {
             try {
                 libraryFolders = fsPlain.readFileSync(Path.join(basePath, 'steamapps/libraryfolders.vdf'), {encoding: "utf-8"});
             } catch(err) {
-              this.logger.log(`Couldn't access libraryfolders.vdf at Steam install ${basePath.toString()}, falling back to likely path`);
+                this.logger.log(`Couldn't access libraryfolders.vdf at Steam install ${basePath.toString()}, falling back to likely path`);
                 return fallbackPath;
             }
 
