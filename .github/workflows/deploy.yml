@@ -17,7 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
       - uses: actions/setup-node@v6
         with:
           node-version: 24
@@ -52,7 +52,7 @@ jobs:
       image: electronuserland/builder:wine
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
       - uses: actions/download-artifact@v6
         with:
           name: packageJson
@@ -78,11 +78,11 @@ jobs:
     environment: prod
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           path: repo
       - name: Checkout version manifest
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           path: versions
           repository: OSCToys/ogb-updater-manifest
