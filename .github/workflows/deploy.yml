@@ -53,7 +53,7 @@ jobs:
     steps:
       - name: Checkout repo
         uses: actions/checkout@v5
-      - uses: actions/download-artifact@v6
+      - uses: actions/download-artifact@v7
         with:
           name: packageJson
       - uses: actions/setup-node@v6
@@ -88,7 +88,7 @@ jobs:
           repository: OSCToys/ogb-updater-manifest
           ssh-key: ${{ secrets.VERSION_DEPLOY_KEY }}
       - name: Download artifacts
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v7
         with:
           name: windows
           path: windows
