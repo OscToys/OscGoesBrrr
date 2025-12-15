@@ -37,7 +37,7 @@ jobs:
           git diff --quiet || git commit -am "Release $VERSION"
           git tag "$OGB_TAGNAME"
           git push origin "$OGB_TAGNAME"
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v6
         with:
           name: packageJson
           path: package.json
@@ -67,7 +67,7 @@ jobs:
           npx electron-builder --win
         env:
           HOME: /root
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v6
         with:
           name: windows
           path: dist/OscGoesBrrr-setup.exe
