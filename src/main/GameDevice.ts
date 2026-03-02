@@ -173,9 +173,9 @@ export default class GameDevice {
 // Detects length of a penetrator given the proximity of the root and tip
 // (which may be updated at unrelated times)
 class GameDeviceLengthDetector {
-    private length: number | undefined;
+    private length?: number;
     recentSamples: number[] = [];
-    badPenetratingSample: number | undefined;
+    badPenetratingSample?: number;
 
     private saveSample(sample: number | undefined) {
         if (sample === undefined) {

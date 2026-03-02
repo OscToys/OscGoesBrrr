@@ -11,14 +11,19 @@ import Bonjour from "bonjour-service";
 import {Service} from "typedi";
 import type {Service as BounjourService} from "bonjour-service";
 import got from "got";
-import { z } from 'zod';
+import typia from "typia";
 import VrchatLogFinder from "./VrchatLogFinder";
 
-const HostInfo = z.object({
-    NAME: z.string().optional(),
-    OSC_IP: z.string().optional(),
-    OSC_PORT: z.number().optional(),
-});
+interface HostInfo {
+    NAME: string;
+    OSC_IP: string;
+    OSC_PORT: number;
+}
+
+interface OscQueryValueNode {
+    FULL_PATH: string;
+    VALUE: unknown[];
+}
 
 /** Finds and keeps track of the local VRChat OSCQ service address */
 @Service()
@@ -37,6 +42,7 @@ export default class VrchatOscqueryService {
         logger: LoggerService
     ) {
         this.logger = logger.get("vrcOscQuery");
+        const serviceLogger = this.logger;
 
         const mdns = new Bonjour();
         this.mdnsBrowser = mdns.find({
@@ -46,7 +52,11 @@ export default class VrchatOscqueryService {
 
         (async () => {
             while(true) {
-                await this.rescan();
+                try {
+                    await this.rescan();
+                } catch (e) {
+                    serviceLogger.log("Error while rescanning OSCQuery", e instanceof Error ? e.stack : e);
+                }
                 await new Promise(r => setTimeout(r, 5000));
             }
         })();
@@ -57,7 +67,7 @@ export default class VrchatOscqueryService {
             let stillGood = false;
             try {
                 const hostInfo = await this.getHostInfo(this.oscqAddress, this.oscqPort);
-                stillGood = true;
+                stillGood = this.isVrchatHostInfo(hostInfo);
             } catch(e) {}
             if (stillGood) return;
         }
@@ -94,12 +104,13 @@ export default class VrchatOscqueryService {
             url: `http://${ip}:${port}/?HOST_INFO`,
             timeout: { request: 5000 }
         }).json();
-        return HostInfo.parse(json);
+        return typia.assert<HostInfo>(json);
     }
+
     async checkPort(ip: string, port: number) {
         try {
             const hostInfo = await this.getHostInfo(ip, port);
-            if (!hostInfo.NAME || !hostInfo.NAME.startsWith("VRChat-Client-") || !hostInfo.OSC_IP || !hostInfo.OSC_PORT) {
+            if (!this.isVrchatHostInfo(hostInfo)) {
                 this.logger.log(`Skipping (${hostInfo.NAME} is not VRChat)`);
                 return false;
             }
@@ -113,6 +124,10 @@ export default class VrchatOscqueryService {
             this.logger.log("Port invalid", (e instanceof Error) ? e.stack : e);
         }
         return false;
+    }
+
+    private isVrchatHostInfo(hostInfo: HostInfo) {
+        return hostInfo.NAME.startsWith("VRChat-Client-");
     }
 
     async getOscqueryPortFromLogs() {
@@ -137,19 +152,16 @@ export default class VrchatOscqueryService {
         return values;
     }
     collectValues(input: unknown, output: Record<string,unknown>) {
+        if (typia.is<OscQueryValueNode>(input) && input.VALUE.length > 0) {
+            output[input.FULL_PATH] = input.VALUE[0];
+        }
         if (Array.isArray(input)) {
             for (const child of input) {
                 this.collectValues(child, output);
             }
-        } else if (input instanceof Object) {
-            if ('FULL_PATH' in input
-                && typeof(input.FULL_PATH) == 'string'
-                && 'VALUE' in input
-                && Array.isArray(input.VALUE)
-                && input.VALUE.length > 0
-            ) {
-                output[input.FULL_PATH] = input.VALUE[0];
-            }
+            return;
+        }
+        if (typia.is<Record<string, unknown>>(input)) {
             for (const child of Object.values(input)) {
                 this.collectValues(child, output);
             }

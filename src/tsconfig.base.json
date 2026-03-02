@@ -9,13 +9,13 @@
     "experimentalDecorators": true,
     "noUnusedLocals": false,
     "noUnusedParameters": false,
-    "lib": ["es2022"],
+    "exactOptionalPropertyTypes": false,
+    "lib": [
+      "es2022"
+    ],
     "target": "es2022",
     "module": "es2022",
     "moduleResolution": "bundler",
-    "noImplicitOverride": true,
-    "typeRoots": [
-      "./types"
-    ]
+    "noImplicitOverride": true
   }
 }

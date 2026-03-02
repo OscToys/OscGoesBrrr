@@ -1,70 +1,117 @@
-import {t} from "../common/decodeType";
+import type {tags} from "typia";
 
-export const Device = t.intersection([
-    t.type({
-        DeviceIndex: t.number,
-        DeviceName: t.string
-    }),
-    t.partial({
-        DeviceMessages: t.partial({
-            ScalarCmd: t.array(t.type({ ActuatorType: t.string })),
-            LinearCmd: t.array(t.type({ })),
-            RotateCmd: t.array(t.type({ })),
-        })
-    }),
-]);
-export type Device = t.TypeOf<typeof Device>;
-export const ButtplugMessage = t.partial({
-    Ok: t.type({
-        Id: t.number
-    }),
-    DeviceRemoved: t.type({
-        DeviceIndex: t.number
-    }),
-    DeviceAdded: Device,
-    DeviceList: t.type({
-        Devices: t.array(Device)
-    }),
-    ScalarCmd: t.type({
-        DeviceIndex: t.number,
-        Scalars: t.array(t.type({
-            Index: t.number,
-            Scalar: t.number,
-            ActuatorType: t.string,
-        }))
-    }),
-    LinearCmd: t.type({
-        DeviceIndex: t.number,
-        Vectors: t.array(t.type({
-            Index: t.number,
-            Duration: t.number,
-            Position: t.number,
-        }))
-    }),
-    FleshlightLaunchFW12Cmd: t.type({
-        DeviceIndex: t.number,
-        Position: t.number,
-        Speed: t.number
-    }),
-    RotateCmd: t.type({
-        DeviceIndex: t.number,
-        Rotations: t.array(t.type({
-            Index: t.number,
-            Speed: t.number,
-            Clockwise: t.boolean,
-        }))
-    }),
-    RequestServerInfo: t.type({
-        ClientName: t.string,
-        MessageVersion: t.number,
-    }),
-    RequestDeviceList: t.type({}),
-    StartScanning: t.type({}),
-    StopScanning: t.type({}),
-});
-export type ButtplugMessage = t.TypeOf<typeof ButtplugMessage>;
-export const ButtplugPacket = t.array(ButtplugMessage);
-export type ButtplugPacket = t.TypeOf<typeof ButtplugPacket>;
-export type ButtplugMessageForType<T extends string> =
-    T extends keyof ButtplugMessage ? (ButtplugMessage[T] & { type: T }) : { type: T };
-export type ButtplugMessageWithType = ButtplugMessageForType<keyof ButtplugMessage>;
+export type ButtplugUInt32 = number & tags.Type<"uint32">;
+export type ButtplugInt32 = number & tags.Type<"int32">;
+
+export type ButtplugInt32Range = [ButtplugInt32, ButtplugInt32];
+
+export type ButtplugOutputCapabilities = {
+    Value?: ButtplugInt32Range;
+    Duration?: ButtplugInt32Range;
+};
+
+export interface ButtplugFeatureInformation {
+    FeatureIndex: ButtplugUInt32;
+    FeatureDescription: string;
+    Output?: Partial<Record<ButtplugOutputType, ButtplugOutputCapabilities>> | null;
+    [key: string]: unknown;
+}
+
+export interface Device {
+    DeviceIndex: ButtplugUInt32;
+    DeviceName: string;
+    DeviceDisplayName?: string;
+    DeviceFeatures: Record<string, ButtplugFeatureInformation>;
+    [key: string]: unknown;
+}
+
+export interface IntifaceDeviceFeatureSelection {
+    device: Device;
+    feature: ButtplugFeatureInformation;
+    selectedOutput: ButtplugOutputType;
+}
+
+export type ButtplugScalarOutputCommand = {
+    Value: ButtplugInt32;
+};
+
+export type ButtplugDurationOutputCommand = {
+    Value: ButtplugInt32;
+    Duration: ButtplugUInt32;
+};
+
+export interface ButtplugOutputCommandMap {
+    Vibrate: ButtplugScalarOutputCommand;
+    Rotate: ButtplugScalarOutputCommand;
+    Oscillate: ButtplugScalarOutputCommand;
+    Constrict: ButtplugScalarOutputCommand;
+    Position: ButtplugScalarOutputCommand;
+    PositionWithDuration: ButtplugDurationOutputCommand;
+}
+
+export type ButtplugKnownOutputType = keyof ButtplugOutputCommandMap;
+
+export type ButtplugOutputType = ButtplugKnownOutputType | (string & {});
+
+export type ButtplugOutputCommand = {
+    [K in ButtplugKnownOutputType]: { [P in K]: ButtplugOutputCommandMap[K] }
+}[ButtplugKnownOutputType];
+
+export interface ButtplugMessagePayload extends Record<string, unknown> {
+    Id: ButtplugUInt32;
+}
+
+export interface ButtplugOkPayload extends ButtplugMessagePayload {}
+
+export interface ButtplugDeviceListPayload extends ButtplugMessagePayload {
+    Devices: Record<string, Device>;
+}
+
+export interface ButtplugOutputCmdPayload extends ButtplugMessagePayload {
+    DeviceIndex: ButtplugUInt32;
+    FeatureIndex: ButtplugUInt32;
+    Command: ButtplugOutputCommand;
+}
+
+export interface ButtplugRequestServerInfoPayload extends ButtplugMessagePayload {
+    ClientName: string;
+    ProtocolVersionMajor: ButtplugUInt32;
+    ProtocolVersionMinor: ButtplugUInt32;
+}
+
+export type ButtplugKnownMessagePayloadMap = {
+    Ok: ButtplugOkPayload;
+    DeviceList: ButtplugDeviceListPayload;
+    OutputCmd: ButtplugOutputCmdPayload;
+    RequestServerInfo: ButtplugRequestServerInfoPayload;
+    RequestDeviceList: ButtplugMessagePayload;
+    StartScanning: ButtplugMessagePayload;
+    StopScanning: ButtplugMessagePayload;
+};
+
+export type ButtplugKnownMessageType = keyof ButtplugKnownMessagePayloadMap;
+
+export type ButtplugKnownMessageWithType = {
+    [K in ButtplugKnownMessageType]: { type: K } & ButtplugKnownMessagePayloadMap[K]
+}[ButtplugKnownMessageType];
+
+export interface ButtplugUnknownMessageWithType {
+    type: string;
+    Id: ButtplugUInt32;
+    [key: string]: unknown;
+}
+
+export type ButtplugMessageWithType = ButtplugKnownMessageWithType | ButtplugUnknownMessageWithType;
+
+export type ButtplugSendMessageWithType = {
+    [K in ButtplugKnownMessageType]: { type: K } & Omit<ButtplugKnownMessagePayloadMap[K], 'Id'>
+}[ButtplugKnownMessageType];
+
+export type ButtplugMessageEnvelope = {
+    [K in ButtplugKnownMessageType]?: ButtplugKnownMessagePayloadMap[K];
+} & {
+    // Protocol is extensible; keep unknown message types valid.
+    [messageType: string]: ButtplugMessagePayload;
+};
+
+export type ButtplugPacket = ButtplugMessageEnvelope[];

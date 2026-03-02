@@ -5,9 +5,20 @@ import {Service} from "typedi";
 import readline from "node:readline/promises";
 import fsPlain from "fs";
 import LoggerService from "./LoggerService";
-import OgbConfigService from "./OgbConfigService";
+import ConfigService from "./ConfigService";
 import VdfParser from "vdf-parser";
-import existsAsync from "../../common/existsAsync";
+import typia from "typia";
+
+interface SteamLibraryFolders {
+    libraryfolders: {
+        [index: string]: {
+            path: string;
+            apps: {
+                [index: string]: string;
+            };
+        }
+    }
+}
 
 /** Finds and keeps track of the local VRChat OSCQ service address */
 @Service()
@@ -16,16 +27,15 @@ export default class VrchatLogFinder {
 
     constructor(
       logger: LoggerService,
-      private readonly configMap: OgbConfigService
+      private readonly configService: ConfigService
     ) {
         this.logger = logger.get(this.constructor.name);
-        this.configMap = configMap;
     }
 
-    private locatedVrcConfigDir: undefined | Promise<null | string>;
+    private locatedVrcConfigDir: undefined | Promise<string | undefined>;
     private async getVrcConfigDir() {
         // if a config value is set, use that instead
-        const configVrcConfigDir = this.configMap.get("vrcConfigDir");
+        const configVrcConfigDir = (await this.configService.get()).vrcConfigDir;
         if(configVrcConfigDir) {
             return configVrcConfigDir;
         }
@@ -33,16 +43,58 @@ export default class VrchatLogFinder {
         if (this.locatedVrcConfigDir === undefined) {
             this.locatedVrcConfigDir = this.locateVrcConfigDir();
             const dir = await this.locatedVrcConfigDir;
-            this.logger.log(`Located VRC Config directory at ${dir}`)
+            if (dir) this.logger.log(`Located VRC Config directory at ${dir}`)
             return dir;
         } else {
             return await this.locatedVrcConfigDir;
         }
     }
 
-    private async locateVrcConfigDir(): Promise<string | null> {
+    public async getDetectedVrcConfigDir() {
+        return await this.getVrcConfigDir();
+    }
+
+    private async tryLocateVrcPath(path: string): Promise<string | undefined> {
+        try {
+            this.logger.log(`Trying ${path}...`);
+            await fs.access(path);
+            this.logger.log(`Found VRChat at ${path}`);
+            return path;
+        } catch {
+            this.logger.log(`Couldn't access ${path}`);
+            return undefined;
+        }
+    }
+
+    private async trySteamRoot(steamRoot: string, prefixPath: string): Promise<string | undefined> {
+        let candidateFromLibraryFolders: string | undefined;
+        const libraryFoldersPath = Path.resolve(steamRoot, 'steamapps/libraryfolders.vdf');
+        try {
+            this.logger.log(`Trying ${libraryFoldersPath}...`);
+            const libraryFolders = await fs.readFile(libraryFoldersPath, {encoding: "utf-8"});
+            const libraryFoldersParsed = typia.assert<SteamLibraryFolders>(VdfParser.parse(libraryFolders));
+            const libraries = Object.values(libraryFoldersParsed.libraryfolders);
+            const targetLibrary = libraries.find((l) => Object.keys(l.apps).includes("438100"));
+            if (targetLibrary) {
+                candidateFromLibraryFolders = Path.resolve(targetLibrary.path, prefixPath);
+                const found = await this.tryLocateVrcPath(candidateFromLibraryFolders);
+                if (found) return found;
+            } else {
+                this.logger.log(`VRChat not found in ${libraryFoldersPath}`);
+            }
+        } catch {
+            this.logger.log(`Couldn't access ${libraryFoldersPath}`);
+        }
+
+        const fallbackPath = Path.resolve(steamRoot, prefixPath);
+        return await this.tryLocateVrcPath(fallbackPath);
+    }
+
+    private async locateVrcConfigDir(): Promise<string | undefined> {
         if(process.platform == 'win32') {
-            return Path.resolve(app.getPath('appData'), '../LocalLow/VRChat/VRChat')
+            const path = Path.resolve(app.getPath('appData'), '../LocalLow/VRChat/VRChat');
+            const found = await this.tryLocateVrcPath(path);
+            if (found) return found;
         }
 
         if (process.platform == 'linux') {
@@ -58,56 +110,28 @@ export default class VrchatLogFinder {
             ];
 
             for (const steamRoot of possibleSteamRoots) {
-                if (!await existsAsync(steamRoot)) continue;
-
-                const fallbackPath = Path.resolve(steamRoot, prefixPath);
-
-                let libraryFolders;
-                try {
-                    libraryFolders = await fs.readFile(Path.resolve(steamRoot, 'steamapps/libraryfolders.vdf'), {encoding: "utf-8"});
-                } catch(err) {
-                    this.logger.log(`Couldn't access libraryfolders.vdf at Steam install ${steamRoot}, falling back to likely path ${fallbackPath}`);
-                    return fallbackPath;
-                }
-
-                const libraryFoldersParsed = VdfParser.parse<{
-                    libraryfolders: {
-                        [index: string]: {
-                            path: string;
-                            apps: {
-                                [index: string]: string;
-                            };
-                        }
-                    }
-                }>(libraryFolders);
-                const libraries = Object.values(libraryFoldersParsed.libraryfolders);
-                const targetLibrary = libraries.find((l) => Object.keys(l.apps).includes("438100"));
-
-                if(!targetLibrary) {
-                    this.logger.log("VRChat not found in any Steam libraries, falling back to likely path");
-                    return fallbackPath;
-                }
-
-                const vrcConfigPath = Path.resolve(targetLibrary.path, prefixPath);
-                this.logger.log("VRChat install located at " + vrcConfigPath);
-                return vrcConfigPath;
+                const found = await this.trySteamRoot(steamRoot, prefixPath);
+                if (found) return found;
             }
-
-            this.logger.log("Failed to find steam root directory");
-            return null;
         }
 
-        this.logger.log("VRChat install could not be located due to unknown platform: " + process.platform);
-        return null;
+        this.logger.log("Failed to find VRChat at any attemped paths");
+        return undefined;
     }
-
 
     public async getLatestLog() {
         const vrcConfigDir = await this.getVrcConfigDir();
         if (!vrcConfigDir) return undefined;
 
-        const files = (await fs.readdir(vrcConfigDir))
-            .filter(name => name.startsWith("output_log"));
+        let files;
+        try {
+            files = (await fs.readdir(vrcConfigDir))
+                .filter(name => name.startsWith("output_log"));
+        } catch(e) {
+            this.logger.log(`Failed to read VRC config dir ${vrcConfigDir}: ${e}`);
+            return undefined;
+        }
+
         files.sort();
         files.reverse();
         const newestConfig = files[0];

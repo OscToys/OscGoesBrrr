@@ -1,7 +1,6 @@
 import React, {useEffect, useState} from "react";
 import StatusBox, {LogBox} from "./StatusBox";
 import ToggleableAudioHandler from "./AudioHandler";
-import AdvancedConfig from "./AdvancedConfig";
 // @ts-ignore
 import logoPath from '../../icons/ogb-logo.png';
 
@@ -31,10 +30,6 @@ export default function Home() {
             <div style={{display: 'flex', flexDirection: 'column', flex: 1, margin: '5px', textAlign: 'center'}}>
                 <h3>VRChat Status</h3>
                 <StatusBox style={{flex: 1}} getCmd="oscStatus:get" />
-            </div>
-            <div style={{display: 'flex', flexDirection: 'column', flex: 1, margin: '5px', textAlign: 'center'}}>
-                <h3>Settings <a href="https://osc.toys/settings" target="_blank">(?)</a></h3>
-                <AdvancedConfig/>
             </div>
         </div>
     </div>;

@@ -3,29 +3,31 @@ import {OscValue} from "./OscConnection";
 import OscConnection from "./OscConnection";
 import GameDevice from "./GameDevice";
 import {DeviceFeature} from "./Buttplug";
-import {SubLogger} from "./services/LoggerService";
-import OgbConfigService from "./services/OgbConfigService";
+import ConfigService from "./services/ConfigService";
+import {getDefaultLinearActuatorConfig, getDefaultOutput, Output, OutputLink, OutputLinkFilter, OutputLinkMutator} from "../common/configTypes";
+import clamp from "../common/clamp";
+import {Service} from "typedi";
 
+@Service()
 export default class Bridge {
     private fftValue = 0;
     private lastFftReceived = 0;
     private gameDevices = new Map<string,GameDevice>();
-    private toys = new Set<BridgeToy>();
+    private outputs = new Set<BridgeOutput>();
 
     constructor(
         private osc: OscConnection,
         private buttConnection: Buttplug,
-        private logger: SubLogger,
-        private configMap: OgbConfigService
+        private configService: ConfigService
     ) {
         this.osc.on('add', this.onOscAddKey);
         this.osc.on('clear', this.onOscClear);
         this.buttConnection.on('addFeature', f => {
-            this.toys.add(new BridgeToy(f,this.configMap,this.osc));
+            this.outputs.add(new BridgeOutput(f,this.configService,this.osc));
         });
         this.buttConnection.on('removeFeature', f => {
-            for (const toy of this.toys) {
-                if (toy.bioFeature == f) this.toys.delete(toy);
+            for (const output of this.outputs) {
+                if (output.bioFeature == f) this.outputs.delete(output);
             }
         })
 
@@ -78,9 +80,8 @@ export default class Bridge {
             }
         }
 
-        const audioLevel = parseFloat(this.configMap.get('audio') ?? '');
-        if (!isNaN(audioLevel) && audioLevel != 0 && this.lastFftReceived > Date.now() - 1000) {
-            sources.push(new BridgeSource('audio', 'audio', 'audio', audioLevel * this.fftValue));
+        if (this.lastFftReceived > Date.now() - 1000) {
+            sources.push(new BridgeSource('audio', 'audio', 'audio', this.fftValue));
         }
 
         return sources;
@@ -93,21 +94,21 @@ export default class Bridge {
             .filter(device => !hasOGBDevice || !device.isTps);
     }
 
-    getToys() {
-        return this.toys;
+    getOutputs() {
+        return this.outputs;
     }
 
     pushToBio() {
         let maxLevel = 0;
 
         const globalSources = this.getGlobalSources();
-        for (const toy of this.toys) {
-           toy.pushToBio(globalSources);
-           maxLevel = Math.max(maxLevel, toy.lastLevel);
+        for (const output of this.outputs) {
+           output.pushToBio(globalSources);
+           maxLevel = Math.max(maxLevel, output.lastLevel);
         }
 
         this.osc.clearDeltas();
-        const sendParam = this.configMap.get('maxLevelParam');
+        const sendParam = this.configService.getCached().maxLevelParam;
         if (sendParam) {
             this.osc.send(sendParam, maxLevel);
         }
@@ -119,16 +120,30 @@ export default class Bridge {
     }
 }
 
+export type BridgeFeatureName =
+    | 'touchSelf'
+    | 'touchOthers'
+    | 'penSelf'
+    | 'penOthers'
+    | 'frotOthers'
+    | 'penSelfLegacy'
+    | 'penSelfNew'
+    | 'penOthersLegacy'
+    | 'penOthersNew'
+    | 'audio'
+    | 'constant'
+    | `avatar:${string}`;
+
 export class BridgeSource {
-    deviceType;
-    deviceName;
-    featureName;
-    value;
+    deviceType: "orf" | "pen" | "audio" | "raw" | "touch";
+    deviceName: string;
+    featureName: BridgeFeatureName;
+    value: number;
 
     constructor(
         deviceType: "orf" | "pen" | "audio" | "raw" | "touch",
         deviceName: string,
-        featureName: string,
+        featureName: BridgeFeatureName,
         value: number
     ) {
         this.deviceType = deviceType;
@@ -142,57 +157,148 @@ export class BridgeSource {
     }
 }
 
-class BridgeToy {
-    readonly bioFeature;
-    private readonly configMap;
-    private readonly osc;
-    private lastSources: Map<string,BridgeSource> = new Map();
-    lastLevel = 0;
-    lastPushTime = 0;
-    linearTarget = 0;
-    linearVelocity = 0;
-    lastLinearSuck = 0;
+interface RelevantSource {
+    key: string;
+    source: BridgeSource;
+    value: number;
+    motionBased: boolean;
+}
 
-    constructor(bioFeature: DeviceFeature, configMap: Map<string,string>, osc: OscConnection) {
-        this.bioFeature = bioFeature;
-        this.configMap = configMap;
-        this.osc = osc;
-        //console.log("New b.io feature loaded into BridgeToy: " + this.bioFeature.id);
+export class BridgeOutput {
+    private lastSources: Map<string,{source: BridgeSource, value: number}> = new Map();
+    public lastLevel = 0;
+    private lastPushTime = 0;
+    private linearTarget = 0;
+    private linearVelocity = 0;
+    private lastLinearSuck = 0;
+
+    constructor(
+        public readonly bioFeature: DeviceFeature,
+        private readonly configService: ConfigService,
+        private readonly osc: OscConnection
+    ) {
+        //console.log("New b.io feature loaded into BridgeOutput: " + this.bioFeature.id);
     }
 
-    getRelevantSources(globalSources: BridgeSource[]) {
-        const bindType = this.getConfigParam('type') ?? 'all';
-        const bindIds = (this.getConfigParam('id') ?? '')
-            .split(',')
-            .map(id => id.trim())
-            .filter(id => id);
-        const bindKeys = (this.getConfigParam('key') ?? '')
-            .split(',')
-            .map(key => key.trim())
-            .filter(key => key);
-        const bindPen = bindType === 'pen' || bindType === 'all';
-        const bindOrf = bindType === 'orf' || bindType === 'all';
-        const defaultFeatures = ['touchOthers','penOthers','frotOthers'];
+    private getConfig(): Output {
+        return {
+            ...getDefaultOutput(),
+            id: this.bioFeature.id,
+            ...this.configService.getOutput(this.bioFeature.id),
+        };
+    }
 
-        const sources: BridgeSource[] = [];
-        for (const source of globalSources) {
-            if (this.bioFeature.type == 'linear' && source.deviceType == 'audio') continue;
-            if (source.deviceType === 'pen' || source.deviceType === 'orf') {
-                if (source.deviceType === 'pen' && !bindPen) continue;
-                if (source.deviceType === 'orf' && !bindOrf) continue;
+    private hasMotionBased(mutators: OutputLinkMutator[]) {
+        return mutators.some(mutator => mutator.kind === 'motionBased');
+    }
+
+    private applyMutators(value: number, mutators: OutputLinkMutator[]) {
+        let out = value;
+        const deadZone = mutators.find(
+            (mutator): mutator is Extract<OutputLinkMutator, {kind: 'deadZone'}> => mutator.kind === 'deadZone',
+        );
+        if (deadZone) {
+            if (deadZone.level >= 1) {
+                out = 0;
+            } else if (deadZone.level > 0) {
+                out = (out - deadZone.level) / (1 - deadZone.level);
             }
-            if (source.deviceType === 'pen' || source.deviceType === 'orf' || source.deviceType === 'touch') {
-                if (bindIds.length && !bindIds.includes(source.deviceName)) continue;
-                if (!this.getConfigBool(source.featureName, defaultFeatures.includes(source.featureName))) continue;
-            }
-            sources.push(source);
         }
-        if (bindKeys.length) {
-            const entries = this.osc.entries();
-            for (let k of bindKeys) {
-                const valueUnknown = entries.get(k)?.get();
-                const value = (typeof valueUnknown == 'number') ? valueUnknown : 0;
-                sources.push(new BridgeSource('raw', 'raw', k, value));
+        const scale = mutators.find(
+            (mutator): mutator is Extract<OutputLinkMutator, {kind: 'scale'}> => mutator.kind === 'scale',
+        );
+        if (scale) out = out * scale.scale;
+        return clamp(out, 0, 1);
+    }
+
+    getRelevantSources(globalSources: BridgeSource[], config: Output): RelevantSource[] {
+        const links = config.links;
+        const shouldInclude = (name: string, filter: OutputLinkFilter) => {
+            const includeSet = new Set(filter.include.map(value => value.trim()).filter(Boolean));
+            const excludeSet = new Set(filter.exclude.map(value => value.trim()).filter(Boolean));
+            if (excludeSet.has(name)) return false;
+            if (includeSet.size === 0) return true;
+            return includeSet.has(name);
+        };
+        const matchesSpsLink = (
+            source: BridgeSource,
+            link: OutputLink & {kind: 'vrchat.sps.plug' | 'vrchat.sps.socket'},
+        ) => {
+            if (!shouldInclude(source.deviceName, link.filter)) return false;
+            if (source.featureName === 'touchSelf') return link.touchSelf;
+            if (source.featureName === 'touchOthers') return link.touchOthers;
+            if (source.featureName === 'penSelf') return link.penSelf;
+            if (source.featureName === 'penOthers') return link.penOthers;
+            if (source.featureName === 'frotOthers') return link.frotOthers;
+            return false;
+        };
+        const matchesTouchLink = (
+            source: BridgeSource,
+            link: OutputLink & {kind: 'vrchat.sps.touch'},
+        ) => {
+            return shouldInclude(source.deviceName, link.filter);
+        };
+        const sources: RelevantSource[] = [];
+        const entries = this.osc.entries();
+        for (let linkIndex = 0; linkIndex < links.length; linkIndex++) {
+            const link = links[linkIndex]!;
+            if (link.kind === 'constant') {
+                if (this.bioFeature.type === 'linear') continue;
+                const source = new BridgeSource('raw', 'constant', 'constant', link.level);
+                sources.push({
+                    key: `link:${linkIndex}__constant`,
+                    source,
+                    value: source.value,
+                    motionBased: false,
+                });
+                continue;
+            }
+            if (link.kind === 'systemAudio') {
+                for (const source of globalSources) {
+                    if (source.deviceType !== 'audio') continue;
+                    if (this.bioFeature.type === 'linear') continue;
+                    const transformed = this.applyMutators(source.value, link.mutators);
+                    sources.push({
+                        key: `link:${linkIndex}__${source.getUniqueKey()}`,
+                        source: new BridgeSource(source.deviceType, source.deviceName, source.featureName, transformed),
+                        value: transformed,
+                        motionBased: false,
+                    });
+                }
+                continue;
+            }
+            if (link.kind === 'vrchat.avatarParameter') {
+                const parameter = link.parameter.trim();
+                if (!parameter) continue;
+                const valueUnknown = entries.get(parameter)?.get();
+                const raw = (typeof valueUnknown == 'number') ? valueUnknown : 0;
+                const transformed = this.applyMutators(raw, link.mutators);
+                sources.push({
+                    key: `link:${linkIndex}__raw__${parameter}`,
+                    source: new BridgeSource('raw', 'raw', `avatar:${parameter}`, transformed),
+                    value: transformed,
+                    motionBased: this.hasMotionBased(link.mutators),
+                });
+                continue;
+            }
+            for (const source of globalSources) {
+                if (source.deviceType === 'audio') continue;
+                let matches = false;
+                if (link.kind === 'vrchat.sps.plug' && source.deviceType === 'pen') {
+                    matches = matchesSpsLink(source, link);
+                } else if (link.kind === 'vrchat.sps.socket' && source.deviceType === 'orf') {
+                    matches = matchesSpsLink(source, link);
+                } else if (link.kind === 'vrchat.sps.touch' && source.deviceType === 'touch') {
+                    matches = matchesTouchLink(source, link);
+                }
+                if (!matches) continue;
+                const transformed = this.applyMutators(source.value, link.mutators);
+                sources.push({
+                    key: `link:${linkIndex}__${source.getUniqueKey()}`,
+                    source: new BridgeSource(source.deviceType, source.deviceName, source.featureName, transformed),
+                    value: transformed,
+                    motionBased: this.hasMotionBased(link.mutators),
+                });
             }
         }
         return sources;
@@ -201,27 +307,23 @@ class BridgeToy {
     pushToBio(globalSources: BridgeSource[]) {
         const now = Date.now();
         const timeDeltaReal = now - this.lastPushTime;
-        const updatesPerSecond = this.getConfigNumber('updatesPerSecond', 0);
-        if (updatesPerSecond > 0 && timeDeltaReal < (1000/updatesPerSecond)) {
-            return;
-        }
+        const config = this.getConfig();
+        const updatesPerSecond = config.updatesPerSecond ?? 0;
+        if (updatesPerSecond > 0 && timeDeltaReal < (1000 / updatesPerSecond)) return;
+        const timeDelta = clamp(timeDeltaReal, 0, 250); // safety limited
 
-        const timeDelta = Math.min(timeDeltaReal, 250); // safety limited
-        const motionBased = !this.getConfigBool('linear', true);
-
-        const sources = this.getRelevantSources(globalSources);
+        const sources = this.getRelevantSources(globalSources, config);
         let level = 0;
         let motionBasedBackward = false;
         for (const source of sources) {
             const value = source.value;
             if (this.bioFeature.type == 'linear') {
                 level = Math.max(level, value);
-            } else if (motionBased) {
-                const lastSource = this.lastSources.get(source.getUniqueKey());
-                const lastValue = lastSource?.value;
+            } else if (source.motionBased) {
+                const lastValue = this.lastSources.get(source.key)?.value;
                 if (lastValue !== undefined) {
-                    const delta = Math.abs(value - lastValue);
-                    const diffPerSecond = delta / timeDelta * 1000;
+                    const delta = value - lastValue;
+                    const diffPerSecond = Math.abs(delta) / timeDelta * 1000;
                     const intensity = diffPerSecond / 5;
                     if (intensity > level) {
                         level = intensity;
@@ -234,22 +336,25 @@ class BridgeToy {
             }
         }
 
-        level = this.clamp(level, 0, 1);
+        level = clamp(level, 0, 1);
 
         if (this.bioFeature.type == 'linear') {
+            const linearDefaults = getDefaultLinearActuatorConfig();
+            const linearConfig = {
+                ...linearDefaults,
+                ...(config.linear ?? {}),
+            };
             const timeDeltaSeconds = timeDelta / 1000;
             const oldVelocity = this.linearVelocity;
-            let maxVelocity = this.getConfigNumber('maxv', 3);
-            let maxAcceleration = this.getConfigNumber('maxa', 20);
-            const customCalc = this.getConfigBool('customCalc', false);
-            const customCalcClamp = this.getConfigBool('customCalcClamp', true);
-            const durationMult = this.getConfigNumber('durationMult', 1);
-            const restingPos = this.clamp(this.getConfigNumber('restingPos', 0), 0, 1);
-            const restingTime = this.getConfigNumber('restingTime', 3) * 1000;
+            let maxVelocity = linearConfig.maxv;
+            let maxAcceleration = linearConfig.maxa;
+            const durationMult = linearConfig.durationMult;
+            const restingPos = clamp(linearConfig.restingPos, 0, 1);
+            const restingTime = linearConfig.restingTime * 1000;
 
             let targetPosition = 1 - level;
-            const min = this.getConfigNumber('min', 0);
-            const max = this.getConfigNumber('max', 1);
+            const min = linearConfig.min;
+            const max = linearConfig.max;
             targetPosition = this.remap(targetPosition, 0, 1, min, max);
 
             if (level > 0) {
@@ -257,10 +362,10 @@ class BridgeToy {
             } else if (this.lastLinearSuck < now - restingTime) {
                 targetPosition = restingPos;
                 maxAcceleration = 999;
-                maxVelocity = Math.min(maxVelocity, 1);
+                maxVelocity = clamp(maxVelocity, 0, 1);
             }
 
-            targetPosition = this.clamp(targetPosition, 0, 1);
+            targetPosition = clamp(targetPosition, 0, 1);
 
             const currentPosition = this.bioFeature.lastLevel;
             const absDistanceRequiredToStopSmoothly = Math.pow(oldVelocity, 2) / (2 * maxAcceleration);
@@ -301,13 +406,13 @@ class BridgeToy {
             }
             //newPosition = level;
             if (this.bioFeature.lastLevel != newPosition) {
-                this.bioFeature.setLevel(newPosition, Math.round(timeDelta * durationMult), customCalc, customCalcClamp);
+                this.bioFeature.setLevel(newPosition, Math.round(timeDelta * durationMult));
             }
 
             this.linearVelocity = newVelocity;
             this.linearTarget = targetPosition;
 
-            const debug = this.getConfigBool('debugLog');
+            const debug = false;
             if (debug) {
                 const width = 60;
                 const currentPos = Math.floor(newPosition * width);
@@ -323,15 +428,7 @@ class BridgeToy {
                 console.log(out);
             }
         } else {
-            const idle = this.getConfigNumber('idle', 0);
-            const scale = this.getConfigNumber('scale', 1);
-            if (scale !== undefined) {
-                level = level * scale;
-            }
-            if (idle) {
-                level = level * (1 - idle) + idle;
-            }
-            level = this.clamp(level, 0, 1);
+            level = clamp(level, 0, 1);
 
             if (this.bioFeature.type == 'rotate') {
                 this.bioFeature.setLevel(level * (motionBasedBackward ? -1 : 1));
@@ -343,7 +440,7 @@ class BridgeToy {
         this.lastLevel = this.bioFeature.lastLevel;
         this.lastSources.clear();
         for (const source of sources) {
-            this.lastSources.set(source.getUniqueKey(), source);
+            this.lastSources.set(source.key, {source: source.source, value: source.value});
         }
         this.lastPushTime = now;
     }
@@ -352,35 +449,14 @@ class BridgeToy {
         const normalized = (num - fromMin) / (fromMax-fromMin);
         return normalized * (toMax-toMin) + toMin;
     }
-    clamp(num: number, min: number, max: number) {
-        if (isNaN(num)) return min;
-        return Math.max(min, Math.min(max, num));
-    }
-
-    getConfigParam(subkey: string) {
-        return this.configMap.get(this.bioFeature.id+'.'+subkey) ?? this.configMap.get('all.'+subkey);
-    }
-    getConfigBool(subkey: string, def = false) {
-        const p = this.getConfigParam(subkey);
-        if (p === '1' || p === 'true') return true;
-        if (p === '0' || p === 'false') return false;
-        return def;
-    }
-    getConfigNumber(subkey: string, def = 0) {
-        const p = this.getConfigParam(subkey);
-        if (p === undefined) return def;
-        const num = parseFloat(p);
-        if (isNaN(num)) return def;
-        return num;
-    }
     getStatus() {
         const lines = [];
         lines.push(`${this.bioFeature.id} = ${Math.round(this.lastLevel*100)}%`);
 
         const sourceLines = [];
-        for (const source of this.lastSources.values()) {
-            //if (source.value == 0) continue;
-            sourceLines.push(`  ${source.deviceType}.${source.deviceName}.${source.featureName} = ${Math.round(source.value*100)}%`);
+        for (const sourceEntry of this.lastSources.values()) {
+            const source = sourceEntry.source;
+            sourceLines.push(`  ${source.deviceType}.${source.deviceName}.${source.featureName} = ${Math.round(sourceEntry.value*100)}%`);
         }
         sourceLines.sort();
         lines.push(...sourceLines);

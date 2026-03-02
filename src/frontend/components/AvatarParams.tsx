@@ -1,5 +1,5 @@
 import React, {useEffect, useState} from "react";
-import {ipcRenderer} from "electron";
+import {invokeIpc} from "../ipc";
 
 export default function AvatarParams({...rest}: {
 } & React.HTMLAttributes<HTMLDivElement>) {
@@ -9,7 +9,7 @@ export default function AvatarParams({...rest}: {
         let destroyed = false;
         let timer: NodeJS.Timeout;
         async function update() {
-            const status = await ipcRenderer.invoke("avatarParams:get");
+            const status = await invokeIpc("avatarParams:get");
             if (destroyed) return;
             setValues(status);
             timer = setTimeout(update, 100);

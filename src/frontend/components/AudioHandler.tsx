@@ -1,6 +1,6 @@
-import {ipcRenderer} from "electron";
 import React from "react";
 import {useEffect, useState} from "react";
+import {invokeIpc, onIpc} from "../ipc";
 
 export default function ToggleableAudioHandler() {
     const [active,setActive] = useState(false);
@@ -8,11 +8,11 @@ export default function ToggleableAudioHandler() {
     useEffect(() => {
         function onStart() { setActive(true); }
         function onStop() { setActive(false); }
-        ipcRenderer.on('fft:start', onStart);
-        ipcRenderer.on('fft:stop', onStop);
+        const offStart = onIpc('fft:start', onStart);
+        const offStop = onIpc('fft:stop', onStop);
         return () => {
-            ipcRenderer.off('fft:start', onStart);
-            ipcRenderer.off('fft:stop', onStop);
+            offStart();
+            offStop();
         }
     }, []);
 
@@ -79,7 +79,7 @@ function AudioHandler() {
             if (max > 0) {
                 level = (max/255);
             }
-            ipcRenderer.invoke('fft:status', level);
+            void invokeIpc('fft:status', level);
         }
         function stopFft() {
             console.log("Destroying Audio Handler");

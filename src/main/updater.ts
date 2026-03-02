@@ -1,24 +1,26 @@
 import { dialog, app } from 'electron';
-import fs from 'fs/promises';
-import path from "path";
-import { createWriteStream, existsSync } from "fs";
+import { createWriteStream } from "fs";
 import child_process from 'child_process';
 import got from 'got';
 import semver from 'semver';
 import stream from 'stream/promises';
-import decodeType, {t} from "../common/decodeType";
-import { readFileSync } from "fs";
-import existsAsync from "../common/existsAsync";
 // @ts-ignore
 import versionPath from "./version.txt";
 import tmpPromise from 'tmp-promise';
+import typia from "typia";
+import {Service} from "typedi";
 
-const UpdatesJsonSchema = t.type({
-    latestVersion: t.string,
-    latestInstaller: t.string,
-});
+interface UpdatesJsonSchema {
+    latestVersion: string;
+    latestInstaller: string;
+}
 
+@Service()
 export default class Updater {
+    constructor() {
+        void this.checkAndNotify();
+    }
+
     async checkAndNotify(notifyOnFailure = false) {
         try {
             await this.checkAndNotifyUnsafe();
@@ -41,7 +43,7 @@ export default class Updater {
         if (!myversion) throw new Error('Failed to load local version file');
 
         const updatesJson = await got('https://updates.osc.toys/updates.json').json() as unknown;
-        const updates = decodeType(updatesJson, UpdatesJsonSchema);
+        const updates = typia.assert<UpdatesJsonSchema>(updatesJson);
         console.log("Autoupdate version is " + updates.latestVersion);
 
         if (semver.gte(myversion, updates.latestVersion, { loose: true })) {

@@ -1,9 +1,9 @@
 import React, {useEffect, useRef, useState} from "react";
-import {ipcRenderer} from "electron";
 import {useLatest} from "react-use";
+import {invokeIpc, onIpc} from "../ipc";
 
 export default function StatusBox({getCmd, ...rest}: {
-    getCmd: string
+    getCmd: 'bioStatus:get' | 'oscStatus:get'
 } & React.HTMLAttributes<HTMLTextAreaElement>) {
     const [status,setStatus] = useState("");
 
@@ -11,7 +11,7 @@ export default function StatusBox({getCmd, ...rest}: {
         let destroyed = false;
         let timer: NodeJS.Timeout;
         async function update() {
-            const status = await ipcRenderer.invoke(getCmd);
+            const status = await invokeIpc(getCmd);
             if (destroyed) return;
             setStatus(status);
             timer = setTimeout(update, 100);
@@ -37,21 +37,20 @@ export function LogBox({...rest}: {
         const lines: string[] = [];
         let destroyed = false;
         async function loadHistory() {
-            const history = await ipcRenderer.invoke(`log:history`);
+            const history = await invokeIpc('log:history');
             if (destroyed) return;
             lines.push(...history);
             while (lines.length > 1000) lines.shift();
             setStatus(lines.join('\n'));
         }
         loadHistory();
-        function onLine(_event: Electron.IpcRendererEvent, text: any) {
+        const offLine = onIpc('log:line', (text) => {
             lines.push(...text.split('\n'));
             while (lines.length > 1000) lines.shift();
             setStatus(lines.join('\n'));
-        }
-        ipcRenderer.on(`log:line`, onLine);
+        });
         return () => {
-            ipcRenderer.off(`log:line`, onLine);
+            offLine();
             destroyed = true;
         };
     }, []);
@@ -98,6 +97,7 @@ function FreezingBox({body, scrollOnChange = false, ...rest}: {
     return <textarea
         style={{flex: 1}}
         readOnly
+        spellCheck={false}
         wrap="on"
         onMouseMove={resetFreezeTimerIfFrozen}
         onMouseDown={resetFreezeTimer}

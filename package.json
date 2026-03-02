@@ -2,59 +2,67 @@
   "name": "OscGoesBrrr",
   "version": "0.0.0-dev",
   "description": "Haptics for VRChat",
-  "main": "app/main.js",
+  "main": "electron-main.cjs",
   "scripts": {
     "start": "electron .",
-    "startFromWsl": "build/startFromWsl.sh",
+    "watch": "webpack --watch --config src/main/webpack.config.js --config src/frontend/webpack.config.js",
     "watchFrontend": "cd src/frontend && webpack --watch",
     "watchMain": "cd src/main && webpack --watch",
-    "build": "cd src/main && webpack && cd ../frontend && webpack",
-    "rebuild": "npm run build && npm run start"
+    "build": "webpack --config src/main/webpack.config.js --config src/frontend/webpack.config.js",
+    "rebuild": "pnpm run build && pnpm run start",
+    "typecheck": "pnpm exec tsc -p src/main/tsconfig.json --noEmit && pnpm exec tsc -p src/frontend/tsconfig.json --noEmit"
   },
   "repository": "https://github.com/OscToys/OscGoesBrrr",
   "license": "CC BY-NC-SA 4.0",
   "devDependencies": {
+    "@emotion/cache": "^11.14.0",
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.1",
+    "@fortawesome/fontawesome-common-types": "^6.7.2",
     "@fortawesome/fontawesome-svg-core": "^6.5.1",
     "@fortawesome/free-brands-svg-icons": "^6.5.1",
-    "@fortawesome/free-regular-svg-icons": "^6.5.1",
     "@fortawesome/free-solid-svg-icons": "^6.5.1",
     "@fortawesome/react-fontawesome": "^0.2.0",
+    "@homebridge/ciao": "^1.3.0",
+    "@mui/icons-material": "^6.4.8",
+    "@mui/material": "^6.4.8",
     "@tsconfig/strictest": "^2.0.2",
-    "@types/ip": "^1.1.3",
+    "@types/lodash": "^4.17.16",
     "@types/node": "^20.10.4",
     "@types/react": "^18.2.42",
     "@types/react-dom": "^18.2.17",
-    "@types/semver": "^7.5.6",
-    "@types/tmp": "^0.2.6",
-    "@types/ws": "^8.5.10",
+    "bonjour-service": "^1.3.0",
+    "chokidar": "^5.0.0",
     "classnames": "^2.3.2",
     "css-loader": "^6.8.1",
     "electron": "^28.0.0",
     "electron-builder": "^24.9.1",
     "got": "^14.0.0",
-    "io-ts": "^2.2.21",
-    "ip": "^2.0.0",
+    "immer": "^11.1.4",
+    "lodash": "^4.17.21",
     "osc": "^2.4.4",
     "oscquery": "^1.1.0",
-    "prop-types": "^15.8.1",
+    "portfinder": "^1.0.37",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-use": "^17.4.2",
     "reflect-metadata": "^0.1.13",
     "sass": "^1.69.5",
     "sass-loader": "^13.3.2",
+    "semver": "^7.7.4",
     "source-map-support": "^0.5.21",
     "style-loader": "^3.3.3",
     "tmp-promise": "^3.0.3",
     "ts-loader": "^9.5.1",
+    "type-fest": "^4.41.0",
     "typed-emitter": "^2.1.0",
     "typedi": "^0.10.0",
     "typescript": "^5.3.3",
+    "typia": "^11.0.3",
     "vdf-parser": "^1.2.1",
     "webpack": "^5.89.0",
     "webpack-cli": "^5.1.4",
-    "ws": "^8.14.2",
-    "zod": "^3.22.4"
+    "ws": "^8.14.2"
   },
   "build": {
     "appId": "toys.osc.oscgoesbrrr",
@@ -75,10 +83,15 @@
       "installerIcon": "src/icons/ogb-installer.ico"
     },
     "files": [
-      "app/**/*"
+      "app/**/*",
+      "electron-main.cjs"
     ]
   },
   "optionalDependencies": {
     "native-reg": "^1.1.1"
-  }
+  },
+  "packageManager": "pnpm@10.30.3"
 }
+
+
+
