@@ -71,9 +71,10 @@ export default function SettingsBody({
         });
 
     const linkOutput = (outputId: string) => {
-        if (configuredOutputIdSet.has(outputId)) return;
-        const linkedOutput: Output = {id: outputId, ...getDefaultOutput(), links: getDefaultLinks()};
-        onCommitConfig(produce(config, (draft) => pushItem(draft.outputs, linkedOutput)));
+        onCommitConfig(produce(config, (draft) => {
+            if (draft.outputs.some(output => output.id === outputId)) return;
+            pushItem(draft.outputs, {id: outputId, ...getDefaultOutput(), links: getDefaultLinks()});
+        }));
     };
 
     const updateConfiguredOutput = (outputId: string, newOutput: Output) => {

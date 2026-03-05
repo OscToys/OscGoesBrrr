@@ -18,6 +18,7 @@ import {invokeIpc, onIpc} from "../../ipc";
 import {SettingsStatePayload} from "../../../common/ipcContract";
 import {Result} from "../../../common/result";
 import useFrontendConfigDataManager from "./FrontendConfigDataManager";
+import {replaceEqualDeep} from "../../../common/replaceEqualDeep";
 
 export default function Settings() {
     type ResetTarget = 'config' | 'backendData';
@@ -38,10 +39,9 @@ export default function Settings() {
     useEffect(() => {
         const off = onIpc('settings-state:changed', (rawPayload) => {
             try {
-                console.log("Received settings state", rawPayload);
                 const result = typia.assert<Result<SettingsStatePayload>>(rawPayload);
                 if (result.ok) {
-                    setSettingsState(result.data);
+                    setSettingsState(prev => prev ? replaceEqualDeep(prev, result.data) : result.data);
                     setStateLoadError(undefined);
                     return;
                 }

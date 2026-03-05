@@ -2,7 +2,6 @@ import React, {useState} from "react";
 import {produce} from "immer";
 import {Output} from "../../../common/configTypes";
 import {OutputDeviceInfo} from "../../../common/ipcContract";
-import isEqual from "lodash/isEqual";
 import {Alert, Box, IconButton, Stack, Typography} from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import {DotPath, getTypedPathValue, PathValue, setTypedPathValue} from "../../utils/typedPath";
@@ -151,8 +150,4 @@ function ConfiguredOutputRow({output, info, importedAllDeletesAt, onChange, onDe
     );
 }
 
-export default React.memo(ConfiguredOutputRow, (prev, next) => {
-    return prev.importedAllDeletesAt === next.importedAllDeletesAt
-        && isEqual(prev.output, next.output)
-        && isEqual(prev.info, next.info);
-});
+export default ConfiguredOutputRow;
