@@ -17,7 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v6
         with:
@@ -46,7 +46,7 @@ jobs:
       image: electronuserland/builder:wine
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v6
         with:
@@ -65,7 +65,7 @@ jobs:
         env:
           HOME: /root
           VERSION: ${{ needs.version.outputs.version }}
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v6
         with:
           name: windows
           path: |
@@ -79,13 +79,13 @@ jobs:
       assets: ${{ steps.release.outputs.assets }}
     steps:
       - name: Download artifacts
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v7
         with:
           name: windows
           path: windows
       - name: Release
         id: release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.version.outputs.tagName }}
           target_commitish: ${{ github.sha }}
@@ -102,11 +102,11 @@ jobs:
     environment: prod
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           path: repo
       - name: Checkout version manifest
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           path: versions
           repository: OSCToys/ogb-updater-manifest
