@@ -11,11 +11,9 @@ export function configurePortableDataPaths(app: App): void {
     const root = getPortableDataRoot();
     if (!root) return;
 
-    app.setPath("appData", root);
     app.setPath("userData", root);
     app.setPath("sessionData", path.join(root, "sessionData"));
-    app.setPath("cache", path.join(root, "cache"));
+    app.setPath("temp", path.join(root, "temp"));
     app.setPath("logs", path.join(root, "logs"));
     app.setPath("crashDumps", path.join(root, "crashDumps"));
-    app.setPath("temp", path.join(root, "temp"));
 }

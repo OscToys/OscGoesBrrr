@@ -11,8 +11,8 @@
 - Do not run a standalone common compile as the default verification step.
 - Use `pnpm run typecheck` for routine verification (main + frontend only).
 - Never run `webpack` unless the user explicitly instructs it.
-- Always request escalated permissions before running any `pnpm` command, so approval is prompted immediately.
-- Exception: `pnpm run typecheck` should run in sandbox (no escalation) unless the user explicitly asks otherwise.
+- For `pnpm` commands that need network access (install/add/up/outdated/audit, etc.), request escalated permissions immediately so approval is prompted right away.
+- For local/offline `pnpm` commands (for example `pnpm run typecheck`), run in sandbox by default.
 
 ## Git Tooling
 - Use Git from GitHub Desktop under Program Files when `git` is not on PATH.
