@@ -1,4 +1,3 @@
-import * as fs from "node:fs/promises";
 import {execFile as execFileCallback} from "node:child_process";
 import {promisify} from "node:util";
 import semver from "semver";
@@ -16,12 +15,6 @@ const version = isBeta
     : nextVersion;
 console.log(version);
 console.error(version);
-
-console.error("Updating package.json ...");
-const packageJson = await readJson("package.json");
-packageJson.version = version;
-await writeJson("package.json", packageJson);
-console.error("Done");
 
 async function getTags(): Promise<string[]> {
     const {stdout} = await execFile("git", ["ls-remote", "--tags", "origin"], {encoding: "utf8"});
@@ -52,12 +45,4 @@ function normalizeBranchName(name: string): string {
 
 function shortHash(hash: string): string {
     return hash.slice(0, 7) || "unknown";
-}
-
-async function readJson(file: string): Promise<{version?: string}> {
-    return JSON.parse(await fs.readFile(file, {encoding: "utf-8"})) as {version?: string};
-}
-
-async function writeJson(file: string, obj: object): Promise<void> {
-    await fs.writeFile(file, JSON.stringify(obj, null, 2));
 }

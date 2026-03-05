@@ -35,17 +35,6 @@ jobs:
           OGB_BRANCH_NAME: ${{ github.ref_name }}
           OGB_BETA: ${{ github.ref_name != github.event.repository.default_branch }}
           OGB_COMMIT_SHA: ${{ github.sha }}
-      - name: Push tag
-        run: |
-          git config user.name Releases
-          git config user.email noreply@osc.toys
-          git diff --quiet || git commit -am "Release ${{ steps.determine_version.outputs.version }}"
-          git tag "${{ steps.determine_version.outputs.tagName }}"
-          git push origin "${{ steps.determine_version.outputs.tagName }}"
-      - uses: actions/upload-artifact@v5
-        with:
-          name: packageJson
-          path: package.json
     outputs:
       version: ${{ steps.determine_version.outputs.version }}
       tagName: ${{ steps.determine_version.outputs.tagName }}
@@ -58,9 +47,6 @@ jobs:
     steps:
       - name: Checkout repo
         uses: actions/checkout@v5
-      - uses: actions/download-artifact@v6
-        with:
-          name: packageJson
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v6
         with:
@@ -71,16 +57,39 @@ jobs:
           pnpm install --frozen-lockfile --config.platform=win32
           (cd src/main && pnpm exec webpack)
           (cd src/frontend && pnpm exec webpack)
-          pnpm exec electron-builder --win
+          pnpm exec electron-builder --win --config.extraMetadata.version="$VERSION"
         env:
           HOME: /root
+          VERSION: ${{ needs.version.outputs.version }}
       - uses: actions/upload-artifact@v5
         with:
           name: windows
-          path: dist/OscGoesBrrr-setup.exe
+          path: dist/OscGoesBrrr-${{ needs.version.outputs.version }}.exe
 
   release:
     needs: [version, build_win]
+    runs-on: ubuntu-latest
+    outputs:
+      assets: ${{ steps.release.outputs.assets }}
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v6
+        with:
+          name: windows
+          path: windows
+      - name: Release
+        id: release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ needs.version.outputs.tagName }}
+          target_commitish: ${{ github.sha }}
+          name: Release ${{ needs.version.outputs.version }}
+          prerelease: ${{ github.ref_name != github.event.repository.default_branch }}
+          files: |
+            windows/OscGoesBrrr-${{ needs.version.outputs.version }}.exe
+
+  update_manifest:
+    needs: [version, release]
     if: github.ref_name == github.event.repository.default_branch
     runs-on: ubuntu-latest
     environment: prod
@@ -95,19 +104,6 @@ jobs:
           path: versions
           repository: OSCToys/ogb-updater-manifest
           ssh-key: ${{ secrets.VERSION_DEPLOY_KEY }}
-      - name: Download artifacts
-        uses: actions/download-artifact@v6
-        with:
-          name: windows
-          path: windows
-      - name: Release
-        id: release
-        uses: softprops/action-gh-release@v1
-        with:
-          tag_name: ${{ needs.version.outputs.tagName }}
-          name: Release ${{ needs.version.outputs.version }}
-          files: |
-            windows/OscGoesBrrr-setup.exe
       - uses: actions/setup-node@v6
         with:
           node-version-file: '.nvmrc'
@@ -118,7 +114,7 @@ jobs:
           popd
         env:
           VERSION: ${{ needs.version.outputs.version }}
-          DOWNLOAD_URL: ${{ fromJSON(steps.release.outputs.assets)[0].browser_download_url }}
+          DOWNLOAD_URL: ${{ fromJSON(needs.release.outputs.assets)[0].browser_download_url }}
       - name: Push version manifest
         working-directory: versions
         run: |
