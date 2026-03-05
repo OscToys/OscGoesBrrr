@@ -19,17 +19,15 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v5
       - uses: pnpm/action-setup@v4
-        with:
-          version: 10
       - uses: actions/setup-node@v6
         with:
-          node-version: 24
+          node-version-file: '.nvmrc'
           cache: pnpm
       - name: Determine Version
         id: determine_version
         run: |
-          pnpm --dir .github/workflows/scripts install --frozen-lockfile
-          VERSION=$(pnpm --dir .github/workflows/scripts exec tsx determineVersion.ts)
+          pnpm install --frozen-lockfile
+          VERSION=$(pnpm exec tsx .github/workflows/scripts/determineVersion.ts)
           echo "Next Version: $VERSION"
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "tagName=release/$VERSION" >> $GITHUB_OUTPUT
@@ -64,11 +62,9 @@ jobs:
         with:
           name: packageJson
       - uses: pnpm/action-setup@v4
-        with:
-          version: 10
       - uses: actions/setup-node@v6
         with:
-          node-version: 18
+          node-version-file: '.nvmrc'
           cache: pnpm
       - name: Build
         run: |
@@ -114,7 +110,7 @@ jobs:
             windows/OscGoesBrrr-setup.exe
       - uses: actions/setup-node@v6
         with:
-          node-version: 24
+          node-version-file: '.nvmrc'
       - name: Update Version Manifest
         run: |
           pushd versions

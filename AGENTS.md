@@ -12,6 +12,7 @@
 - Use `pnpm run typecheck` for routine verification (main + frontend only).
 - Never run `webpack` unless the user explicitly instructs it.
 - Always request escalated permissions before running any `pnpm` command, so approval is prompted immediately.
+- Exception: `pnpm run typecheck` should run in sandbox (no escalation) unless the user explicitly asks otherwise.
 
 ## Git Tooling
 - Use Git from GitHub Desktop under Program Files when `git` is not on PATH.

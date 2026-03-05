@@ -1,7 +1,0 @@
-{
-  "type": "module",
-  "dependencies": {
-    "semver": "^7.3.8",
-    "tsx": "^4.21.0"
-  }
-}
