@@ -17,7 +17,7 @@ import VrchatLogFinder from "./services/VrchatLogFinder";
 import BackendDataService from "./services/BackendDataService";
 import ImportedOutputPromotionService from "./services/migrate/ImportedOutputPromotionService";
 import {handleIpc} from "./ipc";
-import type {ButtplugFeatureInformation, Device} from "./ButtplugSpec";
+import type {ButtplugFeatureInformation, Device, IntifaceDeviceFeatureSelection} from "./ButtplugSpec";
 import {configurePortableDataPaths} from "./portableData";
 
 app.enableSandbox();
@@ -178,8 +178,9 @@ handleIpc('settings-state:request', async () => {
     }>();
     const naming = new Map<string, {
         deviceName: string,
-        deviceIndex?: number,
+        deviceIndex: number,
         featureDescriptor?: string,
+        featureIndex: number,
     }>();
 
     const trimToUndefined = (raw: string | undefined): string | undefined => {
@@ -187,60 +188,40 @@ handleIpc('settings-state:request', async () => {
         const trimmed = raw.trim();
         return trimmed.length > 0 ? trimmed : undefined;
     };
-    const getDeviceName = (device: Device, fallback: string): string =>
-        trimToUndefined(device.DeviceDisplayName)
-        ?? trimToUndefined(device.DeviceName)
-        ?? fallback;
-    const getIntifaceDeviceId = (device: Device): number | undefined => device.DeviceIndex;
-    const getFeatureDescriptor = (feature: ButtplugFeatureInformation): string | undefined =>
-        trimToUndefined(feature.FeatureDescription);
 
     // Add history first as disconnected.
+    const getNaming = (feature: IntifaceDeviceFeatureSelection, id: string) => {
+        return {
+            deviceName: trimToUndefined(feature.device.DeviceDisplayName)
+                ?? trimToUndefined(feature.device.DeviceName)
+                ?? id,
+            deviceIndex: feature.device.DeviceIndex,
+            featureDescriptor: trimToUndefined(feature.feature.FeatureDescription),
+            featureIndex: feature.feature.FeatureIndex,
+        }
+    };
     for (const [id, item] of Object.entries(history)) {
-        const fallbackName = id;
         result.set(id, {
             id,
-            name: fallbackName,
+            name: id,
             connected: false,
             showLinearActuatorOptions: item.intiface.selectedOutput === 'Position' || item.intiface.selectedOutput === 'PositionWithDuration',
         });
-        naming.set(id, {
-            deviceName: getDeviceName(item.intiface.device, fallbackName),
-            deviceIndex: getIntifaceDeviceId(item.intiface.device),
-            featureDescriptor: getFeatureDescriptor(item.intiface.feature),
-        });
+        naming.set(id, getNaming(item.intiface, id));
     }
-
     for (const outputDevice of connectedOutputDevices) {
         const id = outputDevice.bioFeature.id;
-        const name = id;
-        const existing = result.get(id);
-        if (!existing) {
-            result.set(id, {
-                id,
-                name,
-                connected: true,
-                showLinearActuatorOptions: outputDevice.bioFeature.type === 'linear',
-            });
-            naming.set(id, {
-                deviceName: getDeviceName(outputDevice.bioFeature.intiface.device, name),
-                deviceIndex: getIntifaceDeviceId(outputDevice.bioFeature.intiface.device),
-                featureDescriptor: getFeatureDescriptor(outputDevice.bioFeature.intiface.feature),
-            });
-        } else {
-            existing.connected = true;
-            existing.name = name;
-            existing.showLinearActuatorOptions = existing.showLinearActuatorOptions || outputDevice.bioFeature.type === 'linear';
-            naming.set(id, {
-                deviceName: getDeviceName(outputDevice.bioFeature.intiface.device, name),
-                deviceIndex: getIntifaceDeviceId(outputDevice.bioFeature.intiface.device),
-                featureDescriptor: getFeatureDescriptor(outputDevice.bioFeature.intiface.feature),
-            });
-        }
+        result.set(id, {
+            id,
+            name: id,
+            connected: true,
+            showLinearActuatorOptions: outputDevice.bioFeature.type === 'linear',
+        });
+        naming.set(id, getNaming(outputDevice.bioFeature.intiface, id));
     }
 
     const entries = Array.from(result.values());
-    const deviceNameCounts = new Map<string, number>();
+    const deviceNameToDeviceKeys = new Map<string, Set<string>>();
     const featuresPerDevice = new Map<string, number>();
     const descriptorCountsPerDevice = new Map<string, Map<string, number>>();
     const deviceKey = (deviceName: string, deviceIndex?: number) => `${deviceName}::${deviceIndex ?? 'unknown'}`;
@@ -248,8 +229,13 @@ handleIpc('settings-state:request', async () => {
     for (const entry of entries) {
         const nameParts = naming.get(entry.id);
         if (!nameParts) continue;
-        deviceNameCounts.set(nameParts.deviceName, (deviceNameCounts.get(nameParts.deviceName) ?? 0) + 1);
         const key = deviceKey(nameParts.deviceName, nameParts.deviceIndex);
+        let deviceKeys = deviceNameToDeviceKeys.get(nameParts.deviceName);
+        if (!deviceKeys) {
+            deviceKeys = new Set<string>();
+            deviceNameToDeviceKeys.set(nameParts.deviceName, deviceKeys);
+        }
+        deviceKeys.add(key);
         featuresPerDevice.set(key, (featuresPerDevice.get(key) ?? 0) + 1);
         const descriptorKey = nameParts.featureDescriptor ?? '';
         let descriptorCounts = descriptorCountsPerDevice.get(key);
@@ -264,15 +250,19 @@ handleIpc('settings-state:request', async () => {
         const nameParts = naming.get(entry.id);
         if (!nameParts) continue;
         const key = deviceKey(nameParts.deviceName, nameParts.deviceIndex);
-        const duplicateDeviceName = (deviceNameCounts.get(nameParts.deviceName) ?? 0) > 1;
+        const duplicateDeviceName = (deviceNameToDeviceKeys.get(nameParts.deviceName)?.size ?? 0) > 1;
         const hasMultipleFeaturesOnDevice = (featuresPerDevice.get(key) ?? 0) > 1;
 
         let composed = nameParts.deviceName;
         if (duplicateDeviceName && nameParts.deviceIndex !== undefined) {
             composed += ` [${nameParts.deviceIndex}]`;
         }
-        if (hasMultipleFeaturesOnDevice && nameParts.featureDescriptor) {
-            composed += ` - ${nameParts.featureDescriptor}`;
+        if (hasMultipleFeaturesOnDevice) {
+            if (nameParts.featureDescriptor) {
+                composed += ` - ${nameParts.featureDescriptor}`;
+            } else {
+                composed += ` - Output ${nameParts.featureIndex}`;
+            }
         }
         entry.name = composed;
     }
