@@ -76,8 +76,11 @@ export default function SettingsBody({
         onCommitConfig(produce(config, (draft) => pushItem(draft.outputs, linkedOutput)));
     };
 
-    const updateConfiguredOutput = (index: number, newOutput: Output) => {
-        onCommitConfig(produce(config, (draft) => replaceAt(draft.outputs, index, newOutput)));
+    const updateConfiguredOutput = (outputId: string, newOutput: Output) => {
+        onCommitConfig(produce(config, (draft) => {
+            const index = draft.outputs.findIndex(output => output.id === outputId);
+            if (index >= 0) replaceAt(draft.outputs, index, newOutput);
+        }));
     };
 
     let intifaceWarning;
@@ -199,9 +202,9 @@ export default function SettingsBody({
                 </Stack>
             </MyAccordion>
 
-            {configuredOutputs.map((output, index) => {
+            {configuredOutputs.map((output) => {
                 const info = getOutputInfo(output.id);
-                return {output, index, info};
+                return {output, info};
             })
                 .sort((a, b) => {
                     const aConnected = Boolean(a.info?.connected);
@@ -209,11 +212,10 @@ export default function SettingsBody({
                     if (aConnected === bConnected) return 0;
                     return aConnected ? -1 : 1;
                 })
-                .map(({output, index, info}) => (
+                .map(({output, info}) => (
                     <ConfiguredOutputRow
                         key={output.id}
                         output={output}
-                        index={index}
                         info={info}
                         importedAllDeletesAt={importedAllDeletesAt}
                         onChange={updateConfiguredOutput}

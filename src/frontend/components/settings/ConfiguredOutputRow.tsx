@@ -2,6 +2,7 @@ import React, {useState} from "react";
 import {produce} from "immer";
 import {Output} from "../../../common/configTypes";
 import {OutputDeviceInfo} from "../../../common/ipcContract";
+import isEqual from "lodash/isEqual";
 import {Alert, Box, IconButton, Stack, Typography} from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import {DotPath, getTypedPathValue, PathValue, setTypedPathValue} from "../../utils/typedPath";
@@ -22,14 +23,13 @@ function getLegacyDisplayName(id: string): string | undefined {
 
 interface Props {
     output: Output;
-    index: number;
     info?: OutputDeviceInfo;
     importedAllDeletesAt?: number;
-    onChange: (index: number, output: Output) => void;
+    onChange: (id: string, output: Output) => void;
     onDelete: (outputId: string) => void;
 }
 
-export default function ConfiguredOutputRow({output, index, info, importedAllDeletesAt, onChange, onDelete}: Props) {
+function ConfiguredOutputRow({output, info, importedAllDeletesAt, onChange, onDelete}: Props) {
     type OutputPath = DotPath<Output>;
     type NumberPath = {
         [P in OutputPath]: PathValue<Output, P> extends number | undefined ? P : never
@@ -39,7 +39,7 @@ export default function ConfiguredOutputRow({output, index, info, importedAllDel
     const [advancedExpanded, setAdvancedExpanded] = useState(false);
     const displayName = getLegacyDisplayName(output.id) ?? info?.name ?? output.id;
     const showLinearActuatorOptions = Boolean(info?.showLinearActuatorOptions);
-    const commitOutput = (nextOutput: Output) => onChange(index, nextOutput);
+    const commitOutput = (nextOutput: Output) => onChange(output.id, nextOutput);
     const warningText = (() => {
         if (!output.id.startsWith(LEGACY_OUTPUT_ID_PREFIX)) return undefined;
         if (output.id !== LEGACY_ALL_OUTPUT_ID) {
@@ -150,3 +150,9 @@ export default function ConfiguredOutputRow({output, index, info, importedAllDel
         </MyAccordion>
     );
 }
+
+export default React.memo(ConfiguredOutputRow, (prev, next) => {
+    return prev.importedAllDeletesAt === next.importedAllDeletesAt
+        && isEqual(prev.output, next.output)
+        && isEqual(prev.info, next.info);
+});

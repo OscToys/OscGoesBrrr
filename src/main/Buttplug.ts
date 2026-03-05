@@ -413,7 +413,7 @@ export class DeviceFeature {
         const t = clamp(normalized, 0, 1);
         const mapped = Math.round(min + (max - min) * t);
         // If we have any level at all, send at least step 1
-        if (t > 0 && mapped <= min && max > min) {
+        if (t > 0.001 && mapped <= min && max > min) {
             return min + 1;
         }
         return mapped;
@@ -425,10 +425,10 @@ export class DeviceFeature {
         const t = clamp((signedNormalized + 1) / 2, 0, 1);
         const mapped = Math.round(min + (max - min) * t);
         // If we have any level at all, send at least step 1
-        if (signedNormalized > 0 && mapped <= 0 && max > 0) {
+        if (signedNormalized > 0.001 && mapped <= 0 && max > 0) {
             return 1;
         }
-        if (signedNormalized < 0 && mapped >= 0 && min < 0) {
+        if (signedNormalized < 0.001 && mapped >= 0 && min < 0) {
             return -1;
         }
         return mapped;

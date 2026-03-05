@@ -10,7 +10,7 @@ import clamp from "../../../common/clamp";
 export default class LegacyTxtConfigImportService {
     static readonly IMPORTED_ID_PREFIX = "intiface.imported.";
     static readonly IMPORTED_ALL_ID = "intiface.imported.all";
-    private readonly oldSavePath = path.join(app.getPath('appData'), 'OscGoesBrrr', 'config.txt');
+    private readonly oldSavePath = path.join(app.getPath('userData'), 'config.txt');
 
     async migrateFromLegacy(): Promise<Config | undefined> {
         let data: string;

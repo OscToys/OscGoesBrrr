@@ -18,7 +18,7 @@ export default class ConfigService extends AbstractJsonStateService<Config> {
         private readonly legacyTxtConfigImportService: LegacyTxtConfigImportService,
         private readonly mainWindowService: MainWindowService,
     ) {
-        super(path.join(app.getPath('appData'), 'OscGoesBrrr', 'config.json'), typia.json.createAssertParse<Config>());
+        super(path.join(app.getPath('userData'), 'config.json'), typia.json.createAssertParse<Config>());
         this.on('changed', () => this.sendCurrentConfig());
         this.registerIpcHandlers();
     }

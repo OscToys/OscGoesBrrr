@@ -1,5 +1,6 @@
 import React from "react";
 import {Button, Stack, Typography} from "@mui/material";
+import isEqual from "lodash/isEqual";
 import {OutputDeviceInfo} from "../../../common/ipcContract";
 import MyAccordion from "../util/MyAccordion";
 import ConnectionBubble from "./ConnectionBubble";
@@ -9,7 +10,7 @@ interface Props {
     onLink: (outputId: string) => void;
 }
 
-export default function UnconfiguredOutputRow({output, onLink}: Props) {
+function UnconfiguredOutputRow({output, onLink}: Props) {
     return (
         <MyAccordion
             expanded={false}
@@ -38,3 +39,5 @@ export default function UnconfiguredOutputRow({output, onLink}: Props) {
         />
     );
 }
+
+export default React.memo(UnconfiguredOutputRow, (prev, next) => isEqual(prev.output, next.output));

@@ -18,6 +18,7 @@ import BackendDataService from "./services/BackendDataService";
 import ImportedOutputPromotionService from "./services/migrate/ImportedOutputPromotionService";
 import {handleIpc} from "./ipc";
 import type {ButtplugFeatureInformation, Device} from "./ButtplugSpec";
+import {configurePortableDataPaths} from "./portableData";
 
 app.enableSandbox();
 
@@ -26,6 +27,7 @@ if (!gotTheLock) {
     app.exit();
     process.exit(0);
 }
+configurePortableDataPaths(app);
 
 const container = Container;
 container.get(Updater);
