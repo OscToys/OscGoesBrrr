@@ -57,14 +57,20 @@ jobs:
           pnpm install --frozen-lockfile --config.platform=win32
           (cd src/main && pnpm exec webpack)
           (cd src/frontend && pnpm exec webpack)
-          pnpm exec electron-builder --win --config.extraMetadata.version="$VERSION"
+          pnpm exec electron-builder \
+            --win nsis portable \
+            --config.extraMetadata.version="$VERSION" \
+            --config.nsis.artifactName="OscGoesBrrr-setup-${VERSION}.exe" \
+            --config.portable.artifactName="OscGoesBrrr-portable-${VERSION}.exe"
         env:
           HOME: /root
           VERSION: ${{ needs.version.outputs.version }}
       - uses: actions/upload-artifact@v5
         with:
           name: windows
-          path: dist/OscGoesBrrr-${{ needs.version.outputs.version }}.exe
+          path: |
+            dist/OscGoesBrrr-setup-${{ needs.version.outputs.version }}.exe
+            dist/OscGoesBrrr-portable-${{ needs.version.outputs.version }}.exe
 
   release:
     needs: [version, build_win]
@@ -86,7 +92,8 @@ jobs:
           name: Release ${{ needs.version.outputs.version }}
           prerelease: ${{ github.ref_name != github.event.repository.default_branch }}
           files: |
-            windows/OscGoesBrrr-${{ needs.version.outputs.version }}.exe
+            windows/OscGoesBrrr-setup-${{ needs.version.outputs.version }}.exe
+            windows/OscGoesBrrr-portable-${{ needs.version.outputs.version }}.exe
 
   update_manifest:
     needs: [version, release]

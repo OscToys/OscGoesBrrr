@@ -77,7 +77,10 @@
     "npmRebuild": false,
     "publish": null,
     "win": {
-      "target": "nsis",
+      "target": [
+        "nsis",
+        "portable"
+      ],
       "icon": "src/icons/ogb-logo.ico",
       "artifactName": "OscGoesBrrr-${version}.exe"
     },
