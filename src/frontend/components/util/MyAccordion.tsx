@@ -30,12 +30,14 @@ export default function MyAccordion({expanded, onChange, summary, children, expa
         : {expanded: false};
     const summaryProps = hasBody
         ? {
+            component: 'div' as const,
             ...(showExpandIcon ? {expandIcon: <ExpandMoreIcon />} : {}),
             disableRipple: true,
             focusRipple: false,
             sx: summaryFocusSx,
         }
         : {
+            component: 'div' as const,
             ...(showExpandIcon ? {expandIcon: <ExpandMoreIcon />} : {}),
             disableRipple: true,
             focusRipple: false,

@@ -1,15 +1,16 @@
-import React, {useState} from "react";
-import {produce} from "immer";
+import React, {useMemo, useState} from "react";
 import {Output} from "../../../common/configTypes";
 import {OutputDeviceInfo} from "../../../common/ipcContract";
-import {Alert, Box, IconButton, Stack, Typography} from "@mui/material";
+import {Alert, IconButton, Stack, Typography} from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
-import {DotPath, getTypedPathValue, PathValue, setTypedPathValue} from "../../utils/typedPath";
 import TextCommitInput from "../util/TextCommitInput";
 import MyAccordion from "../util/MyAccordion";
 import CountdownText, {formatDuration} from "../util/CountdownText";
 import OutputLinks from "./OutputLinks";
 import ConnectionBubble from "./ConnectionBubble";
+import {type Atom, type PrimitiveAtom, useAtom, useAtomValue, type WritableAtom} from "jotai";
+import {selectAtom} from "jotai/utils";
+import {focusKeyAtom, focusOptionalKeyAtom} from "../../utils/atomUtils";
 
 const LEGACY_ALL_OUTPUT_ID = "intiface.imported.all";
 const LEGACY_OUTPUT_ID_PREFIX = "intiface.imported.";
@@ -21,24 +22,57 @@ function getLegacyDisplayName(id: string): string | undefined {
 }
 
 interface Props {
-    output: Output;
-    info?: OutputDeviceInfo;
+    outputAtom: PrimitiveAtom<Output>;
+    infoAtom: Atom<OutputDeviceInfo | undefined>;
     importedAllDeletesAt?: number;
-    onChange: (id: string, output: Output) => void;
     onDelete: (outputId: string) => void;
 }
 
-function ConfiguredOutputRow({output, info, importedAllDeletesAt, onChange, onDelete}: Props) {
-    type OutputPath = DotPath<Output>;
-    type NumberPath = {
-        [P in OutputPath]: PathValue<Output, P> extends number | undefined ? P : never
-    }[OutputPath];
+function NumberField({label, valueAtom, placeholder}: {label: string, valueAtom: WritableAtom<number | undefined, [number | undefined], void>, placeholder?: string}) {
+    const [value, setValue] = useAtom(valueAtom);
+    return (
+        <TextCommitInput
+            label={label}
+            value={value === undefined ? '' : String(value)}
+            placeholder={placeholder}
+            onCommit={nextValue => {
+                const next = nextValue.trim();
+                if (!next) {
+                    setValue(undefined);
+                    return;
+                }
+                const parsed = Number(next);
+                if (Number.isFinite(parsed)) setValue(parsed);
+            }}
+        />
+    );
+}
 
+function ConfiguredOutputRow({outputAtom, infoAtom, importedAllDeletesAt, onDelete}: Props) {
     const [expanded, setExpanded] = useState(false);
     const [advancedExpanded, setAdvancedExpanded] = useState(false);
+    const outputLinksAtom = useMemo(() => focusKeyAtom(outputAtom, 'links'), [outputAtom]);
+    const updatesPerSecondAtom = useMemo(() => focusKeyAtom(outputAtom, 'updatesPerSecond'), [outputAtom]);
+    const linearAtom = useMemo(() => focusKeyAtom(outputAtom, 'linear'), [outputAtom]);
+    const linearMaxvAtom = useMemo(() => focusOptionalKeyAtom(linearAtom, 'maxv'), [linearAtom]);
+    const linearMaxaAtom = useMemo(() => focusOptionalKeyAtom(linearAtom, 'maxa'), [linearAtom]);
+    const linearDurationMultAtom = useMemo(() => focusOptionalKeyAtom(linearAtom, 'durationMult'), [linearAtom]);
+    const linearMinAtom = useMemo(() => focusOptionalKeyAtom(linearAtom, 'min'), [linearAtom]);
+    const linearMaxAtom = useMemo(() => focusOptionalKeyAtom(linearAtom, 'max'), [linearAtom]);
+    const linearRestingPosAtom = useMemo(() => focusOptionalKeyAtom(linearAtom, 'restingPos'), [linearAtom]);
+    const linearRestingTimeAtom = useMemo(() => focusOptionalKeyAtom(linearAtom, 'restingTime'), [linearAtom]);
+    const outputNonLinkAtom = useMemo(
+        () => selectAtom(
+            outputAtom,
+            (output) => ({id: output.id, updatesPerSecond: output.updatesPerSecond, linear: output.linear}),
+            (a, b) => a.id === b.id && a.updatesPerSecond === b.updatesPerSecond && a.linear === b.linear,
+        ),
+        [outputAtom],
+    );
+    const output = useAtomValue(outputNonLinkAtom);
+    const info = useAtomValue(infoAtom);
     const displayName = getLegacyDisplayName(output.id) ?? info?.name ?? output.id;
     const showLinearActuatorOptions = Boolean(info?.showLinearActuatorOptions);
-    const commitOutput = (nextOutput: Output) => onChange(output.id, nextOutput);
     const warningText = (() => {
         if (!output.id.startsWith(LEGACY_OUTPUT_ID_PREFIX)) return undefined;
         if (output.id !== LEGACY_ALL_OUTPUT_ID) {
@@ -58,25 +92,6 @@ function ConfiguredOutputRow({output, info, importedAllDeletesAt, onChange, onDe
             </CountdownText>
         );
     })();
-    const renderNumberField = ({label, path, placeholder}: {label: string, path: NumberPath, placeholder?: string}) => {
-        const rawValue = getTypedPathValue(output, path);
-        return (
-            <TextCommitInput
-                label={label}
-                value={rawValue === undefined ? '' : String(rawValue)}
-                placeholder={placeholder}
-                onCommit={nextValue => {
-                    const next = nextValue.trim();
-                    if (!next) {
-                        commitOutput(setTypedPathValue(output, path, undefined));
-                        return;
-                    }
-                    const parsed = Number(next);
-                    if (Number.isFinite(parsed)) commitOutput(setTypedPathValue(output, path, parsed));
-                }}
-            />
-        );
-    };
 
     return (
         <MyAccordion
@@ -111,10 +126,7 @@ function ConfiguredOutputRow({output, info, importedAllDeletesAt, onChange, onDe
                     <Alert severity="warning">{warningText}</Alert>
                 )}
                 <OutputLinks
-                    links={output.links}
-                    onChangeLinks={(nextLinks) => commitOutput(produce(output, (draft) => {
-                        draft.links = nextLinks;
-                    }))}
+                    linksAtom={outputLinksAtom}
                 />
                 <Stack spacing={0}>
                     <MyAccordion
@@ -124,21 +136,25 @@ function ConfiguredOutputRow({output, info, importedAllDeletesAt, onChange, onDe
                         summary={<Typography variant="subtitle2">Advanced Device Settings</Typography>}
                     >
                         <Stack spacing={2}>
-                            {renderNumberField({label: "Update Rate (Hz) (DO NOT CHANGE unless device gets delayed by seconds/minutes over time)", path: "updatesPerSecond", placeholder: "15"})}
+                            <NumberField
+                                label="Update Rate (Hz) (DO NOT CHANGE unless device gets delayed by seconds/minutes over time)"
+                                valueAtom={updatesPerSecondAtom}
+                                placeholder="15"
+                            />
 
                             {showLinearActuatorOptions && (
                                 <>
                                     <Typography variant="subtitle2">Linear Actuator</Typography>
                                     <Stack direction={{xs: 'column', md: 'row'}} spacing={1.5}>
-                                        {renderNumberField({label: "Max Velocity (Units / Second)", path: "linear.maxv", placeholder: "3"})}
-                                        {renderNumberField({label: "Max Acceleration (Units / Second^2)", path: "linear.maxa", placeholder: "20"})}
-                                        {renderNumberField({label: "Duration Multiplier", path: "linear.durationMult", placeholder: "1"})}
+                                        <NumberField label="Max Velocity (Units / Second)" valueAtom={linearMaxvAtom} placeholder="3" />
+                                        <NumberField label="Max Acceleration (Units / Second^2)" valueAtom={linearMaxaAtom} placeholder="20" />
+                                        <NumberField label="Duration Multiplier" valueAtom={linearDurationMultAtom} placeholder="1" />
                                     </Stack>
                                     <Stack direction={{xs: 'column', md: 'row'}} spacing={1.5}>
-                                        {renderNumberField({label: "Min Position", path: "linear.min", placeholder: "0"})}
-                                        {renderNumberField({label: "Max Position", path: "linear.max", placeholder: "1"})}
-                                        {renderNumberField({label: "Resting Position", path: "linear.restingPos", placeholder: "0"})}
-                                        {renderNumberField({label: "Resting Time (seconds)", path: "linear.restingTime", placeholder: "3"})}
+                                        <NumberField label="Min Position" valueAtom={linearMinAtom} placeholder="0" />
+                                        <NumberField label="Max Position" valueAtom={linearMaxAtom} placeholder="1" />
+                                        <NumberField label="Resting Position" valueAtom={linearRestingPosAtom} placeholder="0" />
+                                        <NumberField label="Resting Time (seconds)" valueAtom={linearRestingTimeAtom} placeholder="3" />
                                     </Stack>
                                 </>
                             )}
@@ -150,4 +166,4 @@ function ConfiguredOutputRow({output, info, importedAllDeletesAt, onChange, onDe
     );
 }
 
-export default ConfiguredOutputRow;
+export default React.memo(ConfiguredOutputRow);

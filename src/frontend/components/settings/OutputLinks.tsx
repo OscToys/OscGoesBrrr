@@ -1,28 +1,40 @@
-import React, {useState} from 'react';
+import React, {useCallback, useMemo, useState} from 'react';
 import {produce} from 'immer';
 import {OutputLink, OutputLinkKind} from '../../../common/configTypes';
 import {Menu, MenuItem, Stack, Typography} from '@mui/material';
-import {pushItem, removeAt, replaceAt} from "../../../common/arrayDraft";
+import {pushItem} from "../../../common/arrayDraft";
 import AddIcon from "@mui/icons-material/Add";
 import OutputLinkEditor from "./OutputLinkEditor";
 import MyAccordion from "../util/MyAccordion";
+import {type PrimitiveAtom, useAtomValue, useSetAtom} from "jotai";
+import {splitAtom} from "jotai/utils";
 
 interface Props {
-    links: OutputLink[];
-    onChangeLinks: (nextLinks: OutputLink[]) => void;
+    linksAtom: PrimitiveAtom<OutputLink[]>;
 }
 
-export default function OutputLinks({links, onChangeLinks}: Props) {
+const LINK_OPTIONS: {kind: OutputLinkKind, label: string}[] = [
+    {kind: 'vrchat.sps.plug', label: 'SPS Plugs'},
+    {kind: 'vrchat.sps.socket', label: 'SPS Sockets'},
+    {kind: 'vrchat.sps.touch', label: 'SPS Touch Zones'},
+    {kind: 'systemAudio', label: 'System Audio'},
+    {kind: 'constant', label: 'Constant'},
+    {kind: 'vrchat.avatarParameter', label: 'VRC Avatar Parameter'},
+];
+const LINK_OPTION_MAP = new Map(LINK_OPTIONS.map(option => [option.kind, option]));
+
+function OutputLinks({linksAtom}: Props) {
     const [addLinkMenuAnchor, setAddLinkMenuAnchor] = useState<HTMLElement | null>(null);
-    const linkOptions: {kind: OutputLinkKind, label: string}[] = [
-        {kind: 'vrchat.sps.plug', label: 'SPS Plugs'},
-        {kind: 'vrchat.sps.socket', label: 'SPS Sockets'},
-        {kind: 'vrchat.sps.touch', label: 'SPS Touch Zones'},
-        {kind: 'systemAudio', label: 'System Audio'},
-        {kind: 'constant', label: 'Constant'},
-        {kind: 'vrchat.avatarParameter', label: 'VRC Avatar Parameter'},
-    ];
-    const linkOptionMap = new Map(linkOptions.map(option => [option.kind, option]));
+    const linkAtomsAtom = useMemo(
+        () => splitAtom(linksAtom),
+        [linksAtom],
+    );
+    const setLinks = useSetAtom(linksAtom);
+    const linkAtoms = useAtomValue(linkAtomsAtom);
+    const dispatchLinkAtoms = useSetAtom(linkAtomsAtom);
+    const removeLink = useCallback((linkAtom: PrimitiveAtom<OutputLink>) => {
+        dispatchLinkAtoms({type: 'remove', atom: linkAtom});
+    }, [dispatchLinkAtoms]);
     const buildLink = (kind: OutputLinkKind): OutputLink => {
         switch (kind) {
             case 'vrchat.sps.plug':
@@ -41,20 +53,19 @@ export default function OutputLinks({links, onChangeLinks}: Props) {
     };
 
     const addLink = (kind: OutputLinkKind) => {
-        onChangeLinks(produce(links, (draft) => pushItem(draft, buildLink(kind))));
+        setLinks((prev) => produce(prev, (draft) => pushItem(draft, buildLink(kind))));
         setAddLinkMenuAnchor(null);
     };
 
     return (
         <Stack spacing={0}>
-            {links.map((link, index) => {
+            {linkAtoms.map((linkAtom) => {
                 return (
                     <OutputLinkEditor
-                        key={index}
-                        link={link}
-                        label={linkOptionMap.get(link.kind)?.label ?? link.kind}
-                        onChange={nextLink => onChangeLinks(produce(links, (draft) => replaceAt(draft, index, nextLink)))}
-                        onRemove={() => onChangeLinks(produce(links, (draft) => removeAt(draft, index)))}
+                        key={linkAtom.toString()}
+                        linkAtom={linkAtom}
+                        labelMap={LINK_OPTION_MAP}
+                        removeLink={removeLink}
                     />
                 );
             })}
@@ -77,7 +88,7 @@ export default function OutputLinks({links, onChangeLinks}: Props) {
                 open={addLinkMenuAnchor !== null}
                 onClose={() => setAddLinkMenuAnchor(null)}
             >
-                {linkOptions.map(opt => (
+                {LINK_OPTIONS.map(opt => (
                     <MenuItem key={opt.kind} onClick={() => addLink(opt.kind)}>
                         {opt.label}
                     </MenuItem>
@@ -86,3 +97,5 @@ export default function OutputLinks({links, onChangeLinks}: Props) {
         </Stack>
     );
 }
+
+export default React.memo(OutputLinks);

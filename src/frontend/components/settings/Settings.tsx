@@ -1,7 +1,6 @@
-import {useEffect, useState} from 'react';
+import {useState} from 'react';
 import React from 'react';
 import SettingsBody from "./SettingsBody";
-import typia from "typia";
 import {
     Alert,
     Box,
@@ -14,17 +13,46 @@ import {
     Stack,
     Typography,
 } from "@mui/material";
-import {invokeIpc, onIpc} from "../../ipc";
+import {invokeIpc} from "../../ipc";
 import {SettingsStatePayload} from "../../../common/ipcContract";
 import {Result} from "../../../common/result";
-import useFrontendConfigDataManager from "./FrontendConfigDataManager";
-import {replaceEqualDeep} from "../../../common/replaceEqualDeep";
+import {Config} from "../../../common/configTypes";
+import {type PrimitiveAtom, useAtomValue} from "jotai";
+import {selectAtom} from "jotai/utils";
+import typia from "typia";
+import useIpcBackedCache from "./useIpcBackedCache";
 
 export default function Settings() {
     type ResetTarget = 'config' | 'backendData';
-    const [settingsState, setSettingsState] = useState<SettingsStatePayload | undefined>();
-    const [stateLoadError, setStateLoadError] = useState<string | undefined>(undefined);
-    const {config, loadError, saveError, saving, savedVisible, commitConfig} = useFrontendConfigDataManager();
+    const parseConfigResult = React.useCallback((raw: unknown) => typia.assert<Result<Config>>(raw), []);
+    const parseSettingsStateResult = React.useCallback(
+        (raw: unknown) => typia.assert<Result<SettingsStatePayload>>(raw),
+        [],
+    );
+    const {
+        dataAtom: configAtom,
+        loadError,
+        saveError,
+        saveState,
+    } = useIpcBackedCache<Config>({
+        changeEvent: 'config:changed',
+        requestInvoke: 'config:request',
+        parseResult: parseConfigResult,
+        saveInvoke: 'config:set',
+    });
+    const {
+        dataAtom: settingsStateAtom,
+        loadError: stateLoadError,
+    } = useIpcBackedCache<SettingsStatePayload>({
+        changeEvent: 'settings-state:changed',
+        requestInvoke: 'settings-state:request',
+        parseResult: parseSettingsStateResult,
+        pollMs: 1000,
+    });
+    const hasConfigData = useAtomValue(React.useMemo(() => selectAtom(configAtom, value => value !== undefined), [configAtom]));
+    const hasSettingsStateData = useAtomValue(
+        React.useMemo(() => selectAtom(settingsStateAtom, value => value !== undefined), [settingsStateAtom]),
+    );
     const [resetTarget, setResetTarget] = useState<ResetTarget | undefined>(undefined);
     const [devToolsUnlocked, setDevToolsUnlocked] = useState(false);
 
@@ -35,34 +63,6 @@ export default function Settings() {
     const openBackendDataFile = async () => {
         await invokeIpc('backendData:open');
     };
-
-    useEffect(() => {
-        const off = onIpc('settings-state:changed', (rawPayload) => {
-            try {
-                const result = typia.assert<Result<SettingsStatePayload>>(rawPayload);
-                if (result.ok) {
-                    setSettingsState(prev => prev ? replaceEqualDeep(prev, result.data) : result.data);
-                    setStateLoadError(undefined);
-                    return;
-                }
-                setStateLoadError(result.error);
-            } catch (e) {
-                setStateLoadError(e instanceof Error ? e.message : String(e));
-            }
-        });
-        let closed = false;
-        (async () => {
-            while (!closed) {
-                await invokeIpc('settings-state:request');
-                await new Promise(resolve => setTimeout(resolve, 1000));
-            }
-        })();
-
-        return () => {
-            off();
-            closed = true;
-        };
-    }, []);
 
     return (
         <Box sx={{p: 2, overflowY: 'auto', height: '100%', bgcolor: 'background.default'}}>
@@ -98,15 +98,14 @@ export default function Settings() {
                 {loadError && <Alert severity="error">{loadError}</Alert>}
                 {stateLoadError && <Alert severity="error">{stateLoadError}</Alert>}
                 {saveError && <Alert severity="error">{saveError}</Alert>}
-                {!config && !loadError && (
+                {!hasConfigData && !loadError && (
                     <Alert severity="info">Loading configuration...</Alert>
                 )}
 
-                {config && settingsState && !loadError && !stateLoadError && (
+                {hasConfigData && hasSettingsStateData && !loadError && !stateLoadError && (
                     <SettingsBody
-                        config={config}
-                        settingsState={settingsState}
-                        onCommitConfig={commitConfig}
+                        configAtom={configAtom as PrimitiveAtom<Config>}
+                        settingsStateAtom={settingsStateAtom as PrimitiveAtom<SettingsStatePayload>}
                     />
                 )}
             </Stack>
@@ -123,12 +122,12 @@ export default function Settings() {
                     border: 1,
                     borderColor: 'success.main',
                     color: 'success.dark',
-                    opacity: (saving || savedVisible) ? 1 : 0,
+                    opacity: (saveState === 'saving' || saveState === 'saved') ? 1 : 0,
                     pointerEvents: 'none',
                     transition: 'opacity 0.2s ease',
                 }}
             >
-                {saving ? 'Saving...' : 'Saved'}
+                {saveState === 'saving' ? 'Saving...' : 'Saved'}
             </Box>
 
             <Dialog

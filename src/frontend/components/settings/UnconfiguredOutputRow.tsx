@@ -3,13 +3,17 @@ import {Button, Stack, Typography} from "@mui/material";
 import {OutputDeviceInfo} from "../../../common/ipcContract";
 import MyAccordion from "../util/MyAccordion";
 import ConnectionBubble from "./ConnectionBubble";
+import {type Atom, useAtomValue, useSetAtom, type WritableAtom} from "jotai";
 
 interface Props {
-    output: OutputDeviceInfo;
-    onLink: (outputId: string) => void;
+    outputAtom: Atom<OutputDeviceInfo | undefined>;
+    linkOutputAtom: WritableAtom<null, [string], void>;
 }
 
-function UnconfiguredOutputRow({output, onLink}: Props) {
+function UnconfiguredOutputRow({outputAtom, linkOutputAtom}: Props) {
+    const output = useAtomValue(outputAtom);
+    const linkOutput = useSetAtom(linkOutputAtom);
+    if (!output) return null;
     return (
         <MyAccordion
             expanded={false}
@@ -27,7 +31,7 @@ function UnconfiguredOutputRow({output, onLink}: Props) {
                             size="small"
                             onClick={(e) => {
                                 e.stopPropagation();
-                                onLink(output.id);
+                                linkOutput(output.id);
                             }}
                         >
                             Link
@@ -39,4 +43,4 @@ function UnconfiguredOutputRow({output, onLink}: Props) {
     );
 }
 
-export default UnconfiguredOutputRow;
+export default React.memo(UnconfiguredOutputRow);

@@ -10,11 +10,11 @@ import {
     Slider,
     Stack,
     Switch,
-    TextField,
     Typography,
 } from '@mui/material';
 import {
     OutputLink,
+    OutputLinkKind,
     OutputLinkMutator,
     OutputLinkMutatorKind,
     OutputLinkFilter,
@@ -27,6 +27,7 @@ import ArrowDropDownIcon from "@mui/icons-material/ArrowDropDown";
 import CloseIcon from "@mui/icons-material/Close";
 import MyAccordion from "../util/MyAccordion";
 import {pushItem, removeAt} from "../../../common/arrayDraft";
+import {type PrimitiveAtom, useAtom} from "jotai";
 
 type SpsLink = OutputLinkVrchatSpsPlug | OutputLinkVrchatSpsSocket;
 type SpsFeature = {
@@ -38,26 +39,27 @@ function isSpsLink(link: OutputLink): link is OutputLinkVrchatSpsPlug | OutputLi
 }
 
 interface Props {
-    link: OutputLink;
-    label: string;
-    onChange: (link: OutputLink) => void;
-    onRemove: () => void;
+    linkAtom: PrimitiveAtom<OutputLink>;
+    labelMap: Map<OutputLinkKind, {kind: OutputLinkKind, label: string}>;
+    removeLink: (linkAtom: PrimitiveAtom<OutputLink>) => void;
 }
 
-export default function OutputLinkEditor({link, label, onChange, onRemove}: Props) {
+function OutputLinkEditor({linkAtom, labelMap, removeLink}: Props) {
     const [expanded, setExpanded] = useState(false);
     const [addMutatorMenuAnchor, setAddMutatorMenuAnchor] = React.useState<HTMLElement | null>(null);
+    const [link, setLink] = useAtom(linkAtom);
+    const label = labelMap.get(link.kind)?.label ?? link.kind;
     const formatPercent = (fraction: number) => Math.round(fraction * 100000) / 1000;
     const updateSpsFeature = (feature: SpsFeature, enabled: boolean) => {
         if (!isSpsLink(link)) return;
-        onChange({...link, [feature]: enabled});
+        setLink({...link, [feature]: enabled});
     };
 
     const updateConstant = (value: number) => {
         if (link.kind !== 'constant') return;
-        onChange({kind: 'constant', level: value / 100});
+        setLink({kind: 'constant', level: value / 100});
     };
-    const commit = (apply: (draft: OutputLink) => void) => onChange(produce(link, draft => apply(draft)));
+    const commit = (apply: (draft: OutputLink) => void) => setLink(produce(link, draft => apply(draft)));
 
     const supportsCommonMutators = (
         value: OutputLink,
@@ -127,7 +129,7 @@ export default function OutputLinkEditor({link, label, onChange, onRemove}: Prop
 
     const setFilter = (nextFilter: OutputLinkFilter) => {
         if (link.kind !== 'vrchat.sps.plug' && link.kind !== 'vrchat.sps.socket' && link.kind !== 'vrchat.sps.touch') return;
-        onChange({...link, filter: nextFilter});
+        setLink({...link, filter: nextFilter});
     };
 
     const filterProps = (() => {
@@ -192,7 +194,7 @@ export default function OutputLinkEditor({link, label, onChange, onRemove}: Prop
                         aria-label="Remove link"
                         onClick={(e) => {
                             e.stopPropagation();
-                            onRemove();
+                            removeLink(linkAtom);
                         }}
                     >
                         <CloseIcon fontSize="small" />
@@ -271,7 +273,7 @@ export default function OutputLinkEditor({link, label, onChange, onRemove}: Prop
                     <TextCommitInput
                         value={link.parameter}
                         placeholder="Parameter name"
-                        onCommit={value => onChange({kind: 'vrchat.avatarParameter', parameter: value.trim(), mutators: link.mutators})}
+                        onCommit={value => setLink({kind: 'vrchat.avatarParameter', parameter: value.trim(), mutators: link.mutators})}
                     />
                 )}
 
@@ -383,3 +385,5 @@ export default function OutputLinkEditor({link, label, onChange, onRemove}: Prop
         </MyAccordion>
     );
 }
+
+export default React.memo(OutputLinkEditor);

@@ -1,4 +1,3 @@
-import { ipcRenderer } from 'electron';
 import * as ReactDOM from 'react-dom/client';
 
 // @ts-ignore
@@ -10,6 +9,7 @@ import React from "react";
 import createCache from "@emotion/cache";
 import {CacheProvider} from "@emotion/react";
 import {createTheme, CssBaseline, ThemeProvider} from "@mui/material";
+import {Provider as JotaiProvider} from "jotai";
 
 window.addEventListener('DOMContentLoaded', async () => {
   style1.use();
@@ -32,11 +32,14 @@ window.addEventListener('DOMContentLoaded', async () => {
   root.render(React.createElement(
       CacheProvider,
       {value: cache},
-      React.createElement(
-          ThemeProvider,
-          {theme},
-          React.createElement(CssBaseline),
-          React.createElement(Main),
+      React.createElement(JotaiProvider,
+          null,
+          React.createElement(
+              ThemeProvider,
+              {theme},
+              React.createElement(CssBaseline),
+              React.createElement(Main),
+          ),
       ),
   ));
 });

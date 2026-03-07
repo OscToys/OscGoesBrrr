@@ -24,7 +24,7 @@ export default {
                         configFile: path.resolve(__dirname, './tsconfig.json'),
                         onlyCompileBundledFiles: false,
                         getCustomTransformers: (program) => ({
-                            before: [typiaTransform.default(program)]
+                            before: [typiaTransform.default(program, undefined, { addDiagnostic: () => {} })]
                         })
                     }
                 }],

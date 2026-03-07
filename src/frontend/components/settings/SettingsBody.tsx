@@ -1,6 +1,6 @@
-import React, {useState} from 'react';
+import React, {useCallback, useMemo, useState} from 'react';
 import {produce} from 'immer';
-import {Config, getDefaultLinks, getDefaultOutput, Output} from '../../../common/configTypes';
+import {Config, getDefaultLinks, getDefaultOutput, type Output} from '../../../common/configTypes';
 import {pushItem, removeAt, replaceAt} from "../../../common/arrayDraft";
 import {
     Alert,
@@ -24,68 +24,120 @@ import MyAccordion from "../util/MyAccordion";
 import ConfiguredOutputRow from "./ConfiguredOutputRow";
 import UnconfiguredOutputRow from "./UnconfiguredOutputRow";
 import ConnectionBubble from "./ConnectionBubble";
+import {atom, type PrimitiveAtom, useAtom, useAtomValue, useSetAtom} from "jotai";
+import {selectAtom, splitAtom} from "jotai/utils";
+import {atomFamily} from "jotai-family";
+import {focusKeyAtom} from "../../utils/atomUtils";
 
 interface Props {
-    config: Config;
-    settingsState: SettingsStatePayload;
-    onCommitConfig: (nextConfig: Config) => void;
+    configAtom: PrimitiveAtom<Config>;
+    settingsStateAtom: PrimitiveAtom<SettingsStatePayload>;
 }
 
-export default function SettingsBody({
-    config,
-    settingsState,
-    onCommitConfig,
+function SettingsBody({
+    configAtom,
+    settingsStateAtom,
 }: Props) {
-    const {
-        outputs: allOutputs,
-        intifaceConnected,
-        vrchatConnected,
-        importedAllDeletesAt,
-        detectedVrcConfigDir,
-    } = settingsState;
     const [intifaceExpanded, setIntifaceExpanded] = useState(false);
     const [vrchatExpanded, setVrchatExpanded] = useState(false);
     const [pendingDeleteOutputId, setPendingDeleteOutputId] = useState<string | null>(null);
-
-    const confirmDeleteOutput = () => {
+    const intifaceAddressAtom = useMemo(() => focusKeyAtom(configAtom, 'intifaceAddress'), [configAtom]);
+    const maxLevelParamAtom = useMemo(() => focusKeyAtom(configAtom, 'maxLevelParam'), [configAtom]);
+    const vrcConfigDirAtom = useMemo(() => focusKeyAtom(configAtom, 'vrcConfigDir'), [configAtom]);
+    const oscProxyAtom = useMemo(() => focusKeyAtom(configAtom, 'oscProxy'), [configAtom]);
+    const configuredOutputsAtom = useMemo(() => focusKeyAtom(configAtom, 'outputs'), [configAtom]);
+    const outputInfosAtom = useMemo(() => selectAtom(settingsStateAtom, (state) => state.outputs), [settingsStateAtom]);
+    const intifaceConnectedAtom = useMemo(() => selectAtom(settingsStateAtom, (state) => state.intifaceConnected), [settingsStateAtom]);
+    const vrchatConnectedAtom = useMemo(() => selectAtom(settingsStateAtom, (state) => state.vrchatConnected), [settingsStateAtom]);
+    const importedAllDeletesAtAtom = useMemo(() => selectAtom(settingsStateAtom, (state) => state.importedAllDeletesAt), [settingsStateAtom]);
+    const detectedVrcConfigDirAtom = useMemo(() => selectAtom(settingsStateAtom, (state) => state.detectedVrcConfigDir), [settingsStateAtom]);
+    const configuredOutputIdSetAtom = useMemo(
+        () => atom((get) => new Set(get(configuredOutputsAtom).map(output => output.id))),
+        [configuredOutputsAtom],
+    );
+    const configuredOutputAtomsAtom = useMemo(() => splitAtom(configuredOutputsAtom), [configuredOutputsAtom]);
+    const configuredSortedOutputsAtom = useMemo(
+        () => atom<PrimitiveAtom<Output>[]>((get) => {
+            const outputAtoms = get(configuredOutputAtomsAtom);
+            const outputInfos = get(outputInfosAtom);
+            const connectedById = new Map(outputInfos.map(info => [info.id, info.connected]));
+            return [...outputAtoms].sort((a, b) => {
+                const aConnected = Boolean(connectedById.get(get(a).id));
+                const bConnected = Boolean(connectedById.get(get(b).id));
+                if (aConnected === bConnected) return 0;
+                return aConnected ? -1 : 1;
+            });
+        }),
+        [configuredOutputAtomsAtom, outputInfosAtom],
+    );
+    const configuredOutputCountAtom = useMemo(
+        () => selectAtom(configuredOutputsAtom, outputs => outputs.length),
+        [configuredOutputsAtom],
+    );
+    const unconfiguredOutputsAtom = useMemo(
+        () => atom((get) => {
+            const allOutputs = get(outputInfosAtom);
+            const configuredOutputIds = get(configuredOutputIdSetAtom);
+            return allOutputs
+                .filter(output => output.connected)
+                .filter(output => !configuredOutputIds.has(output.id))
+                .sort((a, b) => a.name.localeCompare(b.name));
+        }),
+        [configuredOutputIdSetAtom, outputInfosAtom],
+    );
+    const outputInfoAtomFamily = useMemo(
+        () => atomFamily((outputId: string) => atom((get) => get(outputInfosAtom).find(info => info.id === outputId))),
+        [outputInfosAtom],
+    );
+    const configuredOutputInfoAtomFamily = useMemo(
+        () => atomFamily((outputAtom: PrimitiveAtom<Output>) => atom((get) => {
+            const outputId = get(outputAtom).id;
+            return get(outputInfosAtom).find(info => info.id === outputId);
+        })),
+        [outputInfosAtom],
+    );
+    const linkOutputAtom = useMemo(
+        () => atom(
+            null,
+            (get, set, outputId: string) => {
+                const current = get(configuredOutputsAtom);
+                if (current.some(output => output.id === outputId)) return;
+                set(configuredOutputsAtom, produce(current, (draft) => {
+                    pushItem(draft, {id: outputId, ...getDefaultOutput(), links: getDefaultLinks()});
+                }));
+            },
+        ),
+        [configuredOutputsAtom],
+    );
+    const [intifaceAddress, setIntifaceAddress] = useAtom(intifaceAddressAtom);
+    const [maxLevelParam, setMaxLevelParam] = useAtom(maxLevelParamAtom);
+    const [vrcConfigDir, setVrcConfigDir] = useAtom(vrcConfigDirAtom);
+    const [oscProxy, setOscProxy] = useAtom(oscProxyAtom);
+    const configuredOutputCount = useAtomValue(configuredOutputCountAtom);
+    const intifaceConnected = useAtomValue(intifaceConnectedAtom);
+    const vrchatConnected = useAtomValue(vrchatConnectedAtom);
+    const importedAllDeletesAt = useAtomValue(importedAllDeletesAtAtom);
+    const detectedVrcConfigDir = useAtomValue(detectedVrcConfigDirAtom);
+    const configuredSortedOutputs = useAtomValue(configuredSortedOutputsAtom);
+    const unconfiguredOutputs = useAtomValue(unconfiguredOutputsAtom);
+    const setConfiguredOutputs = useSetAtom(configuredOutputsAtom);
+    const requestDeleteOutput = useCallback((outputId: string) => {
+        setPendingDeleteOutputId(outputId);
+    }, [setPendingDeleteOutputId]);
+    const cancelDeleteOutput = useCallback(() => {
+        setPendingDeleteOutputId(null);
+    }, []);
+    const confirmDeleteOutput = useCallback(() => {
         if (!pendingDeleteOutputId) return;
-        onCommitConfig(produce(config, (draft) => {
-            const index = draft.outputs.findIndex(output => output.id === pendingDeleteOutputId);
-            if (index >= 0) removeAt(draft.outputs, index);
+        setConfiguredOutputs((configuredOutputs) => produce(configuredOutputs, (draft) => {
+            const index = draft.findIndex(output => output.id === pendingDeleteOutputId);
+            if (index >= 0) removeAt(draft, index);
         }));
         setPendingDeleteOutputId(null);
-    };
-
-    const cancelDeleteOutput = () => {
-        setPendingDeleteOutputId(null);
-    };
-
-    const configuredOutputs = config.outputs;
-    const getOutputInfo = (id?: string) => id ? allOutputs.find(t => t.id === id) : undefined;
-    const configuredOutputIdSet = new Set(configuredOutputs.map(output => output.id));
-    const unconfiguredOutputs = allOutputs
-        .filter(output => output.connected)
-        .filter(output => !configuredOutputIdSet.has(output.id))
-        .sort((a, b) => {
-            return a.name.localeCompare(b.name);
-        });
-
-    const linkOutput = (outputId: string) => {
-        onCommitConfig(produce(config, (draft) => {
-            if (draft.outputs.some(output => output.id === outputId)) return;
-            pushItem(draft.outputs, {id: outputId, ...getDefaultOutput(), links: getDefaultLinks()});
-        }));
-    };
-
-    const updateConfiguredOutput = (outputId: string, newOutput: Output) => {
-        onCommitConfig(produce(config, (draft) => {
-            const index = draft.outputs.findIndex(output => output.id === outputId);
-            if (index >= 0) replaceAt(draft.outputs, index, newOutput);
-        }));
-    };
+    }, [pendingDeleteOutputId, setConfiguredOutputs]);
 
     let intifaceWarning;
-    if (intifaceConnected && configuredOutputs.length === 0 && unconfiguredOutputs.length === 0) {
+    if (intifaceConnected && configuredOutputCount === 0 && unconfiguredOutputs.length === 0) {
         intifaceWarning = "No devices are connected to Intiface";
     } else {
         intifaceWarning = undefined;
@@ -108,14 +160,10 @@ export default function SettingsBody({
                         <Alert severity="warning">{intifaceWarning}</Alert>
                     )}
                     <TextCommitInput
-                        value={config.intifaceAddress ?? ''}
+                        value={intifaceAddress ?? ''}
                         label="Server Address"
                         placeholder="ws://localhost:12345"
-                        onCommit={value => onCommitConfig(produce(config, (draft) => {
-                            const next = value.trim() ? value : undefined;
-                            if (next === undefined) delete draft.intifaceAddress;
-                            else draft.intifaceAddress = next;
-                        }))}
+                        onCommit={setIntifaceAddress}
                     />
                 </Stack>
             </MyAccordion>
@@ -132,25 +180,21 @@ export default function SettingsBody({
             >
                 <Stack spacing={2}>
                     <TextCommitInput
-                        value={config.maxLevelParam ?? ''}
+                        value={maxLevelParam ?? ''}
                         label="Send Max Level to Avatar Controller Parameter"
                         placeholder="Parameter Name"
-                        onCommit={value => onCommitConfig(produce(config, (draft) => {
-                            draft.maxLevelParam = value;
-                        }))}
+                        onCommit={setMaxLevelParam}
                     />
                     <TextCommitInput
-                        value={config.vrcConfigDir ?? ''}
+                        value={vrcConfigDir ?? ''}
                         label="VRChat Config Directory"
                         placeholder="Auto-detected"
                         helperText={`Detected: ${detectedVrcConfigDir ?? 'Not found'}`}
-                        onCommit={value => onCommitConfig(produce(config, (draft) => {
-                            draft.vrcConfigDir = value;
-                        }))}
+                        onCommit={setVrcConfigDir}
                     />
                     <Stack spacing={1.25}>
                         <Typography variant="subtitle2">OSC Proxy</Typography>
-                        {config.oscProxy.length === 0 && (
+                        {oscProxy.length === 0 && (
                             <TextField
                                 size="small"
                                 fullWidth
@@ -160,22 +204,21 @@ export default function SettingsBody({
                                 disabled
                             />
                         )}
-                        {config.oscProxy.map((port, index) => (
+                        {oscProxy.map((port, index) => (
                             <TextCommitInput
                                 key={index}
                                 label={`Target ${index + 1}`}
                                 value={port}
                                 placeholder="ip:port"
                                 onCommit={value => {
-                                    const next = value.trim();
-                                    onCommitConfig(produce(config, (draft) => replaceAt(draft.oscProxy, index, next)));
+                                    setOscProxy(produce(oscProxy, draft => replaceAt(draft, index, value)));
                                 }}
                                 endAdornment={
                                     <InputAdornment position="end">
                                         <IconButton
                                             color="error"
                                             aria-label={`Remove target ${index + 1}`}
-                                            onClick={() => onCommitConfig(produce(config, (draft) => removeAt(draft.oscProxy, index)))}
+                                            onClick={() => setOscProxy(produce(oscProxy, draft => removeAt(draft, index)))}
                                             edge="end"
                                             size="small"
                                             sx={{
@@ -194,7 +237,7 @@ export default function SettingsBody({
                             <Button
                                 variant="outlined"
                                 sx={{textTransform: 'none'}}
-                                onClick={() => onCommitConfig(produce(config, (draft) => pushItem(draft.oscProxy, '')))}
+                                onClick={() => setOscProxy(produce(oscProxy, draft => pushItem(draft, '')))}
                             >
                                 Add target
                             </Button>
@@ -203,30 +246,24 @@ export default function SettingsBody({
                 </Stack>
             </MyAccordion>
 
-            {configuredOutputs.map((output) => {
-                const info = getOutputInfo(output.id);
-                return {output, info};
-            })
-                .sort((a, b) => {
-                    const aConnected = Boolean(a.info?.connected);
-                    const bConnected = Boolean(b.info?.connected);
-                    if (aConnected === bConnected) return 0;
-                    return aConnected ? -1 : 1;
-                })
-                .map(({output, info}) => (
+            {configuredSortedOutputs.map((outputAtom) => {
+                return (
                     <ConfiguredOutputRow
-                        key={output.id}
-                        output={output}
-                        info={info}
+                        key={outputAtom.toString()}
+                        outputAtom={outputAtom}
+                        infoAtom={configuredOutputInfoAtomFamily(outputAtom)}
                         importedAllDeletesAt={importedAllDeletesAt}
-                        onChange={updateConfiguredOutput}
-                        onDelete={setPendingDeleteOutputId}
+                        onDelete={requestDeleteOutput}
                     />
-                ))
-            }
+                );
+            })}
 
             {unconfiguredOutputs.map((output) => (
-                <UnconfiguredOutputRow key={output.id} output={output} onLink={linkOutput} />
+                <UnconfiguredOutputRow
+                    key={output.id}
+                    outputAtom={outputInfoAtomFamily(output.id)}
+                    linkOutputAtom={linkOutputAtom}
+                />
             ))}
 
             <Dialog
@@ -249,3 +286,5 @@ export default function SettingsBody({
         </Stack>
     );
 }
+
+export default React.memo(SettingsBody);

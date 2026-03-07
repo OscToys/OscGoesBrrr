@@ -14,9 +14,5 @@
 - For `pnpm` commands that need network access (install/add/up/outdated/audit, etc.), request escalated permissions immediately so approval is prompted right away.
 - For local/offline `pnpm` commands (for example `pnpm run typecheck`), run in sandbox by default.
 
-## Git Tooling
-- Use Git from GitHub Desktop under Program Files when `git` is not on PATH.
-- Preferred executable: `C:\Program Files\GitHub Desktop\app-*\resources\app\git\cmd\git.exe` (resolve the current `app-*` version folder).
-
 ## Event Emitters
 - Always use `TypedEventEmitter` for typed event emitters instead of extending raw `EventEmitter` with manual typed overloads.
