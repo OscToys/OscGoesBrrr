@@ -1,8 +1,10 @@
 import React, {useMemo, useState} from "react";
 import {Output} from "../../../common/configTypes";
 import {OutputDeviceInfo} from "../../../common/ipcContract";
-import {Alert, IconButton, Stack, Typography} from "@mui/material";
+import {Alert, AlertColor, IconButton, Stack, Typography} from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
+import WavesIcon from "@mui/icons-material/Waves";
+import LabelIcon from "@mui/icons-material/Label";
 import TextCommitInput from "../util/TextCommitInput";
 import MyAccordion from "../util/MyAccordion";
 import CountdownText, {formatDuration} from "../util/CountdownText";
@@ -11,6 +13,8 @@ import ConnectionBubble from "./ConnectionBubble";
 import {type Atom, type PrimitiveAtom, useAtom, useAtomValue, type WritableAtom} from "jotai";
 import {selectAtom} from "jotai/utils";
 import {focusKeyAtom, focusOptionalKeyAtom} from "../../utils/atomUtils";
+import {getConnectionBubbleColor} from "../../utils/connectionBubbleColor";
+import {useSettingsStateAtom} from "./SettingsStateAtomContext";
 
 const LEGACY_ALL_OUTPUT_ID = "intiface.imported.all";
 const LEGACY_OUTPUT_ID_PREFIX = "intiface.imported.";
@@ -18,13 +22,14 @@ const LEGACY_OUTPUT_ID_PREFIX = "intiface.imported.";
 function getLegacyDisplayName(id: string): string | undefined {
     if (!id.startsWith(LEGACY_OUTPUT_ID_PREFIX)) return undefined;
     const name = id.substring(LEGACY_OUTPUT_ID_PREFIX.length);
-    return `Imported Config: ${name}`;
+    return `Imported Device: ${name}`;
 }
 
 interface Props {
     outputAtom: PrimitiveAtom<Output>;
     infoAtom: Atom<OutputDeviceInfo | undefined>;
     importedAllDeletesAt?: number;
+    importedOutputDeletesAtById: Record<string, number>;
     onDelete: (outputId: string) => void;
 }
 
@@ -48,7 +53,7 @@ function NumberField({label, valueAtom, placeholder}: {label: string, valueAtom:
     );
 }
 
-function ConfiguredOutputRow({outputAtom, infoAtom, importedAllDeletesAt, onDelete}: Props) {
+function ConfiguredOutputRow({outputAtom, infoAtom, importedAllDeletesAt, importedOutputDeletesAtById, onDelete}: Props) {
     const [expanded, setExpanded] = useState(false);
     const [advancedExpanded, setAdvancedExpanded] = useState(false);
     const outputLinksAtom = useMemo(() => focusKeyAtom(outputAtom, 'links'), [outputAtom]);
@@ -79,28 +84,59 @@ function ConfiguredOutputRow({outputAtom, infoAtom, importedAllDeletesAt, onDele
     );
     const output = useAtomValue(outputNonLinkAtom);
     const info = useAtomValue(infoAtom);
+    const settingsStateAtom = useSettingsStateAtom();
+    const intifaceConnected = useAtomValue(
+        useMemo(() => selectAtom(settingsStateAtom, (state) => state.intifaceConnected), [settingsStateAtom]),
+    );
     const displayName = getLegacyDisplayName(output.id) ?? info?.name ?? output.id;
-    const outputPercentLabel = info && info.currentLevel > 0 ? ` (${Math.round(info.currentLevel * 100)}%)` : '';
+    const outputPercent = info && info.currentLevel > 0 ? Math.round(info.currentLevel * 100) : 0;
     const showLinearActuatorOptions = Boolean(info?.showLinearActuatorOptions);
     const warningText = (() => {
         if (!output.id.startsWith(LEGACY_OUTPUT_ID_PREFIX)) return undefined;
         if (output.id !== LEGACY_ALL_OUTPUT_ID) {
             return "This imported device config came from an old version of OGB, and will be restored next time a matching device is connected.";
         }
-        if (importedAllDeletesAt === undefined) {
-            return "This imported 'all' config came from an old version of OGB, and will be used for all newly-connected devices.";
+        return "This imported 'all' config came from an old version of OGB, and will be used for all newly-connected devices.";
+    })();
+    const importedExpiryWarning = (() => {
+        if (!output.id.startsWith(LEGACY_OUTPUT_ID_PREFIX)) return undefined;
+        if (output.id === LEGACY_ALL_OUTPUT_ID) {
+            if (importedAllDeletesAt === undefined) return undefined;
+            return (
+                <CountdownText targetTime={importedAllDeletesAt}>
+                    {(remaining) => {
+                        if (remaining <= 0) return "This imported 'all' config has expired and will be deleted shortly.";
+                        return `This imported 'all' config will expire in ${formatDuration(remaining)}.`;
+                    }}
+                </CountdownText>
+            );
         }
+        const deleteAt = importedOutputDeletesAtById[output.id];
+        if (deleteAt === undefined) return undefined;
         return (
-            <CountdownText targetTime={importedAllDeletesAt}>
+            <CountdownText targetTime={deleteAt}>
                 {(remaining) => {
-                    if (remaining <= 0) {
-                        return "This imported 'all' config came from an old version of OGB, and will be used for all newly-connected devices.";
-                    }
-                    return `This imported 'all' config came from an old version of OGB, and will be used for all newly-connected devices for the next ${formatDuration(remaining)}.`;
+                    if (remaining <= 0) return "This imported device config has expired and will be deleted shortly.";
+                    return `This imported device config will expire in ${formatDuration(remaining)}.`;
                 }}
             </CountdownText>
         );
     })();
+    const alerts: {severity: AlertColor; content: React.ReactNode}[] = [];
+    if (warningText != null) {
+        alerts.push({severity: "warning", content: warningText});
+    }
+    if (importedExpiryWarning != null) {
+        alerts.push({severity: "warning", content: importedExpiryWarning});
+    }
+    if (!info?.connected && !alerts.some((alert) => alert.severity === "error")) {
+        alerts.push({
+            severity: "error",
+            content: intifaceConnected
+                ? "This device is not connected to Intiface."
+                : "This device is unavailable because Intiface is not connected.",
+        });
+    }
 
     return (
         <MyAccordion
@@ -109,11 +145,20 @@ function ConfiguredOutputRow({outputAtom, infoAtom, importedAllDeletesAt, onDele
             summary={
                 <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{width: '100%'}}>
                     <Stack direction="row" spacing={1} alignItems="center">
-                        <ConnectionBubble color={info?.connected ? 'success.main' : 'error.main'} />
-                        <Typography variant="h6">{displayName}{outputPercentLabel}</Typography>
+                        <ConnectionBubble color={getConnectionBubbleColor(alerts)} />
+                        <Typography variant="h6">{displayName}</Typography>
                     </Stack>
                     <Stack direction="row" spacing={1} alignItems="center">
-                        <Typography variant="body2" color="text.secondary">{output.id}</Typography>
+                        {outputPercent > 0 && (
+                            <Stack direction="row" spacing={0.25} alignItems="center">
+                                <WavesIcon sx={{fontSize: 14, color: 'text.secondary'}} />
+                                <Typography variant="body2" color="text.secondary">{outputPercent}%</Typography>
+                            </Stack>
+                        )}
+                        <Stack direction="row" spacing={0.25} alignItems="center">
+                            <LabelIcon sx={{fontSize: 14, color: 'text.secondary'}} />
+                            <Typography variant="body2" color="text.secondary">{output.id}</Typography>
+                        </Stack>
                         <IconButton
                             component="span"
                             color="error"
@@ -131,9 +176,9 @@ function ConfiguredOutputRow({outputAtom, infoAtom, importedAllDeletesAt, onDele
             }
         >
             <Stack spacing={2}>
-                {warningText != null && (
-                    <Alert severity="warning">{warningText}</Alert>
-                )}
+                {alerts.map((alert, index) => (
+                    <Alert key={index} severity={alert.severity}>{alert.content}</Alert>
+                ))}
                 <OutputLinks
                     linksAtom={outputLinksAtom}
                     linkLevelsAtom={linkLevelsAtom}

@@ -9,19 +9,25 @@ export default function StatusBox({getCmd, ...rest}: {
 
     useEffect(() => {
         let destroyed = false;
-        let timer: NodeJS.Timeout;
+        let timer: ReturnType<typeof setTimeout> | undefined;
         async function update() {
-            const status = await invokeIpc(getCmd);
-            if (destroyed) return;
-            setStatus(status);
-            timer = setTimeout(update, 100);
+            try {
+                const status = await invokeIpc(getCmd);
+                if (destroyed) return;
+                setStatus(status);
+            } catch (error) {
+                if (destroyed) return;
+                console.error(`Failed to poll ${getCmd}`, error);
+            } finally {
+                if (!destroyed) timer = setTimeout(update, 100);
+            }
         }
         update();
         return () => {
             destroyed = true;
-            clearInterval(timer);
+            if (timer !== undefined) clearTimeout(timer);
         };
-    }, []);
+    }, [getCmd]);
 
     return <FreezingBox
         body={status}
@@ -87,7 +93,7 @@ function FreezingBox({body, scrollOnChange = false, ...rest}: {
         return () => {
             clearInterval(timer);
         };
-    }, []);
+    }, [latestContent]);
     useEffect(() => {
         if (scrollOnChange && area.current) {
             area.current.scrollTop = area.current.scrollHeight;

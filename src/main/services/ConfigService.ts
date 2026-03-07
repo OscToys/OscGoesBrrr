@@ -4,7 +4,7 @@ import {normalizeConfigDraft} from "../../common/configNormalization";
 import path from 'path';
 import {app, shell} from 'electron';
 import typia from "typia";
-import type {Draft} from "immer";
+import {freeze, type Draft} from "immer";
 import AbstractJsonStateService from "./AbstractJsonStateService";
 import MainWindowService from "./MainWindowService";
 import {handleIpc} from "../ipc";
@@ -13,6 +13,11 @@ import LegacyTxtConfigImportService from "./migrate/LegacyTxtConfigImportService
 @Service()
 export default class ConfigService extends AbstractJsonStateService<Config> {
     private static readonly CURRENT_CONFIG_VERSION = 2;
+    private static readonly DEFAULT_CONFIG: Config = freeze({
+        version: ConfigService.CURRENT_CONFIG_VERSION,
+        oscProxy: [],
+        outputs: [],
+    }, true);
 
     constructor(
         private readonly legacyTxtConfigImportService: LegacyTxtConfigImportService,
@@ -20,6 +25,7 @@ export default class ConfigService extends AbstractJsonStateService<Config> {
     ) {
         super(
             path.join(app.getPath('userData'), 'config.json'),
+            ConfigService.DEFAULT_CONFIG,
             (raw) => typia.assert<Config>(raw),
             ConfigService.upgradeRawConfig,
         );
@@ -33,10 +39,6 @@ export default class ConfigService extends AbstractJsonStateService<Config> {
 
     protected override normalizeDraft(draft: Draft<Config>): void {
         normalizeConfigDraft(draft);
-    }
-
-    protected override getDefaultData(): Config {
-        return {version: ConfigService.CURRENT_CONFIG_VERSION, oscProxy: [], outputs: []};
     }
 
     private static upgradeRawConfig(raw: unknown): unknown {

@@ -12,7 +12,6 @@ export interface OutputDeviceInfo {
 
 export type OscqueryStatus =
     | 'success'
-    | 'waitingForBulk'
     | 'searching'
     | 'failedToConnectHttpServer'
     | 'vrchatOscqueryBroadcastNotFound'
@@ -24,21 +23,23 @@ export type OscStatus =
     | 'waitingForFirstPacket'
     | 'stale';
 
-export interface SettingsStatePayload {
-    outputs: OutputDeviceInfo[];
-    intifaceConnected: boolean;
-    vrchatConnected: boolean;
+export interface VrchatWarnings {
     hasSpsZones: boolean;
     outdatedAvatarDetected: boolean;
-    vrchatOscEnabledWarning: boolean;
-    vrchatSelfInteractWarning: boolean;
-    vrchatEveryoneInteractWarning: boolean;
-    vrchatOscStartupWarning: boolean;
-    vrchatOscStartupWarningText?: string;
-    vrchatLogsFound: boolean;
+    oscEnabled: boolean;
+    selfInteract: boolean;
+    everyoneInteract: boolean;
+    oscStartup: boolean;
+    oscStartupText?: string;
+    logsFound: boolean;
     oscqueryStatus: OscqueryStatus;
     oscStatus: OscStatus;
     mdnsWorking: boolean;
+}
+
+export interface SettingsStateVrchat {
+    connected: boolean;
+    warnings: VrchatWarnings;
     ogbOscPort?: number;
     ogbOscqueryPort?: number;
     vrcOscPort?: number;
@@ -46,8 +47,15 @@ export interface SettingsStatePayload {
     detectedSpsPlugIds: string[];
     detectedSpsSocketIds: string[];
     detectedSpsTouchZoneIds: string[];
-    importedAllDeletesAt?: number;
     detectedVrcConfigDir?: string;
+}
+
+export interface SettingsStatePayload {
+    outputs: OutputDeviceInfo[];
+    intifaceConnected: boolean;
+    vrchat: SettingsStateVrchat;
+    importedAllDeletesAt?: number;
+    importedOutputDeletesAtById: Record<string, number>;
 }
 
 export interface IpcInvokeMap {

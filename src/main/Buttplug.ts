@@ -1,5 +1,6 @@
 import WebSocket from 'ws';
 import {
+    ButtplugErrorPayload,
     ButtplugMessageWithType,
     ButtplugSendMessageWithType,
     ButtplugOutputType,
@@ -258,6 +259,10 @@ export default class Buttplug extends TypedEventEmitter<MyEvents> {
         if (id) {
             const cb = this.activeCallbacks.get(id);
             if (!cb) return;
+            if (type === 'Error' && typia.is<ButtplugErrorPayload>(message)) {
+                cb({ok: false, error: new Error(`Buttplug error ${message.ErrorCode}: ${message.ErrorMessage}`)});
+                return;
+            }
             cb({ok: true, data: response});
         }
     }

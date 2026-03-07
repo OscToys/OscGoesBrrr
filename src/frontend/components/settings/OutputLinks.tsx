@@ -18,7 +18,7 @@ const LINK_OPTIONS: {kind: OutputLinkKind, label: string}[] = [
     {kind: 'vrchat.sps.plug', label: 'SPS Plugs'},
     {kind: 'vrchat.sps.socket', label: 'SPS Sockets'},
     {kind: 'vrchat.sps.touch', label: 'SPS Touch Zones'},
-    {kind: 'systemAudio', label: 'System Audio'},
+    {kind: 'systemAudio', label: 'System Audio (Unfinished Alpha)'},
     {kind: 'constant', label: 'Constant'},
     {kind: 'vrchat.avatarParameter', label: 'VRC Avatar Parameter'},
 ];

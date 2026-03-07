@@ -8,6 +8,7 @@ import LegacyTxtConfigImportService from "./LegacyTxtConfigImportService";
 @Service()
 export default class ImportedOutputPromotionService {
     private static readonly IMPORTED_ALL_DEVICE_TTL_MS = 1000 * 60 * 60 * 24;
+    private static readonly IMPORTED_SPECIFIC_DEVICE_TTL_MS = 1000 * 60 * 60 * 24 * 30;
 
     constructor(
         private readonly configService: ConfigService,
@@ -20,6 +21,19 @@ export default class ImportedOutputPromotionService {
         const earliestFirstSeen = await this.getEarliestDeviceHistoryFirstSeen();
         if (earliestFirstSeen === undefined) return undefined;
         return earliestFirstSeen + ImportedOutputPromotionService.IMPORTED_ALL_DEVICE_TTL_MS;
+    }
+
+    async getImportedSpecificDeletionTimes(): Promise<Record<string, number>> {
+        const history = await this.backendDataService.getAllDeviceHistory();
+        const out: Record<string, number> = {};
+        for (const output of this.configService.getCached().outputs) {
+            if (!this.isImportedSpecificOutputId(output.id)) continue;
+            const importedDeviceKey = output.id.substring(LegacyTxtConfigImportService.IMPORTED_ID_PREFIX.length);
+            const firstSeen = history[importedDeviceKey]?.firstSeen;
+            if (firstSeen === undefined) continue;
+            out[output.id] = firstSeen + ImportedOutputPromotionService.IMPORTED_SPECIFIC_DEVICE_TTL_MS;
+        }
+        return out;
     }
 
     private async deleteImportedAllIfNeeded() {
@@ -35,12 +49,31 @@ export default class ImportedOutputPromotionService {
         }
     }
 
+    private async deleteImportedSpecificIfNeeded() {
+        const importedSpecificDeletionTimes = await this.getImportedSpecificDeletionTimes();
+        const nowMs = Date.now();
+        const expiredIds = new Set(
+            Object.entries(importedSpecificDeletionTimes)
+                .filter(([, deleteAt]) => nowMs >= deleteAt)
+                .map(([id]) => id),
+        );
+        if (expiredIds.size === 0) return;
+        await this.configService.mutate((config) => {
+            config.outputs = config.outputs.filter(output => !expiredIds.has(output.id));
+        });
+    }
+
+    async cleanupExpiredImportedOutputs(): Promise<void> {
+        await this.deleteImportedAllIfNeeded();
+        await this.deleteImportedSpecificIfNeeded();
+    }
+
     async promoteImportedOutputForDeviceFeature(
         device: Device,
         currentOutputId: string,
         feature: ButtplugFeatureInformation,
     ): Promise<void> {
-        await this.deleteImportedAllIfNeeded();
+        await this.cleanupExpiredImportedOutputs();
 
         await this.configService.mutate((config) => {
             if (config.outputs.some(output => output.id == currentOutputId)) {
@@ -130,5 +163,10 @@ export default class ImportedOutputPromotionService {
         if (outputMap.PositionWithDuration) return 'linear';
         if (outputMap.Position) return 'linear';
         return undefined;
+    }
+
+    private isImportedSpecificOutputId(outputId: string): boolean {
+        return outputId.startsWith(LegacyTxtConfigImportService.IMPORTED_ID_PREFIX)
+            && outputId !== LegacyTxtConfigImportService.IMPORTED_ALL_ID;
     }
 }

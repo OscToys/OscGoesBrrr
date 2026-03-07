@@ -67,6 +67,11 @@ export interface ButtplugDeviceListPayload extends ButtplugMessagePayload {
     Devices: Record<string, Device>;
 }
 
+export interface ButtplugErrorPayload extends ButtplugMessagePayload {
+    ErrorMessage: string;
+    ErrorCode: ButtplugUInt32;
+}
+
 export interface ButtplugOutputCmdPayload extends ButtplugMessagePayload {
     DeviceIndex: ButtplugUInt32;
     FeatureIndex: ButtplugUInt32;
@@ -81,6 +86,7 @@ export interface ButtplugRequestServerInfoPayload extends ButtplugMessagePayload
 
 export type ButtplugKnownMessagePayloadMap = {
     Ok: ButtplugOkPayload;
+    Error: ButtplugErrorPayload;
     DeviceList: ButtplugDeviceListPayload;
     OutputCmd: ButtplugOutputCmdPayload;
     RequestServerInfo: ButtplugRequestServerInfoPayload;

@@ -25,6 +25,7 @@ import TextCommitInput from "../util/TextCommitInput";
 import Filter from "../Filter";
 import ArrowDropDownIcon from "@mui/icons-material/ArrowDropDown";
 import CloseIcon from "@mui/icons-material/Close";
+import WavesIcon from "@mui/icons-material/Waves";
 import MyAccordion from "../util/MyAccordion";
 import {pushItem, removeAt} from "../../../common/arrayDraft";
 import {type PrimitiveAtom, useAtom, useAtomValue} from "jotai";
@@ -62,15 +63,15 @@ function OutputLinkEditor({linkAtom, activeLevel, labelMap, removeLink}: Props) 
     const [link, setLink] = useAtom(linkAtom);
     const settingsStateAtom = useSettingsStateAtom();
     const plugIdSuggestionsAtom = React.useMemo(
-        () => selectAtom(settingsStateAtom, (state) => state.detectedSpsPlugIds),
+        () => selectAtom(settingsStateAtom, (state) => state.vrchat.detectedSpsPlugIds),
         [settingsStateAtom],
     );
     const socketIdSuggestionsAtom = React.useMemo(
-        () => selectAtom(settingsStateAtom, (state) => state.detectedSpsSocketIds),
+        () => selectAtom(settingsStateAtom, (state) => state.vrchat.detectedSpsSocketIds),
         [settingsStateAtom],
     );
     const touchZoneIdSuggestionsAtom = React.useMemo(
-        () => selectAtom(settingsStateAtom, (state) => state.detectedSpsTouchZoneIds),
+        () => selectAtom(settingsStateAtom, (state) => state.vrchat.detectedSpsTouchZoneIds),
         [settingsStateAtom],
     );
     const plugIdSuggestions = useAtomValue(plugIdSuggestionsAtom);
@@ -208,7 +209,7 @@ function OutputLinkEditor({linkAtom, activeLevel, labelMap, removeLink}: Props) 
     })();
 
     const isPlug = link.kind === 'vrchat.sps.plug';
-    const activePercentLabel = activeLevel > 0 ? ` (${Math.round(activeLevel * 100)}%)` : '';
+    const activePercent = activeLevel > 0 ? Math.round(activeLevel * 100) : 0;
 
     return (
         <MyAccordion
@@ -220,8 +221,14 @@ function OutputLinkEditor({linkAtom, activeLevel, labelMap, removeLink}: Props) 
             summary={
                 <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{width: '100%'}}>
                     <Stack direction="row" spacing={1} alignItems="center" sx={{minWidth: 0, flex: 1}}>
-                        <Typography variant="subtitle2">{label}{activePercentLabel}</Typography>
+                        <Typography variant="subtitle2">{label}</Typography>
                     </Stack>
+                    {activePercent > 0 && (
+                        <Stack direction="row" spacing={0.25} alignItems="center">
+                            <WavesIcon sx={{fontSize: 14, color: 'text.secondary'}} />
+                            <Typography variant="body2" color="text.secondary">{activePercent}%</Typography>
+                        </Stack>
+                    )}
                     {!expanded && summaryDetail && (
                         <Typography variant="body2" color="text.secondary" sx={{minWidth: 0, mr: 1}} noWrap>{summaryDetail}</Typography>
                     )}
@@ -261,52 +268,14 @@ function OutputLinkEditor({linkAtom, activeLevel, labelMap, removeLink}: Props) 
                 )}
 
                 {filterProps && <>
-                    {isSpsLink(link) &&
-                        <Typography variant="subtitle2">
-                            {`When these ${filterProps.itemLabel}s:`}
-                        </Typography>
-                    }
+                    <Typography variant="subtitle2">
+                        {`Trigger when these ${filterProps.itemLabel}s:`}
+                    </Typography>
                     <Filter {...filterProps} onChange={setFilter} />
                 </>}
 
                 {isSpsLink(link) && <>
-                    <Typography variant="subtitle2">Are touched by:</Typography>
-                    <Box
-                        sx={{
-                            display: 'grid',
-                            gap: 0.25,
-                            gridTemplateColumns: {xs: '1fr', md: 'repeat(3, minmax(0, 1fr))'},
-                        }}
-                    >
-                        <FormControlLabel
-                            sx={{gridColumn: {xs: 'auto', md: 1}, gridRow: {xs: 'auto', md: 1}}}
-                            control={<Switch checked={link.otherHands} onChange={e => updateSpsFeature('otherHands', e.target.checked)} />}
-                            label="Other Player's Hands"
-                        />
-                        <FormControlLabel
-                            sx={{gridColumn: {xs: 'auto', md: 1}, gridRow: {xs: 'auto', md: 2}}}
-                            control={<Switch checked={link.ownHands} onChange={e => updateSpsFeature('ownHands', e.target.checked)} />}
-                            label="My Hands"
-                        />
-                        <FormControlLabel
-                            sx={{gridColumn: {xs: 'auto', md: 2}, gridRow: {xs: 'auto', md: 1}}}
-                            control={<Switch checked={isPlug ? link.otherSockets : link.otherPlugs} onChange={e => updateSpsFeature(isPlug ? 'otherSockets' : 'otherPlugs', e.target.checked)} />}
-                            label={isPlug ? "Other Player's Sockets" : "Other Player's Plugs"}
-                        />
-                        <FormControlLabel
-                            sx={{gridColumn: {xs: 'auto', md: 2}, gridRow: {xs: 'auto', md: 2}}}
-                            control={<Switch checked={isPlug ? link.mySockets : link.myPlugs} onChange={e => updateSpsFeature(isPlug ? 'mySockets' : 'myPlugs', e.target.checked)} />}
-                            label={isPlug ? "My Sockets" : "My Plugs"}
-                        />
-                        <FormControlLabel
-                            sx={{gridColumn: {xs: 'auto', md: 3}, gridRow: {xs: 'auto', md: 1}}}
-                            control={<Switch checked={isPlug ? link.otherPlugs : link.otherSockets} onChange={e => updateSpsFeature(isPlug ? 'otherPlugs' : 'otherSockets', e.target.checked)} />}
-                            label={isPlug ? "Other Player's Plugs" : "Other Player's Sockets"}
-                        />
-                    </Box>
-                </>}
-                {isTouchLink(link) && <>
-                    <Typography variant="subtitle2">Are touched by:</Typography>
+                    <Typography variant="subtitle2">are touched by:</Typography>
                     <Box
                         sx={{
                             display: 'grid',
@@ -315,14 +284,42 @@ function OutputLinkEditor({linkAtom, activeLevel, labelMap, removeLink}: Props) 
                         }}
                     >
                         <FormControlLabel
-                            control={<Switch checked={link.otherHands} onChange={e => updateTouchFeature('otherHands', e.target.checked)} />}
-                            label="Other Players"
+                            sx={{gridColumn: {xs: 'auto', md: 1}, gridRow: {xs: 'auto', md: 1}}}
+                            control={<Switch checked={isPlug ? link.otherSockets : link.otherPlugs} onChange={e => updateSpsFeature(isPlug ? 'otherSockets' : 'otherPlugs', e.target.checked)} />}
+                            label={isPlug ? "Other Player's SPS Sockets" : "Other Player's SPS Plugs"}
                         />
                         <FormControlLabel
-                            control={<Switch checked={link.ownHands} onChange={e => updateTouchFeature('ownHands', e.target.checked)} />}
-                            label="Myself"
+                            sx={{gridColumn: {xs: 'auto', md: 1}, gridRow: {xs: 'auto', md: 2}}}
+                            control={<Switch checked={link.otherHands} onChange={e => updateSpsFeature('otherHands', e.target.checked)} />}
+                            label="Other Player's Hands / Feet / Head"
+                        />
+                        <FormControlLabel
+                            sx={{gridColumn: {xs: 'auto', md: 1}, gridRow: {xs: 'auto', md: 3}}}
+                            control={<Switch checked={isPlug ? link.otherPlugs : link.otherSockets} onChange={e => updateSpsFeature(isPlug ? 'otherPlugs' : 'otherSockets', e.target.checked)} />}
+                            label={isPlug ? "Other Player's SPS Plugs" : "Other Player's SPS Sockets"}
+                        />
+                        <FormControlLabel
+                            sx={{gridColumn: {xs: 'auto', md: 2}, gridRow: {xs: 'auto', md: 1}}}
+                            control={<Switch checked={isPlug ? link.mySockets : link.myPlugs} onChange={e => updateSpsFeature(isPlug ? 'mySockets' : 'myPlugs', e.target.checked)} />}
+                            label={isPlug ? "My SPS Sockets" : "My SPS Plugs"}
+                        />
+                        <FormControlLabel
+                            sx={{gridColumn: {xs: 'auto', md: 2}, gridRow: {xs: 'auto', md: 2}}}
+                            control={<Switch checked={link.ownHands} onChange={e => updateSpsFeature('ownHands', e.target.checked)} />}
+                            label="My Hands / Feet"
                         />
                     </Box>
+                </>}
+                {isTouchLink(link) && <>
+                    <Typography variant="subtitle2">are touched by:</Typography>
+                    <FormControlLabel
+                        control={<Switch checked={link.otherHands} onChange={e => updateTouchFeature('otherHands', e.target.checked)} />}
+                        label="Other Player's Hands / Feet / Head / SPS Plugs"
+                    />
+                    <FormControlLabel
+                        control={<Switch checked={link.ownHands} onChange={e => updateTouchFeature('ownHands', e.target.checked)} />}
+                        label="My Hands / Feet / SPS Plugs"
+                    />
                 </>}
 
                 {link.kind === 'vrchat.avatarParameter' && (

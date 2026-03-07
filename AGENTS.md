@@ -5,7 +5,6 @@
 - Nobody has released JSON configs for this project yet.
 - Keep `Config` schema strict and explicit.
 - If `config.json` is invalid, surface the error and block saving instead of auto-healing unknown shapes.
-- Frontend must not normalize/sanitize/clean config data before save (no trimming, dedupe, default injection, or shape rewriting). Keep raw user edits; normalize only in backend service logic.
 
 ## Typecheck Routine
 - Do not run a standalone common compile as the default verification step.

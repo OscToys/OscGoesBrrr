@@ -44,9 +44,12 @@ export default class VrchatLogFinder {
             this.locatedVrcConfigDir = this.locateVrcConfigDir();
             const dir = await this.locatedVrcConfigDir;
             if (dir) this.logger.log(`Located VRC Config directory at ${dir}`)
+            else this.locatedVrcConfigDir = undefined;
             return dir;
         } else {
-            return await this.locatedVrcConfigDir;
+            const dir = await this.locatedVrcConfigDir;
+            if (!dir) this.locatedVrcConfigDir = undefined;
+            return dir;
         }
     }
 

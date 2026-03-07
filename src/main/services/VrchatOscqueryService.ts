@@ -77,6 +77,9 @@ export default class VrchatOscqueryService {
                 this.status = 'success';
                 return;
             }
+            // Intentionally keep the last working OSC/OSCQuery endpoints cached even after a failed probe.
+            // VRChat discovery is flaky on some systems, and continuing to retry the last known good address
+            // is better than clearing it and temporarily having nothing to talk to.
         }
 
         this.logger.log("Scanning for VRC OscQuery ...");

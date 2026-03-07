@@ -11,7 +11,7 @@ import {
     DialogTitle,
     Stack,
 } from "@mui/material";
-import {SettingsStatePayload} from "../../../common/ipcContract";
+import {SettingsStatePayload, SettingsStateVrchat} from "../../../common/ipcContract";
 import ConfiguredOutputRow from "./ConfiguredOutputRow";
 import UnconfiguredOutputRow from "./UnconfiguredOutputRow";
 import IntifaceSettingsSection from "./IntifaceSettingsSection";
@@ -39,21 +39,12 @@ function SettingsBody({
     const oscProxyAtom = useMemo(() => focusKeyAtom(configAtom, 'oscProxy'), [configAtom]);
     const configuredOutputsAtom = useMemo(() => focusKeyAtom(configAtom, 'outputs'), [configAtom]);
     const outputInfosAtom = useMemo(() => selectAtom(settingsStateAtom, (state) => state.outputs), [settingsStateAtom]);
-    const intifaceConnectedAtom = useMemo(() => selectAtom(settingsStateAtom, (state) => state.intifaceConnected), [settingsStateAtom]);
-    const vrchatConnectedAtom = useMemo(() => selectAtom(settingsStateAtom, (state) => state.vrchatConnected), [settingsStateAtom]);
-    const hasSpsZonesAtom = useMemo(() => selectAtom(settingsStateAtom, (state) => state.hasSpsZones), [settingsStateAtom]);
-    const outdatedAvatarDetectedAtom = useMemo(() => selectAtom(settingsStateAtom, (state) => state.outdatedAvatarDetected), [settingsStateAtom]);
-    const vrchatOscEnabledWarningAtom = useMemo(() => selectAtom(settingsStateAtom, (state) => state.vrchatOscEnabledWarning), [settingsStateAtom]);
-    const vrchatSelfInteractWarningAtom = useMemo(() => selectAtom(settingsStateAtom, (state) => state.vrchatSelfInteractWarning), [settingsStateAtom]);
-    const vrchatEveryoneInteractWarningAtom = useMemo(() => selectAtom(settingsStateAtom, (state) => state.vrchatEveryoneInteractWarning), [settingsStateAtom]);
-    const vrchatOscStartupWarningAtom = useMemo(() => selectAtom(settingsStateAtom, (state) => state.vrchatOscStartupWarning), [settingsStateAtom]);
-    const vrchatOscStartupWarningTextAtom = useMemo(() => selectAtom(settingsStateAtom, (state) => state.vrchatOscStartupWarningText), [settingsStateAtom]);
-    const vrchatLogsFoundAtom = useMemo(() => selectAtom(settingsStateAtom, (state) => state.vrchatLogsFound), [settingsStateAtom]);
-    const oscqueryStatusAtom = useMemo(() => selectAtom(settingsStateAtom, (state) => state.oscqueryStatus), [settingsStateAtom]);
-    const oscStatusAtom = useMemo(() => selectAtom(settingsStateAtom, (state) => state.oscStatus), [settingsStateAtom]);
-    const mdnsWorkingAtom = useMemo(() => selectAtom(settingsStateAtom, (state) => state.mdnsWorking), [settingsStateAtom]);
+    const vrchatAtom = useMemo(
+        () => focusKeyAtom(settingsStateAtom, 'vrchat') as PrimitiveAtom<SettingsStateVrchat>,
+        [settingsStateAtom],
+    );
     const importedAllDeletesAtAtom = useMemo(() => selectAtom(settingsStateAtom, (state) => state.importedAllDeletesAt), [settingsStateAtom]);
-    const detectedVrcConfigDirAtom = useMemo(() => selectAtom(settingsStateAtom, (state) => state.detectedVrcConfigDir), [settingsStateAtom]);
+    const importedOutputDeletesAtByIdAtom = useMemo(() => selectAtom(settingsStateAtom, (state) => state.importedOutputDeletesAtById), [settingsStateAtom]);
     const configuredOutputIdSetAtom = useMemo(
         () => atom((get) => new Set(get(configuredOutputsAtom).map(output => output.id))),
         [configuredOutputsAtom],
@@ -72,10 +63,6 @@ function SettingsBody({
             });
         }),
         [configuredOutputAtomsAtom, outputInfosAtom],
-    );
-    const configuredOutputCountAtom = useMemo(
-        () => selectAtom(configuredOutputsAtom, outputs => outputs.length),
-        [configuredOutputsAtom],
     );
     const unconfiguredOutputsAtom = useMemo(
         () => atom((get) => {
@@ -116,22 +103,8 @@ function SettingsBody({
     const [maxLevelParam, setMaxLevelParam] = useAtom(maxLevelParamAtom);
     const [vrcConfigDir, setVrcConfigDir] = useAtom(vrcConfigDirAtom);
     const [oscProxy, setOscProxy] = useAtom(oscProxyAtom);
-    const configuredOutputCount = useAtomValue(configuredOutputCountAtom);
-    const intifaceConnected = useAtomValue(intifaceConnectedAtom);
-    const vrchatConnected = useAtomValue(vrchatConnectedAtom);
-    const hasSpsZones = useAtomValue(hasSpsZonesAtom);
-    const outdatedAvatarDetected = useAtomValue(outdatedAvatarDetectedAtom);
-    const vrchatOscEnabledWarning = useAtomValue(vrchatOscEnabledWarningAtom);
-    const vrchatSelfInteractWarning = useAtomValue(vrchatSelfInteractWarningAtom);
-    const vrchatEveryoneInteractWarning = useAtomValue(vrchatEveryoneInteractWarningAtom);
-    const vrchatOscStartupWarning = useAtomValue(vrchatOscStartupWarningAtom);
-    const vrchatOscStartupWarningText = useAtomValue(vrchatOscStartupWarningTextAtom);
-    const vrchatLogsFound = useAtomValue(vrchatLogsFoundAtom);
-    const oscqueryStatus = useAtomValue(oscqueryStatusAtom);
-    const oscStatus = useAtomValue(oscStatusAtom);
-    const mdnsWorking = useAtomValue(mdnsWorkingAtom);
     const importedAllDeletesAt = useAtomValue(importedAllDeletesAtAtom);
-    const detectedVrcConfigDir = useAtomValue(detectedVrcConfigDirAtom);
+    const importedOutputDeletesAtById = useAtomValue(importedOutputDeletesAtByIdAtom);
     const configuredSortedOutputs = useAtomValue(configuredSortedOutputsAtom);
     const unconfiguredOutputs = useAtomValue(unconfiguredOutputsAtom);
     const setConfiguredOutputs = useSetAtom(configuredOutputsAtom);
@@ -150,31 +123,11 @@ function SettingsBody({
         setPendingDeleteOutputId(null);
     }, [pendingDeleteOutputId, setConfiguredOutputs]);
 
-    let intifaceWarning;
-    if (intifaceConnected && configuredOutputCount === 0 && unconfiguredOutputs.length === 0) {
-        intifaceWarning = "No devices are connected to Intiface";
-    } else {
-        intifaceWarning = undefined;
-    }
-    const vrchatWarning = vrchatConnected && !hasSpsZones;
-    const hasVrchatWarnings = vrchatWarning
-        || vrchatOscEnabledWarning
-        || vrchatSelfInteractWarning
-        || vrchatEveryoneInteractWarning
-        || outdatedAvatarDetected
-        || vrchatOscStartupWarning
-        || !vrchatLogsFound
-        || oscqueryStatus !== 'success'
-        || oscStatus !== 'connected'
-        || !mdnsWorking;
-
     return (
         <Stack spacing={0}>
             <IntifaceSettingsSection
                 expanded={intifaceExpanded}
                 onChange={setIntifaceExpanded}
-                intifaceConnected={intifaceConnected}
-                intifaceWarning={intifaceWarning}
                 intifaceAddress={intifaceAddress ?? ''}
                 onIntifaceAddressCommit={setIntifaceAddress}
             />
@@ -182,23 +135,10 @@ function SettingsBody({
             <VrchatSettingsSection
                 expanded={vrchatExpanded}
                 onChange={setVrchatExpanded}
-                vrchatConnected={vrchatConnected}
-                hasVrchatWarnings={hasVrchatWarnings}
-                vrchatWarning={vrchatWarning}
-                outdatedAvatarDetected={outdatedAvatarDetected}
-                vrchatOscEnabledWarning={vrchatOscEnabledWarning}
-                vrchatSelfInteractWarning={vrchatSelfInteractWarning}
-                vrchatEveryoneInteractWarning={vrchatEveryoneInteractWarning}
-                vrchatOscStartupWarning={vrchatOscStartupWarning}
-                vrchatOscStartupWarningText={vrchatOscStartupWarningText}
-                vrchatLogsFound={vrchatLogsFound}
-                oscqueryStatus={oscqueryStatus}
-                oscStatus={oscStatus}
-                mdnsWorking={mdnsWorking}
+                vrchatAtom={vrchatAtom}
                 maxLevelParam={maxLevelParam ?? ''}
                 onMaxLevelParamCommit={setMaxLevelParam}
                 vrcConfigDir={vrcConfigDir ?? ''}
-                detectedVrcConfigDir={detectedVrcConfigDir}
                 onVrcConfigDirCommit={setVrcConfigDir}
                 oscProxy={oscProxy}
                 onSetOscProxy={setOscProxy}
@@ -211,6 +151,7 @@ function SettingsBody({
                         outputAtom={outputAtom}
                         infoAtom={configuredOutputInfoAtomFamily(outputAtom)}
                         importedAllDeletesAt={importedAllDeletesAt}
+                        importedOutputDeletesAtById={importedOutputDeletesAtById}
                         onDelete={requestDeleteOutput}
                     />
                 );

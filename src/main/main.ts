@@ -54,60 +54,6 @@ const vrchatLogFinder = container.get(VrchatLogFinder);
 const butt = container.get(Buttplug);
 const bridge = container.get(Bridge);
 
-handleIpc('oscStatus:get', async () => {
-
-    const gameDevices = Array.from(bridge.getGameDevices());
-    const oscStatusSnapshot = oscConnection.getStatusSnapshot();
-    const sections: string[] = [];
-
-    if (!oscConnection || !oscConnection.socketopen) {
-        sections.push(`OSC socket is starting ...`);
-    } else {
-        sections.push(
-            `OGB OSC: ${oscConnection.port}\n`
-            + `OGB OSCQ: ${oscStatusSnapshot.mdnsWorking ? 'Enabled' : 'Disabled'}\n`
-            + `VRC OSC: ${vrchatOscqueryService.getOscAddress()?.join(':')}\n`
-            + `VRC OSCQ: ${vrchatOscqueryService.getOscqueryAddress()?.join(':')}`
-        );
-        if (!oscConnection.isGameOpenAndActive()) {
-            sections.push(`No updates received recently.\nIs the game open and active?`);
-        }
-        if (oscConnection?.waitingForBulk) {
-            sections.push(`Waiting for bulk packet from OSCQuery`);
-        }
-    }
-
-    if (vrcConfigCheck.selfInteractEnabled !== false) {
-        const hasVrcfHaptics = gameDevices.some(device => device.type == 'Pen' || device.type == 'Orf');
-        let isVrcfHapticsUpToDate = false;
-        if (oscConnection) {
-            for (const [key, value] of oscConnection.entries()) {
-                if (key == "VFH/Version/9"
-                        || key == "VFH/Version/10"
-                        || (key.startsWith("OGB/Pen/") && key.endsWith("/Version/8"))
-                        || (key.startsWith("OGB/Orf/") && key.endsWith("/Version/9"))
-                ) {
-                    isVrcfHapticsUpToDate = true;
-                    break;
-                }
-            }
-        }
-        if (hasVrcfHaptics && !isVrcfHapticsUpToDate) {
-            sections.push('OUTDATED AVATAR DETECTED\n' +
-                    'Your avatar was not built using\nthe newest version of VRCFury Haptics.\n' +
-                    'Penetration may not work or be less effective.')
-        }
-    }
-
-    if (gameDevices.length > 0) {
-        const gameDeviceStatuses = gameDevices.map(d => d.getStatus());
-        gameDeviceStatuses.sort();
-        sections.push(gameDeviceStatuses.join('\n'));
-    }
-
-    return sections.join('\n\n');
-});
-
 handleIpc('avatarParams:get', async () => {
     const map = new Map<string, unknown>();
     if (oscConnection) {
@@ -137,7 +83,9 @@ handleIpc('settings-state:request', async () => {
     const detectedSpsSocketIds = Array.from(new Set(gameDevices.filter(device => device.type === 'Orf').map(device => device.id))).sort();
     const detectedSpsTouchZoneIds = Array.from(new Set(gameDevices.filter(device => device.type === 'Touch').map(device => device.id))).sort();
     const history = await backendDataService.getAllDeviceHistory();
+    await importedOutputPromotionService.cleanupExpiredImportedOutputs();
     const importedAllDeletesAt = await importedOutputPromotionService.getImportedAllDeletionTime();
+    const importedOutputDeletesAtById = await importedOutputPromotionService.getImportedSpecificDeletionTimes();
     const oscStatusSnapshot = oscConnection.getStatusSnapshot();
     const oscqueryStatus = vrchatOscqueryService.getStatus();
     const ogbOscPort = oscConnection.socketopen ? (oscStatusSnapshot.mdnsWorking ? oscConnection.port : 9001) : undefined;
@@ -267,27 +215,32 @@ handleIpc('settings-state:request', async () => {
         data: {
             outputs: entries,
             intifaceConnected,
-            vrchatConnected,
-            hasSpsZones,
-            outdatedAvatarDetected,
-            vrchatOscEnabledWarning: vrcConfigCheck.oscEnabled === false,
-            vrchatSelfInteractWarning: vrcConfigCheck.selfInteractEnabled === false,
-            vrchatEveryoneInteractWarning: vrcConfigCheck.everyoneInteractEnabled === false,
-            vrchatOscStartupWarning: Boolean(logScanner.failure),
-            vrchatOscStartupWarningText: logScanner.failure,
-            vrchatLogsFound: vrchatOscqueryService.getLogsFound(),
-            oscqueryStatus,
-            oscStatus: oscStatusSnapshot.status,
-            mdnsWorking: oscStatusSnapshot.mdnsWorking,
-            ogbOscPort,
-            ogbOscqueryPort,
-            vrcOscPort,
-            vrcOscqueryPort,
-            detectedSpsPlugIds,
-            detectedSpsSocketIds,
-            detectedSpsTouchZoneIds,
+            vrchat: {
+                connected: vrchatConnected,
+                warnings: {
+                    hasSpsZones,
+                    outdatedAvatarDetected,
+                    oscEnabled: vrcConfigCheck.oscEnabled === false,
+                    selfInteract: vrcConfigCheck.selfInteractEnabled === false,
+                    everyoneInteract: vrcConfigCheck.everyoneInteractEnabled === false,
+                    oscStartup: Boolean(logScanner.failure),
+                    oscStartupText: logScanner.failure,
+                    logsFound: vrchatOscqueryService.getLogsFound(),
+                    oscqueryStatus,
+                    oscStatus: oscStatusSnapshot.status,
+                    mdnsWorking: oscStatusSnapshot.mdnsWorking,
+                },
+                ogbOscPort,
+                ogbOscqueryPort,
+                vrcOscPort,
+                vrcOscqueryPort,
+                detectedSpsPlugIds,
+                detectedSpsSocketIds,
+                detectedSpsTouchZoneIds,
+                detectedVrcConfigDir,
+            },
             importedAllDeletesAt,
-            detectedVrcConfigDir,
+            importedOutputDeletesAtById,
         },
     });
 

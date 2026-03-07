@@ -3,6 +3,7 @@ import {replaceEqualDeep} from "@tanstack/query-core";
 import {invokeIpc, onIpc} from "../../ipc";
 import {Result} from "../../../common/result";
 import {atom, type PrimitiveAtom, useStore} from "jotai";
+import {freeze} from "immer";
 
 type ChangeEventChannel = 'config:changed' | 'settings-state:changed';
 type RequestInvokeChannel = 'config:request' | 'settings-state:request';
@@ -70,7 +71,7 @@ export default function useIpcBackedCache<T>({
     const applyRemoteData = useCallback((next: T | undefined) => {
         if (next === undefined) return;
         const current = store.get(dataAtom);
-        const merged = replaceEqualDeep(current, next);
+        const merged = freeze(replaceEqualDeep(current, next), true);
         if (merged === current) return;
         isApplyingRemoteRef.current = true;
         store.set(dataAtom, merged);

@@ -48,7 +48,7 @@ export default function Settings() {
         changeEvent: 'settings-state:changed',
         requestInvoke: 'settings-state:request',
         parseResult: parseSettingsStateResult,
-        pollMs: 1000,
+        pollMs: 100,
     });
     const hasConfigData = useAtomValue(React.useMemo(() => selectAtom(configAtom, value => value !== undefined), [configAtom]));
     const hasSettingsStateData = useAtomValue(

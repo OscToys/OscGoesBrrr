@@ -2,6 +2,7 @@ import {Service} from "typedi";
 import path from 'path';
 import {app, shell} from 'electron';
 import typia from "typia";
+import {freeze} from "immer";
 import AbstractJsonStateService from "./AbstractJsonStateService";
 import {handleIpc} from "../ipc";
 import type {IntifaceDeviceFeatureSelection} from "../ButtplugSpec";
@@ -24,10 +25,15 @@ export interface BackendData {
 @Service()
 export default class BackendDataService extends AbstractJsonStateService<BackendData> {
     private static readonly CURRENT_BACKEND_DATA_VERSION = 1;
+    private static readonly DEFAULT_BACKEND_DATA: BackendData = freeze({
+        version: BackendDataService.CURRENT_BACKEND_DATA_VERSION,
+        deviceHistory: {},
+    }, true);
 
     constructor() {
         super(
             path.join(app.getPath('userData'), 'backendData.json'),
+            BackendDataService.DEFAULT_BACKEND_DATA,
             (raw) => typia.assert<BackendData>(raw),
         );
         this.registerIpcHandlers();
@@ -62,10 +68,4 @@ export default class BackendDataService extends AbstractJsonStateService<Backend
         });
     }
 
-    protected override getDefaultData(): BackendData {
-        return {
-            version: BackendDataService.CURRENT_BACKEND_DATA_VERSION,
-            deviceHistory: {},
-        };
-    }
 }
