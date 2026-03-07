@@ -6,26 +6,28 @@ export interface OutputLinkFilter {
 export interface OutputLinkVrchatSpsPlug {
     kind: 'vrchat.sps.plug';
     filter: OutputLinkFilter;
-    touchSelf: boolean;
-    touchOthers: boolean;
-    penSelf: boolean;
-    penOthers: boolean;
-    frotOthers: boolean;
+    ownHands: boolean;
+    otherHands: boolean;
+    mySockets: boolean;
+    otherSockets: boolean;
+    otherPlugs: boolean;
     mutators: OutputLinkMutator[];
 }
 export interface OutputLinkVrchatSpsSocket {
     kind: 'vrchat.sps.socket';
     filter: OutputLinkFilter;
-    touchSelf: boolean;
-    touchOthers: boolean;
-    penSelf: boolean;
-    penOthers: boolean;
-    frotOthers: boolean;
+    ownHands: boolean;
+    otherHands: boolean;
+    myPlugs: boolean;
+    otherPlugs: boolean;
+    otherSockets: boolean;
     mutators: OutputLinkMutator[];
 }
 export interface OutputLinkVrchatTouch {
     kind: 'vrchat.sps.touch';
     filter: OutputLinkFilter;
+    ownHands: boolean;
+    otherHands: boolean;
     mutators: OutputLinkMutator[];
 }
 export interface OutputLinkVrchatAvatarParameter {
@@ -57,26 +59,28 @@ export function getDefaultLinks(): OutputLink[] {
         {
             kind: 'vrchat.sps.plug',
             filter: {include: [], exclude: []},
-            touchSelf: false,
-            touchOthers: true,
-            penSelf: false,
-            penOthers: true,
-            frotOthers: true,
+            ownHands: false,
+            otherHands: true,
+            mySockets: false,
+            otherSockets: true,
+            otherPlugs: true,
             mutators: [],
         },
         {
             kind: 'vrchat.sps.socket',
             filter: {include: [], exclude: []},
-            touchSelf: false,
-            touchOthers: true,
-            penSelf: false,
-            penOthers: true,
-            frotOthers: true,
+            ownHands: false,
+            otherHands: true,
+            myPlugs: false,
+            otherPlugs: true,
+            otherSockets: true,
             mutators: [],
         },
         {
             kind: 'vrchat.sps.touch',
             filter: {include: [], exclude: []},
+            ownHands: false,
+            otherHands: true,
             mutators: [],
         },
     ];

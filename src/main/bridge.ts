@@ -199,23 +199,38 @@ export class BridgeOutput {
             if (includeSet.size === 0) return true;
             return includeSet.has(name);
         };
-        const matchesSpsLink = (
+        const matchesPlugLink = (
             source: BridgeSource,
-            link: OutputLink & {kind: 'vrchat.sps.plug' | 'vrchat.sps.socket'},
+            link: OutputLink & {kind: 'vrchat.sps.plug'},
         ) => {
             if (!shouldInclude(source.deviceName, link.filter)) return false;
-            if (source.featureName === 'touchSelf') return link.touchSelf;
-            if (source.featureName === 'touchOthers') return link.touchOthers;
-            if (source.featureName === 'penSelf') return link.penSelf;
-            if (source.featureName === 'penOthers') return link.penOthers;
-            if (source.featureName === 'frotOthers') return link.frotOthers;
+            if (source.featureName === 'touchSelf') return link.ownHands;
+            if (source.featureName === 'touchOthers') return link.otherHands;
+            if (source.featureName === 'penSelf') return link.mySockets;
+            if (source.featureName === 'penOthers') return link.otherSockets;
+            if (source.featureName === 'frotOthers') return link.otherPlugs;
+            return false;
+        };
+        const matchesSocketLink = (
+            source: BridgeSource,
+            link: OutputLink & {kind: 'vrchat.sps.socket'},
+        ) => {
+            if (!shouldInclude(source.deviceName, link.filter)) return false;
+            if (source.featureName === 'touchSelf') return link.ownHands;
+            if (source.featureName === 'touchOthers') return link.otherHands;
+            if (source.featureName === 'penSelf') return link.myPlugs;
+            if (source.featureName === 'penOthers') return link.otherPlugs;
+            if (source.featureName === 'frotOthers') return link.otherSockets;
             return false;
         };
         const matchesTouchLink = (
             source: BridgeSource,
             link: OutputLink & {kind: 'vrchat.sps.touch'},
         ) => {
-            return shouldInclude(source.deviceName, link.filter);
+            if (!shouldInclude(source.deviceName, link.filter)) return false;
+            if (source.featureName === 'touchSelf') return link.ownHands;
+            if (source.featureName === 'touchOthers') return link.otherHands;
+            return false;
         };
         const entries = this.osc.entries();
         return links.map((link) => {
@@ -251,9 +266,9 @@ export class BridgeOutput {
                 for (const source of gameDevice.getSources()) {
                     let matches = false;
                     if (link.kind === 'vrchat.sps.plug' && source.deviceType === 'pen') {
-                        matches = matchesSpsLink(source, link);
+                        matches = matchesPlugLink(source, link);
                     } else if (link.kind === 'vrchat.sps.socket' && source.deviceType === 'orf') {
-                        matches = matchesSpsLink(source, link);
+                        matches = matchesSocketLink(source, link);
                     } else if (link.kind === 'vrchat.sps.touch' && source.deviceType === 'touch') {
                         matches = matchesTouchLink(source, link);
                     }

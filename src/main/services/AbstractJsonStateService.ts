@@ -33,7 +33,8 @@ export abstract class AbstractJsonStateService<TData> extends TypedEventEmitter<
 
     protected constructor(
         protected readonly savePath: string,
-        private readonly parseDataFn: (raw: string) => TData,
+        private readonly parseDataFn: (raw: unknown) => TData,
+        private readonly upgradeRawDataFn?: (raw: unknown) => unknown,
     ) {
         super();
         this.data = this.getDefaultData();
@@ -173,10 +174,16 @@ export abstract class AbstractJsonStateService<TData> extends TypedEventEmitter<
                 this.pendingLoad = false;
                 console.log(`Loading ${path.basename(this.savePath)}`);
                 const raw = await fs.readFile(this.savePath, "utf-8");
-                const parsed = this.parseDataFn(raw);
-                this.data = this.normalizeData(parsed);
+                const parsedJson = JSON.parse(raw) as unknown;
+                const jsonBeforeUpgrade = JSON.stringify(parsedJson);
+                const upgradedRaw = this.upgradeRawData(parsedJson);
+                const parsed = this.parseDataFn(upgradedRaw);
+                const normalized = this.normalizeData(parsed);
+                const shouldPersistNormalizedLoad = jsonBeforeUpgrade !== JSON.stringify(normalized);
+                this.data = normalized;
                 this.loadError = undefined;
                 this.emitChanged();
+                if (shouldPersistNormalizedLoad) this.save().catch(() => {});
                 console.log(`Loaded ${path.basename(this.savePath)}`);
             } catch (error) {
                 if (isFileMissingError(error)) {
@@ -214,6 +221,10 @@ export abstract class AbstractJsonStateService<TData> extends TypedEventEmitter<
 
     protected normalizeDraft(_draft: Draft<TData>): void {
         // no-op by default
+    }
+
+    protected upgradeRawData(raw: unknown): unknown {
+        return this.upgradeRawDataFn ? this.upgradeRawDataFn(raw) : raw;
     }
 
     protected async handleMissingFile(): Promise<TData | undefined> {

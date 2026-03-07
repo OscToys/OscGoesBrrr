@@ -26,7 +26,7 @@ export default class LegacyTxtConfigImportService {
         console.log("Migrating old config.txt to config.json");
 
         const newConfig: Config = {
-            version: 1,
+            version: 2,
             oscProxy: [],
             outputs: []
         };
@@ -196,11 +196,11 @@ export default class LegacyTxtConfigImportService {
             links.push({
                 kind: "vrchat.sps.plug",
                 filter: {include, exclude: []},
-                touchSelf: touchSelf,
-                touchOthers: touchOthers,
-                penSelf: penSelf,
-                penOthers: penOthers,
-                frotOthers: frotOthers,
+                ownHands: touchSelf,
+                otherHands: touchOthers,
+                mySockets: penSelf,
+                otherSockets: penOthers,
+                otherPlugs: frotOthers,
                 mutators: structuredClone(spsAvatarMutators),
             });
         }
@@ -208,15 +208,21 @@ export default class LegacyTxtConfigImportService {
             links.push({
                 kind: "vrchat.sps.socket",
                 filter: {include, exclude: []},
-                touchSelf: touchSelf,
-                touchOthers: touchOthers,
-                penSelf: penSelf,
-                penOthers: penOthers,
-                frotOthers: frotOthers,
+                ownHands: touchSelf,
+                otherHands: touchOthers,
+                myPlugs: penSelf,
+                otherPlugs: penOthers,
+                otherSockets: frotOthers,
                 mutators: structuredClone(spsAvatarMutators),
             });
         }
-        links.push({kind: "vrchat.sps.touch", filter: {include, exclude: []}, mutators: structuredClone(spsAvatarMutators)});
+        links.push({
+            kind: "vrchat.sps.touch",
+            filter: {include, exclude: []},
+            ownHands: touchSelf,
+            otherHands: touchOthers,
+            mutators: structuredClone(spsAvatarMutators),
+        });
         for (const parameter of bindKeys) {
             links.push({kind: "vrchat.avatarParameter", parameter, mutators: structuredClone(spsAvatarMutators)});
         }

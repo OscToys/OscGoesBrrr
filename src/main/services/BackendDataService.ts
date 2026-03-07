@@ -28,7 +28,7 @@ export default class BackendDataService extends AbstractJsonStateService<Backend
     constructor() {
         super(
             path.join(app.getPath('userData'), 'backendData.json'),
-            typia.json.createAssertParse<BackendData>(),
+            (raw) => typia.assert<BackendData>(raw),
         );
         this.registerIpcHandlers();
     }

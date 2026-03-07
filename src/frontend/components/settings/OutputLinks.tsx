@@ -40,11 +40,11 @@ function OutputLinks({linksAtom, linkLevelsAtom}: Props) {
     const buildLink = (kind: OutputLinkKind): OutputLink => {
         switch (kind) {
             case 'vrchat.sps.plug':
-                return {kind, filter: {include: [], exclude: []}, touchSelf: false, touchOthers: true, penSelf: false, penOthers: true, frotOthers: true, mutators: []};
+                return {kind, filter: {include: [], exclude: []}, ownHands: false, otherHands: true, mySockets: false, otherSockets: true, otherPlugs: true, mutators: []};
             case 'vrchat.sps.socket':
-                return {kind, filter: {include: [], exclude: []}, touchSelf: false, touchOthers: true, penSelf: false, penOthers: true, frotOthers: true, mutators: []};
+                return {kind, filter: {include: [], exclude: []}, ownHands: false, otherHands: true, myPlugs: false, otherPlugs: true, otherSockets: true, mutators: []};
             case 'vrchat.sps.touch':
-                return {kind, filter: {include: [], exclude: []}, mutators: []};
+                return {kind, filter: {include: [], exclude: []}, ownHands: false, otherHands: true, mutators: []};
             case 'vrchat.avatarParameter':
                 return {kind, parameter: '', mutators: []};
             case 'systemAudio':

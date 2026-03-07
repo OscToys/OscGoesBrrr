@@ -12,13 +12,17 @@ import LegacyTxtConfigImportService from "./migrate/LegacyTxtConfigImportService
 
 @Service()
 export default class ConfigService extends AbstractJsonStateService<Config> {
-    private static readonly CURRENT_CONFIG_VERSION = 1;
+    private static readonly CURRENT_CONFIG_VERSION = 2;
 
     constructor(
         private readonly legacyTxtConfigImportService: LegacyTxtConfigImportService,
         private readonly mainWindowService: MainWindowService,
     ) {
-        super(path.join(app.getPath('userData'), 'config.json'), typia.json.createAssertParse<Config>());
+        super(
+            path.join(app.getPath('userData'), 'config.json'),
+            (raw) => typia.assert<Config>(raw),
+            ConfigService.upgradeRawConfig,
+        );
         this.on('changed', () => this.sendCurrentConfig());
         this.registerIpcHandlers();
     }
@@ -33,6 +37,59 @@ export default class ConfigService extends AbstractJsonStateService<Config> {
 
     protected override getDefaultData(): Config {
         return {version: ConfigService.CURRENT_CONFIG_VERSION, oscProxy: [], outputs: []};
+    }
+
+    private static upgradeRawConfig(raw: unknown): unknown {
+        const config = raw as Config;
+        const version = config.version;
+        if (!version || version < 1) {
+            throw new Error(`Unknown config version during upgrade: ${version}`);
+        }
+
+        if (version > 2) {
+            throw new Error(`Unsupported config version: ${version}`);
+        }
+
+        if (version < 2) {
+            for (const output of config.outputs) {
+                for (const link of output.links) {
+                    const legacyLink = link as any;
+                    if (link.kind === 'vrchat.sps.plug') {
+                        legacyLink.ownHands = legacyLink.touchSelf;
+                        legacyLink.otherHands = legacyLink.touchOthers;
+                        legacyLink.mySockets = legacyLink.penSelf;
+                        legacyLink.otherSockets = legacyLink.penOthers;
+                        legacyLink.otherPlugs = legacyLink.frotOthers;
+                        delete legacyLink.touchSelf;
+                        delete legacyLink.touchOthers;
+                        delete legacyLink.penSelf;
+                        delete legacyLink.penOthers;
+                        delete legacyLink.frotOthers;
+                        continue;
+                    }
+                    if (link.kind === 'vrchat.sps.socket') {
+                        legacyLink.ownHands = legacyLink.touchSelf;
+                        legacyLink.otherHands = legacyLink.touchOthers;
+                        legacyLink.myPlugs = legacyLink.penSelf;
+                        legacyLink.otherPlugs = legacyLink.penOthers;
+                        legacyLink.otherSockets = legacyLink.frotOthers;
+                        delete legacyLink.touchSelf;
+                        delete legacyLink.touchOthers;
+                        delete legacyLink.penSelf;
+                        delete legacyLink.penOthers;
+                        delete legacyLink.frotOthers;
+                        continue;
+                    }
+                    if (link.kind === 'vrchat.sps.touch') {
+                        legacyLink.ownHands = false;
+                        legacyLink.otherHands = true;
+                    }
+                }
+            }
+            config.version = 2;
+        }
+
+        return config;
     }
 
     protected override async handleMissingFile(): Promise<Config | undefined> {

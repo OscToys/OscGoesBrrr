@@ -19,7 +19,7 @@ import {
     OutputLinkMutatorKind,
     OutputLinkFilter,
     OutputLinkScaleMutator,
-    OutputLinkVrchatSpsPlug, OutputLinkVrchatSpsSocket,
+    OutputLinkVrchatSpsPlug, OutputLinkVrchatSpsSocket, OutputLinkVrchatTouch,
 } from "../../../common/configTypes";
 import TextCommitInput from "../util/TextCommitInput";
 import Filter from "../Filter";
@@ -32,12 +32,21 @@ import {selectAtom} from "jotai/utils";
 import {useSettingsStateAtom} from "./SettingsStateAtomContext";
 
 type SpsLink = OutputLinkVrchatSpsPlug | OutputLinkVrchatSpsSocket;
-type SpsFeature = {
-    [K in keyof SpsLink]: SpsLink[K] extends boolean | undefined ? K : never
-}[keyof SpsLink];
+type SpsFeature =
+    | 'ownHands'
+    | 'otherHands'
+    | 'mySockets'
+    | 'otherSockets'
+    | 'otherPlugs'
+    | 'myPlugs';
+type TouchFeature = 'ownHands' | 'otherHands';
 
 function isSpsLink(link: OutputLink): link is OutputLinkVrchatSpsPlug | OutputLinkVrchatSpsSocket {
     return link.kind === 'vrchat.sps.plug' || link.kind === 'vrchat.sps.socket';
+}
+
+function isTouchLink(link: OutputLink): link is OutputLinkVrchatTouch {
+    return link.kind === 'vrchat.sps.touch';
 }
 
 interface Props {
@@ -71,6 +80,10 @@ function OutputLinkEditor({linkAtom, activeLevel, labelMap, removeLink}: Props) 
     const formatPercent = (fraction: number) => Math.round(fraction * 100000) / 1000;
     const updateSpsFeature = (feature: SpsFeature, enabled: boolean) => {
         if (!isSpsLink(link)) return;
+        setLink({...link, [feature]: enabled} as SpsLink);
+    };
+    const updateTouchFeature = (feature: TouchFeature, enabled: boolean) => {
+        if (!isTouchLink(link)) return;
         setLink({...link, [feature]: enabled});
     };
 
@@ -267,28 +280,47 @@ function OutputLinkEditor({linkAtom, activeLevel, labelMap, removeLink}: Props) 
                     >
                         <FormControlLabel
                             sx={{gridColumn: {xs: 'auto', md: 1}, gridRow: {xs: 'auto', md: 1}}}
-                            control={<Switch checked={link.touchOthers} onChange={e => updateSpsFeature('touchOthers', e.target.checked)} />}
+                            control={<Switch checked={link.otherHands} onChange={e => updateSpsFeature('otherHands', e.target.checked)} />}
                             label="Other Player's Hands"
                         />
                         <FormControlLabel
                             sx={{gridColumn: {xs: 'auto', md: 1}, gridRow: {xs: 'auto', md: 2}}}
-                            control={<Switch checked={link.touchSelf} onChange={e => updateSpsFeature('touchSelf', e.target.checked)} />}
+                            control={<Switch checked={link.ownHands} onChange={e => updateSpsFeature('ownHands', e.target.checked)} />}
                             label="My Hands"
                         />
                         <FormControlLabel
                             sx={{gridColumn: {xs: 'auto', md: 2}, gridRow: {xs: 'auto', md: 1}}}
-                            control={<Switch checked={link.penOthers} onChange={e => updateSpsFeature('penOthers', e.target.checked)} />}
+                            control={<Switch checked={isPlug ? link.otherSockets : link.otherPlugs} onChange={e => updateSpsFeature(isPlug ? 'otherSockets' : 'otherPlugs', e.target.checked)} />}
                             label={isPlug ? "Other Player's Sockets" : "Other Player's Plugs"}
                         />
                         <FormControlLabel
                             sx={{gridColumn: {xs: 'auto', md: 2}, gridRow: {xs: 'auto', md: 2}}}
-                            control={<Switch checked={link.penSelf} onChange={e => updateSpsFeature('penSelf', e.target.checked)} />}
+                            control={<Switch checked={isPlug ? link.mySockets : link.myPlugs} onChange={e => updateSpsFeature(isPlug ? 'mySockets' : 'myPlugs', e.target.checked)} />}
                             label={isPlug ? "My Sockets" : "My Plugs"}
                         />
                         <FormControlLabel
                             sx={{gridColumn: {xs: 'auto', md: 3}, gridRow: {xs: 'auto', md: 1}}}
-                            control={<Switch checked={link.frotOthers} onChange={e => updateSpsFeature('frotOthers', e.target.checked)} />}
+                            control={<Switch checked={isPlug ? link.otherPlugs : link.otherSockets} onChange={e => updateSpsFeature(isPlug ? 'otherPlugs' : 'otherSockets', e.target.checked)} />}
                             label={isPlug ? "Other Player's Plugs" : "Other Player's Sockets"}
+                        />
+                    </Box>
+                </>}
+                {isTouchLink(link) && <>
+                    <Typography variant="subtitle2">Are touched by:</Typography>
+                    <Box
+                        sx={{
+                            display: 'grid',
+                            gap: 0.25,
+                            gridTemplateColumns: {xs: '1fr', md: 'repeat(2, minmax(0, 1fr))'},
+                        }}
+                    >
+                        <FormControlLabel
+                            control={<Switch checked={link.otherHands} onChange={e => updateTouchFeature('otherHands', e.target.checked)} />}
+                            label="Other Players"
+                        />
+                        <FormControlLabel
+                            control={<Switch checked={link.ownHands} onChange={e => updateTouchFeature('ownHands', e.target.checked)} />}
+                            label="Myself"
                         />
                     </Box>
                 </>}
