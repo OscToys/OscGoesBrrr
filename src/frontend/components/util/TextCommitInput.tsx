@@ -1,5 +1,5 @@
 import React, {FocusEvent, KeyboardEvent, useEffect, useRef, useState} from "react";
-import {TextField} from "@mui/material";
+import {Autocomplete, TextField} from "@mui/material";
 
 interface Props {
     value: string;
@@ -7,16 +7,20 @@ interface Props {
     placeholder?: string;
     helperText?: string;
     liveNormalize?: (next: string) => string;
+    suggestions?: string[];
     startAdornment?: React.ReactNode;
     endAdornment?: React.ReactNode;
     onCommit: (next: string) => void;
 }
 
-export default function TextCommitInput({value, label, placeholder, helperText, liveNormalize, startAdornment, endAdornment, onCommit}: Props) {
+export default function TextCommitInput({value, label, placeholder, helperText, liveNormalize, suggestions, startAdornment, endAdornment, onCommit}: Props) {
     const [draft, setDraft] = useState(value);
     const [focused, setFocused] = useState(false);
     const skipNextBlurCommitRef = useRef(false);
     const inputRef = useRef<HTMLInputElement | null>(null);
+    const suggestionOptions = suggestions
+        ? Array.from(new Set(suggestions.map(value => value.trim()).filter(Boolean)))
+        : [];
     useEffect(() => {
         if (!focused) setDraft(value);
     }, [value, focused]);
@@ -52,6 +56,57 @@ export default function TextCommitInput({value, label, placeholder, helperText, 
         }
         commit(e.currentTarget.value);
     };
+
+    if (suggestionOptions.length > 0) {
+        return (
+            <Autocomplete
+                freeSolo
+                disableClearable
+                options={suggestionOptions}
+                inputValue={focused ? draft : value}
+                onInputChange={(_event, next) => {
+                    setDraft(liveNormalize ? liveNormalize(next) : next);
+                }}
+                onChange={(_event, nextValue) => {
+                    if (typeof nextValue !== 'string') return;
+                    const normalized = liveNormalize ? liveNormalize(nextValue) : nextValue;
+                    setDraft(normalized);
+                    commit(normalized);
+                }}
+                renderInput={(params) => (
+                    <TextField
+                        {...params}
+                        inputRef={inputRef}
+                        spellCheck={false}
+                        size="small"
+                        fullWidth
+                        label={label}
+                        placeholder={placeholder}
+                        helperText={helperText}
+                        InputLabelProps={{shrink: true}}
+                        InputProps={{
+                            ...params.InputProps,
+                            startAdornment: (
+                                <>
+                                    {startAdornment}
+                                    {params.InputProps.startAdornment}
+                                </>
+                            ),
+                            endAdornment: (
+                                <>
+                                    {params.InputProps.endAdornment}
+                                    {endAdornment}
+                                </>
+                            ),
+                        }}
+                        onFocus={() => setFocused(true)}
+                        onBlur={onBlur}
+                        onKeyDown={onKeyDown}
+                    />
+                )}
+            />
+        );
+    }
 
     return (
         <TextField

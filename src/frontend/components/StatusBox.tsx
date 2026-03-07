@@ -3,7 +3,7 @@ import {useLatest} from "react-use";
 import {invokeIpc, onIpc} from "../ipc";
 
 export default function StatusBox({getCmd, ...rest}: {
-    getCmd: 'bioStatus:get' | 'oscStatus:get'
+    getCmd: 'oscStatus:get'
 } & React.HTMLAttributes<HTMLTextAreaElement>) {
     const [status,setStatus] = useState("");
 

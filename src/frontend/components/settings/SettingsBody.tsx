@@ -1,29 +1,21 @@
 import React, {useCallback, useMemo, useState} from 'react';
 import {produce} from 'immer';
 import {Config, getDefaultLinks, getDefaultOutput, type Output} from '../../../common/configTypes';
-import {pushItem, removeAt, replaceAt} from "../../../common/arrayDraft";
+import {pushItem, removeAt} from "../../../common/arrayDraft";
 import {
-    Alert,
-    Box,
     Button,
     Dialog,
     DialogActions,
     DialogContent,
     DialogContentText,
     DialogTitle,
-    IconButton,
-    InputAdornment,
     Stack,
-    TextField,
-    Typography,
 } from "@mui/material";
-import CloseIcon from "@mui/icons-material/Close";
-import TextCommitInput from "../util/TextCommitInput";
 import {SettingsStatePayload} from "../../../common/ipcContract";
-import MyAccordion from "../util/MyAccordion";
 import ConfiguredOutputRow from "./ConfiguredOutputRow";
 import UnconfiguredOutputRow from "./UnconfiguredOutputRow";
-import ConnectionBubble from "./ConnectionBubble";
+import IntifaceSettingsSection from "./IntifaceSettingsSection";
+import VrchatSettingsSection from "./VrchatSettingsSection";
 import {atom, type PrimitiveAtom, useAtom, useAtomValue, useSetAtom} from "jotai";
 import {selectAtom, splitAtom} from "jotai/utils";
 import {atomFamily} from "jotai-family";
@@ -49,6 +41,17 @@ function SettingsBody({
     const outputInfosAtom = useMemo(() => selectAtom(settingsStateAtom, (state) => state.outputs), [settingsStateAtom]);
     const intifaceConnectedAtom = useMemo(() => selectAtom(settingsStateAtom, (state) => state.intifaceConnected), [settingsStateAtom]);
     const vrchatConnectedAtom = useMemo(() => selectAtom(settingsStateAtom, (state) => state.vrchatConnected), [settingsStateAtom]);
+    const hasSpsZonesAtom = useMemo(() => selectAtom(settingsStateAtom, (state) => state.hasSpsZones), [settingsStateAtom]);
+    const outdatedAvatarDetectedAtom = useMemo(() => selectAtom(settingsStateAtom, (state) => state.outdatedAvatarDetected), [settingsStateAtom]);
+    const vrchatOscEnabledWarningAtom = useMemo(() => selectAtom(settingsStateAtom, (state) => state.vrchatOscEnabledWarning), [settingsStateAtom]);
+    const vrchatSelfInteractWarningAtom = useMemo(() => selectAtom(settingsStateAtom, (state) => state.vrchatSelfInteractWarning), [settingsStateAtom]);
+    const vrchatEveryoneInteractWarningAtom = useMemo(() => selectAtom(settingsStateAtom, (state) => state.vrchatEveryoneInteractWarning), [settingsStateAtom]);
+    const vrchatOscStartupWarningAtom = useMemo(() => selectAtom(settingsStateAtom, (state) => state.vrchatOscStartupWarning), [settingsStateAtom]);
+    const vrchatOscStartupWarningTextAtom = useMemo(() => selectAtom(settingsStateAtom, (state) => state.vrchatOscStartupWarningText), [settingsStateAtom]);
+    const vrchatLogsFoundAtom = useMemo(() => selectAtom(settingsStateAtom, (state) => state.vrchatLogsFound), [settingsStateAtom]);
+    const oscqueryStatusAtom = useMemo(() => selectAtom(settingsStateAtom, (state) => state.oscqueryStatus), [settingsStateAtom]);
+    const oscStatusAtom = useMemo(() => selectAtom(settingsStateAtom, (state) => state.oscStatus), [settingsStateAtom]);
+    const mdnsWorkingAtom = useMemo(() => selectAtom(settingsStateAtom, (state) => state.mdnsWorking), [settingsStateAtom]);
     const importedAllDeletesAtAtom = useMemo(() => selectAtom(settingsStateAtom, (state) => state.importedAllDeletesAt), [settingsStateAtom]);
     const detectedVrcConfigDirAtom = useMemo(() => selectAtom(settingsStateAtom, (state) => state.detectedVrcConfigDir), [settingsStateAtom]);
     const configuredOutputIdSetAtom = useMemo(
@@ -116,6 +119,17 @@ function SettingsBody({
     const configuredOutputCount = useAtomValue(configuredOutputCountAtom);
     const intifaceConnected = useAtomValue(intifaceConnectedAtom);
     const vrchatConnected = useAtomValue(vrchatConnectedAtom);
+    const hasSpsZones = useAtomValue(hasSpsZonesAtom);
+    const outdatedAvatarDetected = useAtomValue(outdatedAvatarDetectedAtom);
+    const vrchatOscEnabledWarning = useAtomValue(vrchatOscEnabledWarningAtom);
+    const vrchatSelfInteractWarning = useAtomValue(vrchatSelfInteractWarningAtom);
+    const vrchatEveryoneInteractWarning = useAtomValue(vrchatEveryoneInteractWarningAtom);
+    const vrchatOscStartupWarning = useAtomValue(vrchatOscStartupWarningAtom);
+    const vrchatOscStartupWarningText = useAtomValue(vrchatOscStartupWarningTextAtom);
+    const vrchatLogsFound = useAtomValue(vrchatLogsFoundAtom);
+    const oscqueryStatus = useAtomValue(oscqueryStatusAtom);
+    const oscStatus = useAtomValue(oscStatusAtom);
+    const mdnsWorking = useAtomValue(mdnsWorkingAtom);
     const importedAllDeletesAt = useAtomValue(importedAllDeletesAtAtom);
     const detectedVrcConfigDir = useAtomValue(detectedVrcConfigDirAtom);
     const configuredSortedOutputs = useAtomValue(configuredSortedOutputsAtom);
@@ -142,109 +156,53 @@ function SettingsBody({
     } else {
         intifaceWarning = undefined;
     }
+    const vrchatWarning = vrchatConnected && !hasSpsZones;
+    const hasVrchatWarnings = vrchatWarning
+        || vrchatOscEnabledWarning
+        || vrchatSelfInteractWarning
+        || vrchatEveryoneInteractWarning
+        || outdatedAvatarDetected
+        || vrchatOscStartupWarning
+        || !vrchatLogsFound
+        || oscqueryStatus !== 'success'
+        || oscStatus !== 'connected'
+        || !mdnsWorking;
 
     return (
         <Stack spacing={0}>
-            <MyAccordion
+            <IntifaceSettingsSection
                 expanded={intifaceExpanded}
                 onChange={setIntifaceExpanded}
-                summary={
-                    <Stack direction="row" spacing={1} alignItems="center">
-                        <ConnectionBubble color={intifaceConnected ? intifaceWarning ? 'warning.main' : 'success.main' : 'error.main'} />
-                        <Typography variant="h6">Initiface</Typography>
-                    </Stack>
-                }
-            >
-                <Stack spacing={2}>
-                    {intifaceWarning && (
-                        <Alert severity="warning">{intifaceWarning}</Alert>
-                    )}
-                    <TextCommitInput
-                        value={intifaceAddress ?? ''}
-                        label="Server Address"
-                        placeholder="ws://localhost:12345"
-                        onCommit={setIntifaceAddress}
-                    />
-                </Stack>
-            </MyAccordion>
+                intifaceConnected={intifaceConnected}
+                intifaceWarning={intifaceWarning}
+                intifaceAddress={intifaceAddress ?? ''}
+                onIntifaceAddressCommit={setIntifaceAddress}
+            />
 
-            <MyAccordion
+            <VrchatSettingsSection
                 expanded={vrchatExpanded}
                 onChange={setVrchatExpanded}
-                summary={
-                    <Stack direction="row" spacing={1} alignItems="center">
-                        <ConnectionBubble color={vrchatConnected ? 'success.main' : 'error.main'} />
-                        <Typography variant="h6">VRChat</Typography>
-                    </Stack>
-                }
-            >
-                <Stack spacing={2}>
-                    <TextCommitInput
-                        value={maxLevelParam ?? ''}
-                        label="Send Max Level to Avatar Controller Parameter"
-                        placeholder="Parameter Name"
-                        onCommit={setMaxLevelParam}
-                    />
-                    <TextCommitInput
-                        value={vrcConfigDir ?? ''}
-                        label="VRChat Config Directory"
-                        placeholder="Auto-detected"
-                        helperText={`Detected: ${detectedVrcConfigDir ?? 'Not found'}`}
-                        onCommit={setVrcConfigDir}
-                    />
-                    <Stack spacing={1.25}>
-                        <Typography variant="subtitle2">OSC Proxy</Typography>
-                        {oscProxy.length === 0 && (
-                            <TextField
-                                size="small"
-                                fullWidth
-                                spellCheck={false}
-                                value=""
-                                placeholder="No proxy targets configured."
-                                disabled
-                            />
-                        )}
-                        {oscProxy.map((port, index) => (
-                            <TextCommitInput
-                                key={index}
-                                label={`Target ${index + 1}`}
-                                value={port}
-                                placeholder="ip:port"
-                                onCommit={value => {
-                                    setOscProxy(produce(oscProxy, draft => replaceAt(draft, index, value)));
-                                }}
-                                endAdornment={
-                                    <InputAdornment position="end">
-                                        <IconButton
-                                            color="error"
-                                            aria-label={`Remove target ${index + 1}`}
-                                            onClick={() => setOscProxy(produce(oscProxy, draft => removeAt(draft, index)))}
-                                            edge="end"
-                                            size="small"
-                                            sx={{
-                                                width: 28,
-                                                height: 28,
-                                                borderRadius: '50%',
-                                            }}
-                                        >
-                                            <CloseIcon fontSize="small" />
-                                        </IconButton>
-                                    </InputAdornment>
-                                }
-                            />
-                        ))}
-                        <Box>
-                            <Button
-                                variant="outlined"
-                                sx={{textTransform: 'none'}}
-                                onClick={() => setOscProxy(produce(oscProxy, draft => pushItem(draft, '')))}
-                            >
-                                Add target
-                            </Button>
-                        </Box>
-                    </Stack>
-                </Stack>
-            </MyAccordion>
+                vrchatConnected={vrchatConnected}
+                hasVrchatWarnings={hasVrchatWarnings}
+                vrchatWarning={vrchatWarning}
+                outdatedAvatarDetected={outdatedAvatarDetected}
+                vrchatOscEnabledWarning={vrchatOscEnabledWarning}
+                vrchatSelfInteractWarning={vrchatSelfInteractWarning}
+                vrchatEveryoneInteractWarning={vrchatEveryoneInteractWarning}
+                vrchatOscStartupWarning={vrchatOscStartupWarning}
+                vrchatOscStartupWarningText={vrchatOscStartupWarningText}
+                vrchatLogsFound={vrchatLogsFound}
+                oscqueryStatus={oscqueryStatus}
+                oscStatus={oscStatus}
+                mdnsWorking={mdnsWorking}
+                maxLevelParam={maxLevelParam ?? ''}
+                onMaxLevelParamCommit={setMaxLevelParam}
+                vrcConfigDir={vrcConfigDir ?? ''}
+                detectedVrcConfigDir={detectedVrcConfigDir}
+                onVrcConfigDirCommit={setVrcConfigDir}
+                oscProxy={oscProxy}
+                onSetOscProxy={setOscProxy}
+            />
 
             {configuredSortedOutputs.map((outputAtom) => {
                 return (

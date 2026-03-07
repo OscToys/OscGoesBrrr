@@ -17,6 +17,7 @@ import {Protocol} from "@homebridge/ciao";
 import { getResponder } from "@homebridge/ciao";
 import Bonjour from "bonjour-service";
 import TypedEventEmitter from "../common/TypedEventEmitter";
+import {OscStatus} from "../common/ipcContract";
 
 type MyEvents = {
     add: (key: string, value: OscValue) => void,
@@ -39,7 +40,9 @@ export default class OscConnection extends TypedEventEmitter<MyEvents> {
     socketopen = false;
     public port: number = 0;
     private shutdown: (()=>void)[] = [];
-    public useOscQuery: boolean = true;
+    private mdnsWorking = true;
+    private mdnsWatchdogTimeout?: NodeJS.Timeout;
+    private hasReceivedPacketSinceOpen = false;
 
     constructor(
         private myAddresses: MyAddressesService,
@@ -67,9 +70,10 @@ export default class OscConnection extends TypedEventEmitter<MyEvents> {
             type: "oscjson",
             protocol: "tcp"
         });
-        const mdnsTimeout = setTimeout(() => {
+        this.mdnsWatchdogTimeout = setTimeout(() => {
             this.logger.log("Mdns watchdog timed out! Mdns must not work on this machine. Reverting to legacy port 9001 mode.");
-            this.useOscQuery = false;
+            this.mdnsWatchdogTimeout = undefined;
+            this.mdnsWorking = false;
             this.openSocket();
         }, 5000);
         mdnsBrowser.on('up', service => {
@@ -78,7 +82,10 @@ export default class OscConnection extends TypedEventEmitter<MyEvents> {
             if (!ip) return;
             if (!this.myAddresses.has(ip)) return;
             this.logger.log("Mdns watchdog found own oscquery announcement");
-            clearTimeout(mdnsTimeout);
+            if (this.mdnsWatchdogTimeout) {
+                clearTimeout(this.mdnsWatchdogTimeout);
+                this.mdnsWatchdogTimeout = undefined;
+            }
             mdns.destroy();
         })
     }
@@ -138,6 +145,7 @@ export default class OscConnection extends TypedEventEmitter<MyEvents> {
         this.waitingForBulk = false;
         this.hasBulkSinceAvatarChange = false;
         this.isStale = true;
+        this.hasReceivedPacketSinceOpen = false;
         this.clearStaleTimer();
         this.clearValues();
         for(const s of this.shutdown) { s(); }
@@ -145,14 +153,14 @@ export default class OscConnection extends TypedEventEmitter<MyEvents> {
         this.recomputeEntriesVisibility();
 
         let port = 9001;
-        if (this.useOscQuery) {
+        if (this.mdnsWorking) {
             port = this.port = await portfinder.getPortPromise({
                 port: 33776,
             });
         }
         this.logger.log(`Selected port: ${port}`);
 
-        if (this.useOscQuery) {
+        if (this.mdnsWorking) {
             this.logger.log(`Starting OSCQuery handler...`);
             const oscQuery = this.oscQuery = new OSCQueryServer({
                 httpPort: port,
@@ -239,6 +247,11 @@ export default class OscConnection extends TypedEventEmitter<MyEvents> {
             //this.log(`Received OSC packet from: ${from}`);
             if (!receivedOne) {
                 receivedOne = true;
+                this.hasReceivedPacketSinceOpen = true;
+                if (this.mdnsWatchdogTimeout) {
+                    clearTimeout(this.mdnsWatchdogTimeout);
+                    this.mdnsWatchdogTimeout = undefined;
+                }
                 this.logger.log("Received an OSC message. We are probably connected.");
                 this.updateBulk();
             }
@@ -386,6 +399,40 @@ export default class OscConnection extends TypedEventEmitter<MyEvents> {
         for (const [key, value] of this._entries.entries()) {
             this.emit('add', key, value);
         }
+    }
+
+    getStatusSnapshot(): {
+        status: OscStatus;
+        mdnsWorking: boolean;
+        oscqueryWaitingForBulk: boolean;
+    } {
+        const oscqueryWaitingForBulk = this.waitingForBulk || !this.hasBulkSinceAvatarChange;
+        if (!this.socketopen) {
+            return {
+                status: 'socketStarting',
+                mdnsWorking: this.mdnsWorking,
+                oscqueryWaitingForBulk,
+            };
+        }
+        if (!this.hasReceivedPacketSinceOpen) {
+            return {
+                status: 'waitingForFirstPacket',
+                mdnsWorking: this.mdnsWorking,
+                oscqueryWaitingForBulk,
+            };
+        }
+        if (this.isStale) {
+            return {
+                status: 'stale',
+                mdnsWorking: this.mdnsWorking,
+                oscqueryWaitingForBulk,
+            };
+        }
+        return {
+            status: 'connected',
+            mdnsWorking: this.mdnsWorking,
+            oscqueryWaitingForBulk,
+        };
     }
 }
 

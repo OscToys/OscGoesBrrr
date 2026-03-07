@@ -27,7 +27,9 @@ import ArrowDropDownIcon from "@mui/icons-material/ArrowDropDown";
 import CloseIcon from "@mui/icons-material/Close";
 import MyAccordion from "../util/MyAccordion";
 import {pushItem, removeAt} from "../../../common/arrayDraft";
-import {type PrimitiveAtom, useAtom} from "jotai";
+import {type PrimitiveAtom, useAtom, useAtomValue} from "jotai";
+import {selectAtom} from "jotai/utils";
+import {useSettingsStateAtom} from "./SettingsStateAtomContext";
 
 type SpsLink = OutputLinkVrchatSpsPlug | OutputLinkVrchatSpsSocket;
 type SpsFeature = {
@@ -40,14 +42,31 @@ function isSpsLink(link: OutputLink): link is OutputLinkVrchatSpsPlug | OutputLi
 
 interface Props {
     linkAtom: PrimitiveAtom<OutputLink>;
+    activeLevel: number;
     labelMap: Map<OutputLinkKind, {kind: OutputLinkKind, label: string}>;
     removeLink: (linkAtom: PrimitiveAtom<OutputLink>) => void;
 }
 
-function OutputLinkEditor({linkAtom, labelMap, removeLink}: Props) {
+function OutputLinkEditor({linkAtom, activeLevel, labelMap, removeLink}: Props) {
     const [expanded, setExpanded] = useState(false);
     const [addMutatorMenuAnchor, setAddMutatorMenuAnchor] = React.useState<HTMLElement | null>(null);
     const [link, setLink] = useAtom(linkAtom);
+    const settingsStateAtom = useSettingsStateAtom();
+    const plugIdSuggestionsAtom = React.useMemo(
+        () => selectAtom(settingsStateAtom, (state) => state.detectedSpsPlugIds),
+        [settingsStateAtom],
+    );
+    const socketIdSuggestionsAtom = React.useMemo(
+        () => selectAtom(settingsStateAtom, (state) => state.detectedSpsSocketIds),
+        [settingsStateAtom],
+    );
+    const touchZoneIdSuggestionsAtom = React.useMemo(
+        () => selectAtom(settingsStateAtom, (state) => state.detectedSpsTouchZoneIds),
+        [settingsStateAtom],
+    );
+    const plugIdSuggestions = useAtomValue(plugIdSuggestionsAtom);
+    const socketIdSuggestions = useAtomValue(socketIdSuggestionsAtom);
+    const touchZoneIdSuggestions = useAtomValue(touchZoneIdSuggestionsAtom);
     const label = labelMap.get(link.kind)?.label ?? link.kind;
     const formatPercent = (fraction: number) => Math.round(fraction * 100000) / 1000;
     const updateSpsFeature = (feature: SpsFeature, enabled: boolean) => {
@@ -140,7 +159,11 @@ function OutputLinkEditor({linkAtom, labelMap, removeLink}: Props) {
             link.kind === 'vrchat.sps.plug' ? 'Plug'
             : link.kind === 'vrchat.sps.socket' ? 'Socket'
             : 'Touch Zone';
-        return {filter: link.filter, itemLabel};
+        const suggestions =
+            link.kind === 'vrchat.sps.plug' ? plugIdSuggestions
+            : link.kind === 'vrchat.sps.socket' ? socketIdSuggestions
+            : touchZoneIdSuggestions;
+        return {filter: link.filter, itemLabel, suggestions};
     })();
     const summarizeFilter = (allLabel: string, include: string[], exclude: string[]) => {
         const includeItems = include.map(value => value.trim()).filter(Boolean);
@@ -172,6 +195,7 @@ function OutputLinkEditor({linkAtom, labelMap, removeLink}: Props) {
     })();
 
     const isPlug = link.kind === 'vrchat.sps.plug';
+    const activePercentLabel = activeLevel > 0 ? ` (${Math.round(activeLevel * 100)}%)` : '';
 
     return (
         <MyAccordion
@@ -183,7 +207,7 @@ function OutputLinkEditor({linkAtom, labelMap, removeLink}: Props) {
             summary={
                 <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{width: '100%'}}>
                     <Stack direction="row" spacing={1} alignItems="center" sx={{minWidth: 0, flex: 1}}>
-                        <Typography variant="subtitle2">{label}</Typography>
+                        <Typography variant="subtitle2">{label}{activePercentLabel}</Typography>
                     </Stack>
                     {!expanded && summaryDetail && (
                         <Typography variant="body2" color="text.secondary" sx={{minWidth: 0, mr: 1}} noWrap>{summaryDetail}</Typography>

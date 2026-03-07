@@ -21,6 +21,7 @@ import {type PrimitiveAtom, useAtomValue} from "jotai";
 import {selectAtom} from "jotai/utils";
 import typia from "typia";
 import useIpcBackedCache from "./useIpcBackedCache";
+import {SettingsStateAtomProvider} from "./SettingsStateAtomContext";
 
 export default function Settings() {
     type ResetTarget = 'config' | 'backendData';
@@ -101,12 +102,17 @@ export default function Settings() {
                 {!hasConfigData && !loadError && (
                     <Alert severity="info">Loading configuration...</Alert>
                 )}
+                {hasConfigData && !hasSettingsStateData && !stateLoadError && (
+                    <Alert severity="info">Loading settings state...</Alert>
+                )}
 
                 {hasConfigData && hasSettingsStateData && !loadError && !stateLoadError && (
-                    <SettingsBody
-                        configAtom={configAtom as PrimitiveAtom<Config>}
-                        settingsStateAtom={settingsStateAtom as PrimitiveAtom<SettingsStatePayload>}
-                    />
+                    <SettingsStateAtomProvider atom={settingsStateAtom as PrimitiveAtom<SettingsStatePayload>}>
+                        <SettingsBody
+                            configAtom={configAtom as PrimitiveAtom<Config>}
+                            settingsStateAtom={settingsStateAtom as PrimitiveAtom<SettingsStatePayload>}
+                        />
+                    </SettingsStateAtomProvider>
                 )}
             </Stack>
 

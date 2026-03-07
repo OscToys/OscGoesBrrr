@@ -101,8 +101,8 @@ export default function useIpcBackedCache<T>({
                     return;
                 }
                 applyRemoteData(result.data);
-            } catch {
-                // Ignore malformed payloads.
+            } catch (e) {
+                setLoadError(e instanceof Error ? e.message : String(e));
             }
         });
         void requestData();

@@ -17,6 +17,7 @@ import VrchatLogFinder from "./services/VrchatLogFinder";
 import BackendDataService from "./services/BackendDataService";
 import ImportedOutputPromotionService from "./services/migrate/ImportedOutputPromotionService";
 import {handleIpc} from "./ipc";
+import {OscqueryStatus} from "../common/ipcContract";
 import type {ButtplugFeatureInformation, Device, IntifaceDeviceFeatureSelection} from "./ButtplugSpec";
 import {configurePortableDataPaths} from "./portableData";
 
@@ -53,48 +54,18 @@ const vrchatLogFinder = container.get(VrchatLogFinder);
 const butt = container.get(Buttplug);
 const bridge = container.get(Bridge);
 
-handleIpc('bioStatus:get', async () => {
-    let bioStatus = '';
-    if (butt.wsReady()) {
-        const devices = Array.from(bridge.getOutputs()).map(outputDevice => outputDevice.getStatus());
-        devices.sort();
-        let devicesStr;
-        if (devices.length) {
-            devicesStr = devices.join('\n');
-        } else {
-            devicesStr = 'None';
-        }
-        bioStatus = 'Connected to Intiface!\nConnected Devices:\n' + devicesStr;
-    } else {
-        bioStatus = 'Not connected to Intiface.\nIs Intiface running?\nDid you click Start Server?';
-    }
-    return bioStatus;
-});
-
 handleIpc('oscStatus:get', async () => {
 
     const gameDevices = Array.from(bridge.getGameDevices());
+    const oscStatusSnapshot = oscConnection.getStatusSnapshot();
     const sections: string[] = [];
-
-    if (vrcConfigCheck.oscEnabled === false) {
-        sections.push(`OSC is disabled in your game.\nEnable it in the radial menu:\nOptions > OSC > Enabled`);
-    }
-    if (vrcConfigCheck.selfInteractEnabled === false) {
-        sections.push('Self-Interaction is disabled in your game.\nThis breaks many OGB features.\nEnable it in the quick menu:\nSettings > Avatar Interactions > Self Interact');
-    }
-    if (vrcConfigCheck.everyoneInteractEnabled === false) {
-        sections.push('Interaction is not set to everyone in game.\nEnable it in the quick menu:\nSettings > Avatar Interactions > Everyone');
-    }
-    if (logScanner.failure) {
-        sections.push(`VRChat's log indicated that it failed to start OSC:\n${logScanner.failure}`);
-    }
 
     if (!oscConnection || !oscConnection.socketopen) {
         sections.push(`OSC socket is starting ...`);
     } else {
         sections.push(
             `OGB OSC: ${oscConnection.port}\n`
-            + `OGB OSCQ: ${oscConnection.useOscQuery ? 'Enabled' : 'Disabled'}\n`
+            + `OGB OSCQ: ${oscStatusSnapshot.mdnsWorking ? 'Enabled' : 'Disabled'}\n`
             + `VRC OSC: ${vrchatOscqueryService.getOscAddress()?.join(':')}\n`
             + `VRC OSCQ: ${vrchatOscqueryService.getOscqueryAddress()?.join(':')}`
         );
@@ -134,14 +105,6 @@ handleIpc('oscStatus:get', async () => {
         sections.push(gameDeviceStatuses.join('\n'));
     }
 
-    const globalSources = bridge.getGlobalSources(false);
-    if (globalSources.length > 0) {
-        const globalSourcesLines = globalSources
-                .map(source => source.deviceType + '.' + source.deviceName + '.' + source.featureName + '=' + source.value);
-        globalSourcesLines.sort();
-        sections.push("Other sources:\n" + globalSourcesLines.join('\n'));
-    }
-
     return sections.join('\n\n');
 });
 
@@ -168,13 +131,41 @@ handleIpc('settings-state:request', async () => {
     const vrchatConnected = oscConnection.isGameOpenAndActive();
     const detectedVrcConfigDir = await vrchatLogFinder.getDetectedVrcConfigDir();
     const connectedOutputDevices = Array.from(bridge.getOutputs());
+    const gameDevices = Array.from(bridge.getGameDevices());
+    const hasSpsZones = gameDevices.some(device => device.type === 'Pen' || device.type === 'Orf' || device.type === 'Touch');
+    const detectedSpsPlugIds = Array.from(new Set(gameDevices.filter(device => device.type === 'Pen').map(device => device.id))).sort();
+    const detectedSpsSocketIds = Array.from(new Set(gameDevices.filter(device => device.type === 'Orf').map(device => device.id))).sort();
+    const detectedSpsTouchZoneIds = Array.from(new Set(gameDevices.filter(device => device.type === 'Touch').map(device => device.id))).sort();
     const history = await backendDataService.getAllDeviceHistory();
     const importedAllDeletesAt = await importedOutputPromotionService.getImportedAllDeletionTime();
+    const oscStatusSnapshot = oscConnection.getStatusSnapshot();
+    const oscqueryStatus = vrchatOscqueryService.getStatus();
+    const ogbOscPort = oscConnection.socketopen ? (oscStatusSnapshot.mdnsWorking ? oscConnection.port : 9001) : undefined;
+    const ogbOscqueryPort = oscStatusSnapshot.mdnsWorking ? oscConnection.port : undefined;
+    const vrcOscPort = vrchatOscqueryService.getOscAddress()?.[1];
+    const vrcOscqueryPort = vrchatOscqueryService.getOscqueryAddress()?.[1];
+
+    const hasVrcfHaptics = gameDevices.some(device => device.type == 'Pen' || device.type == 'Orf');
+    let isVrcfHapticsUpToDate = false;
+    for (const [key] of oscConnection.entries()) {
+        if (key == "VFH/Version/9"
+                || key == "VFH/Version/10"
+                || (key.startsWith("OGB/Pen/") && key.endsWith("/Version/8"))
+                || (key.startsWith("OGB/Orf/") && key.endsWith("/Version/9"))
+        ) {
+            isVrcfHapticsUpToDate = true;
+            break;
+        }
+    }
+    const outdatedAvatarDetected = hasVrcfHaptics && !isVrcfHapticsUpToDate;
+
     const result = new Map<string, {
         id: string,
         name: string,
         connected: boolean,
         showLinearActuatorOptions: boolean,
+        currentLevel: number,
+        lastSources: number[],
     }>();
     const naming = new Map<string, {
         deviceName: string,
@@ -206,6 +197,8 @@ handleIpc('settings-state:request', async () => {
             name: id,
             connected: false,
             showLinearActuatorOptions: item.intiface.selectedOutput === 'Position' || item.intiface.selectedOutput === 'PositionWithDuration',
+            currentLevel: 0,
+            lastSources: [],
         });
         naming.set(id, getNaming(item.intiface, id));
     }
@@ -216,6 +209,8 @@ handleIpc('settings-state:request', async () => {
             name: id,
             connected: true,
             showLinearActuatorOptions: outputDevice.bioFeature.type === 'linear',
+            currentLevel: outputDevice.getCurrentLevel(),
+            lastSources: outputDevice.getLastSources(),
         });
         naming.set(id, getNaming(outputDevice.bioFeature.intiface, id));
     }
@@ -273,6 +268,24 @@ handleIpc('settings-state:request', async () => {
             outputs: entries,
             intifaceConnected,
             vrchatConnected,
+            hasSpsZones,
+            outdatedAvatarDetected,
+            vrchatOscEnabledWarning: vrcConfigCheck.oscEnabled === false,
+            vrchatSelfInteractWarning: vrcConfigCheck.selfInteractEnabled === false,
+            vrchatEveryoneInteractWarning: vrcConfigCheck.everyoneInteractEnabled === false,
+            vrchatOscStartupWarning: Boolean(logScanner.failure),
+            vrchatOscStartupWarningText: logScanner.failure,
+            vrchatLogsFound: vrchatOscqueryService.getLogsFound(),
+            oscqueryStatus,
+            oscStatus: oscStatusSnapshot.status,
+            mdnsWorking: oscStatusSnapshot.mdnsWorking,
+            ogbOscPort,
+            ogbOscqueryPort,
+            vrcOscPort,
+            vrcOscqueryPort,
+            detectedSpsPlugIds,
+            detectedSpsSocketIds,
+            detectedSpsTouchZoneIds,
             importedAllDeletesAt,
             detectedVrcConfigDir,
         },

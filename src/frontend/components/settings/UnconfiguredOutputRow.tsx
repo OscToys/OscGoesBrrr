@@ -14,6 +14,7 @@ function UnconfiguredOutputRow({outputAtom, linkOutputAtom}: Props) {
     const output = useAtomValue(outputAtom);
     const linkOutput = useSetAtom(linkOutputAtom);
     if (!output) return null;
+    const outputPercentLabel = output.currentLevel > 0 ? ` (${Math.round(output.currentLevel * 100)}%)` : '';
     return (
         <MyAccordion
             expanded={false}
@@ -22,7 +23,7 @@ function UnconfiguredOutputRow({outputAtom, linkOutputAtom}: Props) {
                 <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{width: '100%'}}>
                     <Stack direction="row" spacing={1} alignItems="center">
                         <ConnectionBubble color="success.main" />
-                        <Typography variant="h6">{output.name || output.id}</Typography>
+                        <Typography variant="h6">{output.name || output.id}{outputPercentLabel}</Typography>
                     </Stack>
                     <Stack direction="row" spacing={1} alignItems="center">
                         <Typography variant="body2" color="text.secondary">{output.id}</Typography>

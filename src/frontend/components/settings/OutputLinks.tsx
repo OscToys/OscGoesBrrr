@@ -6,11 +6,12 @@ import {pushItem} from "../../../common/arrayDraft";
 import AddIcon from "@mui/icons-material/Add";
 import OutputLinkEditor from "./OutputLinkEditor";
 import MyAccordion from "../util/MyAccordion";
-import {type PrimitiveAtom, useAtomValue, useSetAtom} from "jotai";
+import {type Atom, type PrimitiveAtom, useAtomValue, useSetAtom} from "jotai";
 import {splitAtom} from "jotai/utils";
 
 interface Props {
     linksAtom: PrimitiveAtom<OutputLink[]>;
+    linkLevelsAtom: Atom<number[]>;
 }
 
 const LINK_OPTIONS: {kind: OutputLinkKind, label: string}[] = [
@@ -23,7 +24,7 @@ const LINK_OPTIONS: {kind: OutputLinkKind, label: string}[] = [
 ];
 const LINK_OPTION_MAP = new Map(LINK_OPTIONS.map(option => [option.kind, option]));
 
-function OutputLinks({linksAtom}: Props) {
+function OutputLinks({linksAtom, linkLevelsAtom}: Props) {
     const [addLinkMenuAnchor, setAddLinkMenuAnchor] = useState<HTMLElement | null>(null);
     const linkAtomsAtom = useMemo(
         () => splitAtom(linksAtom),
@@ -31,6 +32,7 @@ function OutputLinks({linksAtom}: Props) {
     );
     const setLinks = useSetAtom(linksAtom);
     const linkAtoms = useAtomValue(linkAtomsAtom);
+    const linkLevels = useAtomValue(linkLevelsAtom);
     const dispatchLinkAtoms = useSetAtom(linkAtomsAtom);
     const removeLink = useCallback((linkAtom: PrimitiveAtom<OutputLink>) => {
         dispatchLinkAtoms({type: 'remove', atom: linkAtom});
@@ -59,11 +61,12 @@ function OutputLinks({linksAtom}: Props) {
 
     return (
         <Stack spacing={0}>
-            {linkAtoms.map((linkAtom) => {
+            {linkAtoms.map((linkAtom, index) => {
                 return (
                     <OutputLinkEditor
                         key={linkAtom.toString()}
                         linkAtom={linkAtom}
+                        activeLevel={linkLevels[index] ?? 0}
                         labelMap={LINK_OPTION_MAP}
                         removeLink={removeLink}
                     />

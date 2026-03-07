@@ -71,22 +71,6 @@ export default class Bridge {
         this.gameDevices.clear();
     }
 
-    getGlobalSources(includeGameDevices = true) {
-        const sources: BridgeSource[] = [];
-
-        if (includeGameDevices) {
-            for (const gameDevice of this.getGameDevices()) {
-                sources.push(...gameDevice.getSources());
-            }
-        }
-
-        if (this.lastFftReceived > Date.now() - 1000) {
-            sources.push(new BridgeSource('audio', 'audio', 'audio', this.fftValue));
-        }
-
-        return sources;
-    }
-
     getGameDevices() {
         const allGameDevices = Array.from(this.gameDevices.values());
         const hasOGBDevice = allGameDevices.some(device => !device.isTps);
@@ -100,10 +84,10 @@ export default class Bridge {
 
     pushToBio() {
         let maxLevel = 0;
-
-        const globalSources = this.getGlobalSources();
+        const gameDevices = this.getGameDevices();
+        const audioLevel = this.lastFftReceived > Date.now() - 1000 ? this.fftValue : undefined;
         for (const output of this.outputs) {
-           output.pushToBio(globalSources);
+           output.pushToBio(gameDevices, audioLevel);
            maxLevel = Math.max(maxLevel, output.lastLevel);
         }
 
@@ -152,20 +136,15 @@ export class BridgeSource {
         this.value = value;
     }
 
-    getUniqueKey() {
-        return this.deviceType+"__"+this.deviceName+"__"+this.featureName;
-    }
 }
 
 interface RelevantSource {
-    key: string;
-    source: BridgeSource;
     value: number;
     motionBased: boolean;
 }
 
 export class BridgeOutput {
-    private lastSources: Map<string,{source: BridgeSource, value: number}> = new Map();
+    private lastSources: Array<number | undefined> = [];
     public lastLevel = 0;
     private lastPushTime = 0;
     private linearTarget = 0;
@@ -211,7 +190,7 @@ export class BridgeOutput {
         return clamp(out, 0, 1);
     }
 
-    getRelevantSources(globalSources: BridgeSource[], config: Output): RelevantSource[] {
+    getRelevantSources(gameDevices: GameDevice[], audioLevel: number | undefined, config: Output): RelevantSource[] {
         const links = config.links;
         const shouldInclude = (name: string, filter: OutputLinkFilter) => {
             const includeSet = new Set(filter.include.map(value => value.trim()).filter(Boolean));
@@ -238,73 +217,62 @@ export class BridgeOutput {
         ) => {
             return shouldInclude(source.deviceName, link.filter);
         };
-        const sources: RelevantSource[] = [];
         const entries = this.osc.entries();
-        for (let linkIndex = 0; linkIndex < links.length; linkIndex++) {
-            const link = links[linkIndex]!;
+        return links.map((link) => {
             if (link.kind === 'constant') {
-                if (this.bioFeature.type === 'linear') continue;
-                const source = new BridgeSource('raw', 'constant', 'constant', link.level);
-                sources.push({
-                    key: `link:${linkIndex}__constant`,
-                    source,
-                    value: source.value,
+                if (this.bioFeature.type === 'linear') return {value: 0, motionBased: false};
+                return {
+                    value: link.level,
                     motionBased: false,
-                });
-                continue;
+                };
             }
             if (link.kind === 'systemAudio') {
-                for (const source of globalSources) {
-                    if (source.deviceType !== 'audio') continue;
-                    if (this.bioFeature.type === 'linear') continue;
-                    const transformed = this.applyMutators(source.value, link.mutators);
-                    sources.push({
-                        key: `link:${linkIndex}__${source.getUniqueKey()}`,
-                        source: new BridgeSource(source.deviceType, source.deviceName, source.featureName, transformed),
-                        value: transformed,
-                        motionBased: false,
-                    });
-                }
-                continue;
+                if (this.bioFeature.type === 'linear') return {value: 0, motionBased: false};
+                const rawAudio = audioLevel ?? 0;
+                const transformed = this.applyMutators(rawAudio, link.mutators);
+                return {
+                    value: transformed,
+                    motionBased: false,
+                };
             }
             if (link.kind === 'vrchat.avatarParameter') {
                 const parameter = link.parameter.trim();
-                if (!parameter) continue;
+                if (!parameter) return {value: 0, motionBased: false};
                 const valueUnknown = entries.get(parameter)?.get();
                 const raw = (typeof valueUnknown == 'number') ? valueUnknown : 0;
                 const transformed = this.applyMutators(raw, link.mutators);
-                sources.push({
-                    key: `link:${linkIndex}__raw__${parameter}`,
-                    source: new BridgeSource('raw', 'raw', `avatar:${parameter}`, transformed),
+                return {
                     value: transformed,
                     motionBased: this.hasMotionBased(link.mutators),
-                });
-                continue;
+                };
             }
-            for (const source of globalSources) {
-                if (source.deviceType === 'audio') continue;
-                let matches = false;
-                if (link.kind === 'vrchat.sps.plug' && source.deviceType === 'pen') {
-                    matches = matchesSpsLink(source, link);
-                } else if (link.kind === 'vrchat.sps.socket' && source.deviceType === 'orf') {
-                    matches = matchesSpsLink(source, link);
-                } else if (link.kind === 'vrchat.sps.touch' && source.deviceType === 'touch') {
-                    matches = matchesTouchLink(source, link);
+            let best: RelevantSource = {value: 0, motionBased: this.hasMotionBased(link.mutators)};
+            for (const gameDevice of gameDevices) {
+                for (const source of gameDevice.getSources()) {
+                    let matches = false;
+                    if (link.kind === 'vrchat.sps.plug' && source.deviceType === 'pen') {
+                        matches = matchesSpsLink(source, link);
+                    } else if (link.kind === 'vrchat.sps.socket' && source.deviceType === 'orf') {
+                        matches = matchesSpsLink(source, link);
+                    } else if (link.kind === 'vrchat.sps.touch' && source.deviceType === 'touch') {
+                        matches = matchesTouchLink(source, link);
+                    }
+                    if (!matches) continue;
+                    const transformed = this.applyMutators(source.value, link.mutators);
+                    const candidate: RelevantSource = {
+                        value: transformed,
+                        motionBased: this.hasMotionBased(link.mutators),
+                    };
+                    if (candidate.value > best.value) {
+                        best = candidate;
+                    }
                 }
-                if (!matches) continue;
-                const transformed = this.applyMutators(source.value, link.mutators);
-                sources.push({
-                    key: `link:${linkIndex}__${source.getUniqueKey()}`,
-                    source: new BridgeSource(source.deviceType, source.deviceName, source.featureName, transformed),
-                    value: transformed,
-                    motionBased: this.hasMotionBased(link.mutators),
-                });
             }
-        }
-        return sources;
+            return best;
+        });
     }
 
-    pushToBio(globalSources: BridgeSource[]) {
+    pushToBio(gameDevices: GameDevice[], audioLevel: number | undefined) {
         const now = Date.now();
         const timeDeltaReal = now - this.lastPushTime;
         const config = this.getConfig();
@@ -312,15 +280,16 @@ export class BridgeOutput {
         if (updatesPerSecond > 0 && timeDeltaReal < (1000 / updatesPerSecond)) return;
         const timeDelta = clamp(timeDeltaReal, 0, 250); // safety limited
 
-        const sources = this.getRelevantSources(globalSources, config);
+        const sources = this.getRelevantSources(gameDevices, audioLevel, config);
         let level = 0;
         let motionBasedBackward = false;
-        for (const source of sources) {
+        for (let linkIndex = 0; linkIndex < sources.length; linkIndex++) {
+            const source = sources[linkIndex] ?? {value: 0, motionBased: false};
             const value = source.value;
             if (this.bioFeature.type == 'linear') {
                 level = Math.max(level, value);
             } else if (source.motionBased) {
-                const lastValue = this.lastSources.get(source.key)?.value;
+                const lastValue = this.lastSources[linkIndex];
                 if (lastValue !== undefined) {
                     const delta = value - lastValue;
                     const diffPerSecond = Math.abs(delta) / timeDelta * 1000;
@@ -438,9 +407,10 @@ export class BridgeOutput {
         }
 
         this.lastLevel = this.bioFeature.lastLevel;
-        this.lastSources.clear();
-        for (const source of sources) {
-            this.lastSources.set(source.key, {source: source.source, value: source.value});
+        this.lastSources = [];
+        for (let linkIndex = 0; linkIndex < sources.length; linkIndex++) {
+            const source = sources[linkIndex] ?? {value: 0, motionBased: false};
+            this.lastSources[linkIndex] = source.value;
         }
         this.lastPushTime = now;
     }
@@ -454,12 +424,21 @@ export class BridgeOutput {
         lines.push(`${this.bioFeature.id} = ${Math.round(this.lastLevel*100)}%`);
 
         const sourceLines = [];
-        for (const sourceEntry of this.lastSources.values()) {
-            const source = sourceEntry.source;
-            sourceLines.push(`  ${source.deviceType}.${source.deviceName}.${source.featureName} = ${Math.round(sourceEntry.value*100)}%`);
+        for (let linkIndex = 0; linkIndex < this.lastSources.length; linkIndex++) {
+            const sourceValue = this.lastSources[linkIndex];
+            if (sourceValue === undefined) continue;
+            sourceLines.push(`  link[${linkIndex}] = ${Math.round(sourceValue*100)}%`);
         }
         sourceLines.sort();
         lines.push(...sourceLines);
         return lines.join('\n');
+    }
+
+    getCurrentLevel() {
+        return this.lastLevel;
+    }
+
+    getLastSources() {
+        return Array.from({length: this.lastSources.length}, (_, index) => this.lastSources[index] ?? 0);
     }
 }

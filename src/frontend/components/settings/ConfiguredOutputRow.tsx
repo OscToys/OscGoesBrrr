@@ -61,6 +61,14 @@ function ConfiguredOutputRow({outputAtom, infoAtom, importedAllDeletesAt, onDele
     const linearMaxAtom = useMemo(() => focusOptionalKeyAtom(linearAtom, 'max'), [linearAtom]);
     const linearRestingPosAtom = useMemo(() => focusOptionalKeyAtom(linearAtom, 'restingPos'), [linearAtom]);
     const linearRestingTimeAtom = useMemo(() => focusOptionalKeyAtom(linearAtom, 'restingTime'), [linearAtom]);
+    const linkLevelsAtom = useMemo(
+        () => selectAtom(
+            infoAtom,
+            (info) => info?.lastSources ?? [],
+            (a, b) => a.length === b.length && a.every((value, index) => value === b[index]),
+        ),
+        [infoAtom],
+    );
     const outputNonLinkAtom = useMemo(
         () => selectAtom(
             outputAtom,
@@ -72,6 +80,7 @@ function ConfiguredOutputRow({outputAtom, infoAtom, importedAllDeletesAt, onDele
     const output = useAtomValue(outputNonLinkAtom);
     const info = useAtomValue(infoAtom);
     const displayName = getLegacyDisplayName(output.id) ?? info?.name ?? output.id;
+    const outputPercentLabel = info && info.currentLevel > 0 ? ` (${Math.round(info.currentLevel * 100)}%)` : '';
     const showLinearActuatorOptions = Boolean(info?.showLinearActuatorOptions);
     const warningText = (() => {
         if (!output.id.startsWith(LEGACY_OUTPUT_ID_PREFIX)) return undefined;
@@ -101,7 +110,7 @@ function ConfiguredOutputRow({outputAtom, infoAtom, importedAllDeletesAt, onDele
                 <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{width: '100%'}}>
                     <Stack direction="row" spacing={1} alignItems="center">
                         <ConnectionBubble color={info?.connected ? 'success.main' : 'error.main'} />
-                        <Typography variant="h6">{displayName}</Typography>
+                        <Typography variant="h6">{displayName}{outputPercentLabel}</Typography>
                     </Stack>
                     <Stack direction="row" spacing={1} alignItems="center">
                         <Typography variant="body2" color="text.secondary">{output.id}</Typography>
@@ -127,6 +136,7 @@ function ConfiguredOutputRow({outputAtom, infoAtom, importedAllDeletesAt, onDele
                 )}
                 <OutputLinks
                     linksAtom={outputLinksAtom}
+                    linkLevelsAtom={linkLevelsAtom}
                 />
                 <Stack spacing={0}>
                     <MyAccordion

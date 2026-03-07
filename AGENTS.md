@@ -16,3 +16,7 @@
 
 ## Event Emitters
 - Always use `TypedEventEmitter` for typed event emitters instead of extending raw `EventEmitter` with manual typed overloads.
+
+## React Data Flow
+- Prefer passing atoms over plain derived props when the value is shared state and can be consumed directly where needed.
+- Avoid drilling non-local reactive data through multiple component layers; use atom/context composition so components subscribe to only what they read.

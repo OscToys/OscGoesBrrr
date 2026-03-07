@@ -11,10 +11,11 @@ import {pushItem, removeAt, replaceAt} from "../../common/arrayDraft";
 interface Props {
     filter: OutputLinkFilter;
     itemLabel: string;
+    suggestions?: string[];
     onChange: (next: OutputLinkFilter) => void;
 }
 
-export default function Filter({filter, itemLabel, onChange}: Props) {
+export default function Filter({filter, itemLabel, suggestions, onChange}: Props) {
     const itemLabelPlural = `${itemLabel}s`;
     const idPlaceholder = `${itemLabel} ID`;
     const includeAllLabel = filter.include.length === 0 ? `All ${itemLabelPlural}` : undefined;
@@ -51,6 +52,7 @@ export default function Filter({filter, itemLabel, onChange}: Props) {
                         key={`include-${index}`}
                         value={value}
                         placeholder={idPlaceholder}
+                        suggestions={suggestions}
                         liveNormalize={next => next.replace(/[,\s]+/g, '')}
                         onCommit={next => setFilterItem('include', index, next)}
                         startAdornment={
@@ -79,6 +81,7 @@ export default function Filter({filter, itemLabel, onChange}: Props) {
                         key={`exclude-${index}`}
                         value={value}
                         placeholder={idPlaceholder}
+                        suggestions={suggestions}
                         liveNormalize={next => next.replace(/[,\s]+/g, '')}
                         onCommit={next => setFilterItem('exclude', index, next)}
                         startAdornment={
