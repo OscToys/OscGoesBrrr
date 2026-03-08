@@ -92,15 +92,15 @@ function ConfiguredOutputRow({outputAtom, infoAtom, onDelete}: Props) {
     const displayName = getLegacyDisplayName(output.id) ?? info?.name ?? output.id;
     const outputPercent = info && info.currentLevel > 0 ? Math.round(info.currentLevel * 100) : 0;
     const showLinearActuatorOptions = Boolean(info?.showLinearActuatorOptions);
+    const isLegacyDevice = output.id.startsWith(LEGACY_OUTPUT_ID_PREFIX);
+    const isLegacyAllDevice = output.id === LEGACY_ALL_OUTPUT_ID;
     const warningText = (() => {
-        if (!output.id.startsWith(LEGACY_OUTPUT_ID_PREFIX)) return undefined;
-        if (output.id !== LEGACY_ALL_OUTPUT_ID) {
-            return "This imported device config came from an old version of OGB, and will be restored next time a matching device is connected.";
-        }
-        return "This imported 'all' config came from an old version of OGB, and will be used for all newly-connected devices.";
+        if (isLegacyAllDevice) return "This 'all' config was imported from an old version of OGB, and will be used for all newly-connected devices.";
+        if (isLegacyDevice) return "This device config was imported from an old version of OGB, and will be reused next time a matching device is connected.";
+        return undefined;
     })();
     const importedExpiryWarning = (() => {
-        if (!output.id.startsWith(LEGACY_OUTPUT_ID_PREFIX)) return undefined;
+        if (!isLegacyDevice) return undefined;
         if (importedDeletesAt === undefined) return undefined;
         return (
             <CountdownText targetTime={importedDeletesAt}>
@@ -118,7 +118,7 @@ function ConfiguredOutputRow({outputAtom, infoAtom, onDelete}: Props) {
     if (importedExpiryWarning != null) {
         alerts.push({severity: "warning", content: importedExpiryWarning});
     }
-    if (!info?.connected && !alerts.some((alert) => alert.severity === "error")) {
+    if (!info?.connected) {
         alerts.push({
             severity: "error",
             content: intifaceConnected
