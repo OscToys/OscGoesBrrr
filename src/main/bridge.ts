@@ -153,7 +153,7 @@ export class BridgeOutput {
             (mutator): mutator is Extract<OutputLinkMutator, {kind: 'scale'}> => mutator.kind === 'scale',
         );
         if (scale) out = out * scale.scale;
-        return clamp(out, 0, 1);
+        return out;
     }
 
     getRelevantSources(gameDevices: GameDevice[], audioLevel: number | undefined, config: Output): RelevantSource[] {
