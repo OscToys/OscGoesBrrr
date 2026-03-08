@@ -134,7 +134,8 @@ function VrchatSettingsSection({
                     VRChat stopped sending OSC packets. Either:
                     <Box component="ul" sx={{m: 0, pl: 3}}>
                         <Typography component="li" variant="body2">The game is closed</Typography>
-                        <Typography component="li" variant="body2">OSC is disabled in the in-game options</Typography>
+                        <Typography component="li" variant="body2">You aren't moving in game, and your avatar has no changing parameters</Typography>
+                        <Typography component="li" variant="body2">You just disabled OSC in the in-game options</Typography>
                         <Typography component="li" variant="body2">Something else is broken</Typography>
                     </Box>
                 </>
