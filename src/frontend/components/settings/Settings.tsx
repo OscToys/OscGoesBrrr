@@ -68,13 +68,6 @@ export default function Settings() {
     return (
         <Box sx={{p: 2, overflowY: 'auto', height: '100%', bgcolor: 'background.default'}}>
             <Stack spacing={2}>
-                <Typography
-                    variant="h4"
-                    onDoubleClick={() => setDevToolsUnlocked((prev) => !prev)}
-                    sx={{userSelect: 'none'}}
-                >
-                    Home
-                </Typography>
                 {devToolsUnlocked && (
                     <Stack direction={{xs: 'column', sm: 'row'}} spacing={1.25} alignItems="flex-start">
                         <Stack spacing={1}>
