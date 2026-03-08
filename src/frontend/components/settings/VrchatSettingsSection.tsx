@@ -2,37 +2,35 @@ import React, {ReactNode} from "react";
 import {Alert, AlertColor, Box, Button, IconButton, InputAdornment, Stack, TextField, Typography} from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import {pushItem, removeAt, replaceAt} from "../../../common/arrayDraft";
-import {SettingsStateVrchat} from "../../../common/ipcContract";
 import {produce} from "immer";
 import TextCommitInput from "../util/TextCommitInput";
 import MyAccordion from "../util/MyAccordion";
 import ConnectionBubble from "./ConnectionBubble";
-import {type PrimitiveAtom, useAtomValue} from "jotai";
+import {type PrimitiveAtom, useAtom, useAtomValue} from "jotai";
 import {getConnectionBubbleColor} from "../../utils/connectionBubbleColor";
+import {useSettingsStateAtom} from "./SettingsStateAtomContext";
+import {selectAtom} from "jotai/utils";
 
 interface Props {
     expanded: boolean;
     onChange: (expanded: boolean) => void;
-    vrchatAtom: PrimitiveAtom<SettingsStateVrchat>;
-    maxLevelParam: string;
-    onMaxLevelParamCommit: (value: string) => void;
-    vrcConfigDir: string;
-    onVrcConfigDirCommit: (value: string) => void;
-    oscProxy: string[];
-    onSetOscProxy: (next: string[]) => void;
+    maxLevelParamAtom: PrimitiveAtom<string | undefined>;
+    vrcConfigDirAtom: PrimitiveAtom<string | undefined>;
+    oscProxyAtom: PrimitiveAtom<string[]>;
 }
 
 function VrchatSettingsSection({
     expanded,
     onChange,
-    vrchatAtom,
-    maxLevelParam,
-    onMaxLevelParamCommit,
-    vrcConfigDir,
-    onVrcConfigDirCommit,
-    oscProxy,
-    onSetOscProxy,
+    maxLevelParamAtom,
+    vrcConfigDirAtom,
+    oscProxyAtom,
 }: Props) {
+    const settingsStateAtom = useSettingsStateAtom();
+    const vrchatAtom = React.useMemo(() => selectAtom(settingsStateAtom, (state) => state.vrchat), [settingsStateAtom]);
+    const [maxLevelParam, setMaxLevelParam] = useAtom(maxLevelParamAtom);
+    const [vrcConfigDir, setVrcConfigDir] = useAtom(vrcConfigDirAtom);
+    const [oscProxy, setOscProxy] = useAtom(oscProxyAtom);
     const vrchat = useAtomValue(vrchatAtom);
     const alerts: {severity: AlertColor; content: ReactNode}[] = [];
 
@@ -179,17 +177,17 @@ function VrchatSettingsSection({
                 ))}
 
                 <TextCommitInput
-                    value={maxLevelParam}
+                    value={maxLevelParam ?? ''}
                     label="Send Max Level to Avatar Controller Parameter"
                     placeholder="Parameter Name"
-                    onCommit={onMaxLevelParamCommit}
+                    onCommit={setMaxLevelParam}
                 />
                 <TextCommitInput
-                    value={vrcConfigDir}
+                    value={vrcConfigDir ?? ''}
                     label="VRChat Config Directory"
                     placeholder="Auto-detected"
                     helperText={`Detected: ${vrchat.detectedVrcConfigDir ?? 'Not found'}`}
-                    onCommit={onVrcConfigDirCommit}
+                    onCommit={setVrcConfigDir}
                 />
                 <Stack spacing={1.25}>
                     <Typography variant="subtitle2">OSC Proxy</Typography>
@@ -210,14 +208,14 @@ function VrchatSettingsSection({
                             value={port}
                             placeholder="ip:port"
                             onCommit={value => {
-                                onSetOscProxy(produce(oscProxy, draft => replaceAt(draft, index, value)));
+                                setOscProxy(produce(oscProxy, draft => replaceAt(draft, index, value)));
                             }}
                             endAdornment={
                                 <InputAdornment position="end">
                                     <IconButton
                                         color="error"
                                         aria-label={`Remove target ${index + 1}`}
-                                        onClick={() => onSetOscProxy(produce(oscProxy, draft => removeAt(draft, index)))}
+                                        onClick={() => setOscProxy(produce(oscProxy, draft => removeAt(draft, index)))}
                                         edge="end"
                                         size="small"
                                         sx={{
@@ -236,7 +234,7 @@ function VrchatSettingsSection({
                         <Button
                             variant="outlined"
                             sx={{textTransform: 'none'}}
-                            onClick={() => onSetOscProxy(produce(oscProxy, draft => pushItem(draft, '')))}
+                            onClick={() => setOscProxy(produce(oscProxy, draft => pushItem(draft, '')))}
                         >
                             Add target
                         </Button>

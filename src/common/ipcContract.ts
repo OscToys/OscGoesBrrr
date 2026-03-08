@@ -54,8 +54,7 @@ export interface SettingsStatePayload {
     outputs: OutputDeviceInfo[];
     intifaceConnected: boolean;
     vrchat: SettingsStateVrchat;
-    importedAllDeletesAt?: number;
-    importedOutputDeletesAtById: Record<string, number>;
+    importedDeletesAt?: number;
 }
 
 export interface IpcInvokeMap {

@@ -2,6 +2,7 @@ import React, {useEffect, useRef, useState} from "react";
 import {useLatest} from "react-use";
 import {invokeIpc, onIpc} from "../ipc";
 
+/*
 export default function StatusBox({getCmd, ...rest}: {
     getCmd: 'oscStatus:get'
 } & React.HTMLAttributes<HTMLTextAreaElement>) {
@@ -34,6 +35,7 @@ export default function StatusBox({getCmd, ...rest}: {
         {...rest}
     />;
 }
+ */
 
 export function LogBox({...rest}: {
 } & React.HTMLAttributes<HTMLTextAreaElement>) {

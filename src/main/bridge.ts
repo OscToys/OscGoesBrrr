@@ -4,7 +4,7 @@ import OscConnection from "./OscConnection";
 import GameDevice from "./GameDevice";
 import {DeviceFeature} from "./Buttplug";
 import ConfigService from "./services/ConfigService";
-import {getDefaultLinearActuatorConfig, getDefaultOutput, Output, OutputLink, OutputLinkFilter, OutputLinkMutator} from "../common/configTypes";
+import {getDefaultLinearActuatorConfig, getDefaultOutput, Output, OutputLinkMutator} from "../common/configTypes";
 import clamp from "../common/clamp";
 import {Service} from "typedi";
 
@@ -104,47 +104,13 @@ export default class Bridge {
     }
 }
 
-export type BridgeFeatureName =
-    | 'touchSelf'
-    | 'touchOthers'
-    | 'penSelf'
-    | 'penOthers'
-    | 'frotOthers'
-    | 'penSelfLegacy'
-    | 'penSelfNew'
-    | 'penOthersLegacy'
-    | 'penOthersNew'
-    | 'audio'
-    | 'constant'
-    | `avatar:${string}`;
-
-export class BridgeSource {
-    deviceType: "orf" | "pen" | "audio" | "raw" | "touch";
-    deviceName: string;
-    featureName: BridgeFeatureName;
-    value: number;
-
-    constructor(
-        deviceType: "orf" | "pen" | "audio" | "raw" | "touch",
-        deviceName: string,
-        featureName: BridgeFeatureName,
-        value: number
-    ) {
-        this.deviceType = deviceType;
-        this.deviceName = deviceName;
-        this.featureName = featureName;
-        this.value = value;
-    }
-
-}
-
 interface RelevantSource {
     value: number;
     motionBased: boolean;
 }
 
 export class BridgeOutput {
-    private lastSources: Array<number | undefined> = [];
+    private lastSources: number[] = [];
     public lastLevel = 0;
     private lastPushTime = 0;
     private linearTarget = 0;
@@ -192,46 +158,6 @@ export class BridgeOutput {
 
     getRelevantSources(gameDevices: GameDevice[], audioLevel: number | undefined, config: Output): RelevantSource[] {
         const links = config.links;
-        const shouldInclude = (name: string, filter: OutputLinkFilter) => {
-            const includeSet = new Set(filter.include.map(value => value.trim()).filter(Boolean));
-            const excludeSet = new Set(filter.exclude.map(value => value.trim()).filter(Boolean));
-            if (excludeSet.has(name)) return false;
-            if (includeSet.size === 0) return true;
-            return includeSet.has(name);
-        };
-        const matchesPlugLink = (
-            source: BridgeSource,
-            link: OutputLink & {kind: 'vrchat.sps.plug'},
-        ) => {
-            if (!shouldInclude(source.deviceName, link.filter)) return false;
-            if (source.featureName === 'touchSelf') return link.ownHands;
-            if (source.featureName === 'touchOthers') return link.otherHands;
-            if (source.featureName === 'penSelf') return link.mySockets;
-            if (source.featureName === 'penOthers') return link.otherSockets;
-            if (source.featureName === 'frotOthers') return link.otherPlugs;
-            return false;
-        };
-        const matchesSocketLink = (
-            source: BridgeSource,
-            link: OutputLink & {kind: 'vrchat.sps.socket'},
-        ) => {
-            if (!shouldInclude(source.deviceName, link.filter)) return false;
-            if (source.featureName === 'touchSelf') return link.ownHands;
-            if (source.featureName === 'touchOthers') return link.otherHands;
-            if (source.featureName === 'penSelf') return link.myPlugs;
-            if (source.featureName === 'penOthers') return link.otherPlugs;
-            if (source.featureName === 'frotOthers') return link.otherSockets;
-            return false;
-        };
-        const matchesTouchLink = (
-            source: BridgeSource,
-            link: OutputLink & {kind: 'vrchat.sps.touch'},
-        ) => {
-            if (!shouldInclude(source.deviceName, link.filter)) return false;
-            if (source.featureName === 'touchSelf') return link.ownHands;
-            if (source.featureName === 'touchOthers') return link.otherHands;
-            return false;
-        };
         const entries = this.osc.entries();
         return links.map((link) => {
             if (link.kind === 'constant') {
@@ -262,27 +188,20 @@ export class BridgeOutput {
                 };
             }
             let best: RelevantSource = {value: 0, motionBased: this.hasMotionBased(link.mutators)};
-            for (const gameDevice of gameDevices) {
-                for (const source of gameDevice.getSources()) {
-                    let matches = false;
-                    if (link.kind === 'vrchat.sps.plug' && source.deviceType === 'pen') {
-                        matches = matchesPlugLink(source, link);
-                    } else if (link.kind === 'vrchat.sps.socket' && source.deviceType === 'orf') {
-                        matches = matchesSocketLink(source, link);
-                    } else if (link.kind === 'vrchat.sps.touch' && source.deviceType === 'touch') {
-                        matches = matchesTouchLink(source, link);
-                    }
-                    if (!matches) continue;
-                    const transformed = this.applyMutators(source.value, link.mutators);
-                    const candidate: RelevantSource = {
-                        value: transformed,
-                        motionBased: this.hasMotionBased(link.mutators),
-                    };
-                    if (candidate.value > best.value) {
-                        best = candidate;
+            if (link.kind === 'vrchat.sps.plug' || link.kind === 'vrchat.sps.socket' || link.kind === 'vrchat.sps.touch') {
+                for (const gameDevice of gameDevices) {
+                    for (const source of gameDevice.getSources(link)) {
+                        const transformed = this.applyMutators(source.level, link.mutators);
+                        const candidate: RelevantSource = {
+                            value: transformed,
+                            motionBased: this.hasMotionBased(link.mutators),
+                        };
+                        if (candidate.value > best.value) {
+                            best = candidate;
+                        }
                     }
                 }
-            }
+                }
             return best;
         });
     }
@@ -422,11 +341,7 @@ export class BridgeOutput {
         }
 
         this.lastLevel = this.bioFeature.lastLevel;
-        this.lastSources = [];
-        for (let linkIndex = 0; linkIndex < sources.length; linkIndex++) {
-            const source = sources[linkIndex] ?? {value: 0, motionBased: false};
-            this.lastSources[linkIndex] = source.value;
-        }
+        this.lastSources = sources.map((source) => source?.value ?? 0);
         this.lastPushTime = now;
     }
 
@@ -434,26 +349,12 @@ export class BridgeOutput {
         const normalized = (num - fromMin) / (fromMax-fromMin);
         return normalized * (toMax-toMin) + toMin;
     }
-    getStatus() {
-        const lines = [];
-        lines.push(`${this.bioFeature.id} = ${Math.round(this.lastLevel*100)}%`);
-
-        const sourceLines = [];
-        for (let linkIndex = 0; linkIndex < this.lastSources.length; linkIndex++) {
-            const sourceValue = this.lastSources[linkIndex];
-            if (sourceValue === undefined) continue;
-            sourceLines.push(`  link[${linkIndex}] = ${Math.round(sourceValue*100)}%`);
-        }
-        sourceLines.sort();
-        lines.push(...sourceLines);
-        return lines.join('\n');
-    }
 
     getCurrentLevel() {
         return this.lastLevel;
     }
 
     getLastSources() {
-        return Array.from({length: this.lastSources.length}, (_, index) => this.lastSources[index] ?? 0);
+        return [...this.lastSources];
     }
 }

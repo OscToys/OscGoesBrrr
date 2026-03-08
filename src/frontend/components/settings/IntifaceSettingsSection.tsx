@@ -5,21 +5,19 @@ import MyAccordion from "../util/MyAccordion";
 import ConnectionBubble from "./ConnectionBubble";
 import {getConnectionBubbleColor} from "../../utils/connectionBubbleColor";
 import {useSettingsStateAtom} from "./SettingsStateAtomContext";
-import {useAtomValue} from "jotai";
+import {type PrimitiveAtom, useAtom, useAtomValue} from "jotai";
 import {selectAtom} from "jotai/utils";
 
 interface Props {
     expanded: boolean;
     onChange: (expanded: boolean) => void;
-    intifaceAddress: string;
-    onIntifaceAddressCommit: (value: string) => void;
+    intifaceAddressAtom: PrimitiveAtom<string | undefined>;
 }
 
 function IntifaceSettingsSection({
     expanded,
     onChange,
-    intifaceAddress,
-    onIntifaceAddressCommit,
+    intifaceAddressAtom,
 }: Props) {
     const settingsStateAtom = useSettingsStateAtom();
     const intifaceConnected = useAtomValue(
@@ -28,12 +26,12 @@ function IntifaceSettingsSection({
     const outputs = useAtomValue(
         React.useMemo(() => selectAtom(settingsStateAtom, (state) => state.outputs), [settingsStateAtom]),
     );
+    const [intifaceAddress, setIntifaceAddress] = useAtom(intifaceAddressAtom);
     const alerts: {severity: AlertColor; content: string}[] = [];
-    if (intifaceConnected && !outputs.some((output) => output.connected)) {
-        alerts.push({severity: "warning", content: "No devices are connected to Intiface"});
-    }
-    if (!intifaceConnected && !alerts.some((alert) => alert.severity === "error")) {
+    if (!intifaceConnected) {
         alerts.push({severity: "error", content: "Intiface is not connected."});
+    } else if (!outputs.some((output) => output.connected)) {
+        alerts.push({severity: "warning", content: "No devices are connected to Intiface"});
     }
 
     return (
@@ -52,10 +50,10 @@ function IntifaceSettingsSection({
                     <Alert key={index} severity={alert.severity}>{alert.content}</Alert>
                 ))}
                 <TextCommitInput
-                    value={intifaceAddress}
+                    value={intifaceAddress ?? ''}
                     label="Server Address"
                     placeholder="ws://localhost:12345"
-                    onCommit={onIntifaceAddressCommit}
+                    onCommit={setIntifaceAddress}
                 />
             </Stack>
         </MyAccordion>

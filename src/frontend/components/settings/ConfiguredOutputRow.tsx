@@ -28,8 +28,6 @@ function getLegacyDisplayName(id: string): string | undefined {
 interface Props {
     outputAtom: PrimitiveAtom<Output>;
     infoAtom: Atom<OutputDeviceInfo | undefined>;
-    importedAllDeletesAt?: number;
-    importedOutputDeletesAtById: Record<string, number>;
     onDelete: (outputId: string) => void;
 }
 
@@ -53,7 +51,7 @@ function NumberField({label, valueAtom, placeholder}: {label: string, valueAtom:
     );
 }
 
-function ConfiguredOutputRow({outputAtom, infoAtom, importedAllDeletesAt, importedOutputDeletesAtById, onDelete}: Props) {
+function ConfiguredOutputRow({outputAtom, infoAtom, onDelete}: Props) {
     const [expanded, setExpanded] = useState(false);
     const [advancedExpanded, setAdvancedExpanded] = useState(false);
     const outputLinksAtom = useMemo(() => focusKeyAtom(outputAtom, 'links'), [outputAtom]);
@@ -88,6 +86,9 @@ function ConfiguredOutputRow({outputAtom, infoAtom, importedAllDeletesAt, import
     const intifaceConnected = useAtomValue(
         useMemo(() => selectAtom(settingsStateAtom, (state) => state.intifaceConnected), [settingsStateAtom]),
     );
+    const importedDeletesAt = useAtomValue(
+        useMemo(() => selectAtom(settingsStateAtom, (state) => state.importedDeletesAt), [settingsStateAtom]),
+    );
     const displayName = getLegacyDisplayName(output.id) ?? info?.name ?? output.id;
     const outputPercent = info && info.currentLevel > 0 ? Math.round(info.currentLevel * 100) : 0;
     const showLinearActuatorOptions = Boolean(info?.showLinearActuatorOptions);
@@ -100,24 +101,12 @@ function ConfiguredOutputRow({outputAtom, infoAtom, importedAllDeletesAt, import
     })();
     const importedExpiryWarning = (() => {
         if (!output.id.startsWith(LEGACY_OUTPUT_ID_PREFIX)) return undefined;
-        if (output.id === LEGACY_ALL_OUTPUT_ID) {
-            if (importedAllDeletesAt === undefined) return undefined;
-            return (
-                <CountdownText targetTime={importedAllDeletesAt}>
-                    {(remaining) => {
-                        if (remaining <= 0) return "This imported 'all' config has expired and will be deleted shortly.";
-                        return `This imported 'all' config will expire in ${formatDuration(remaining)}.`;
-                    }}
-                </CountdownText>
-            );
-        }
-        const deleteAt = importedOutputDeletesAtById[output.id];
-        if (deleteAt === undefined) return undefined;
+        if (importedDeletesAt === undefined) return undefined;
         return (
-            <CountdownText targetTime={deleteAt}>
+            <CountdownText targetTime={importedDeletesAt}>
                 {(remaining) => {
-                    if (remaining <= 0) return "This imported device config has expired and will be deleted shortly.";
-                    return `This imported device config will expire in ${formatDuration(remaining)}.`;
+                    if (remaining <= 0) return "This imported config has expired and will be deleted shortly.";
+                    return `This imported config will expire and be deleted in ${formatDuration(remaining)}.`;
                 }}
             </CountdownText>
         );

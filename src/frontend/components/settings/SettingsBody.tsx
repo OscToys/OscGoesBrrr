@@ -11,12 +11,12 @@ import {
     DialogTitle,
     Stack,
 } from "@mui/material";
-import {SettingsStatePayload, SettingsStateVrchat} from "../../../common/ipcContract";
+import {SettingsStatePayload} from "../../../common/ipcContract";
 import ConfiguredOutputRow from "./ConfiguredOutputRow";
 import UnconfiguredOutputRow from "./UnconfiguredOutputRow";
 import IntifaceSettingsSection from "./IntifaceSettingsSection";
 import VrchatSettingsSection from "./VrchatSettingsSection";
-import {atom, type PrimitiveAtom, useAtom, useAtomValue, useSetAtom} from "jotai";
+import {atom, type PrimitiveAtom, useAtomValue, useSetAtom} from "jotai";
 import {selectAtom, splitAtom} from "jotai/utils";
 import {atomFamily} from "jotai-family";
 import {focusKeyAtom} from "../../utils/atomUtils";
@@ -39,12 +39,6 @@ function SettingsBody({
     const oscProxyAtom = useMemo(() => focusKeyAtom(configAtom, 'oscProxy'), [configAtom]);
     const configuredOutputsAtom = useMemo(() => focusKeyAtom(configAtom, 'outputs'), [configAtom]);
     const outputInfosAtom = useMemo(() => selectAtom(settingsStateAtom, (state) => state.outputs), [settingsStateAtom]);
-    const vrchatAtom = useMemo(
-        () => focusKeyAtom(settingsStateAtom, 'vrchat') as PrimitiveAtom<SettingsStateVrchat>,
-        [settingsStateAtom],
-    );
-    const importedAllDeletesAtAtom = useMemo(() => selectAtom(settingsStateAtom, (state) => state.importedAllDeletesAt), [settingsStateAtom]);
-    const importedOutputDeletesAtByIdAtom = useMemo(() => selectAtom(settingsStateAtom, (state) => state.importedOutputDeletesAtById), [settingsStateAtom]);
     const configuredOutputIdSetAtom = useMemo(
         () => atom((get) => new Set(get(configuredOutputsAtom).map(output => output.id))),
         [configuredOutputsAtom],
@@ -99,12 +93,6 @@ function SettingsBody({
         ),
         [configuredOutputsAtom],
     );
-    const [intifaceAddress, setIntifaceAddress] = useAtom(intifaceAddressAtom);
-    const [maxLevelParam, setMaxLevelParam] = useAtom(maxLevelParamAtom);
-    const [vrcConfigDir, setVrcConfigDir] = useAtom(vrcConfigDirAtom);
-    const [oscProxy, setOscProxy] = useAtom(oscProxyAtom);
-    const importedAllDeletesAt = useAtomValue(importedAllDeletesAtAtom);
-    const importedOutputDeletesAtById = useAtomValue(importedOutputDeletesAtByIdAtom);
     const configuredSortedOutputs = useAtomValue(configuredSortedOutputsAtom);
     const unconfiguredOutputs = useAtomValue(unconfiguredOutputsAtom);
     const setConfiguredOutputs = useSetAtom(configuredOutputsAtom);
@@ -128,20 +116,15 @@ function SettingsBody({
             <IntifaceSettingsSection
                 expanded={intifaceExpanded}
                 onChange={setIntifaceExpanded}
-                intifaceAddress={intifaceAddress ?? ''}
-                onIntifaceAddressCommit={setIntifaceAddress}
+                intifaceAddressAtom={intifaceAddressAtom}
             />
 
             <VrchatSettingsSection
                 expanded={vrchatExpanded}
                 onChange={setVrchatExpanded}
-                vrchatAtom={vrchatAtom}
-                maxLevelParam={maxLevelParam ?? ''}
-                onMaxLevelParamCommit={setMaxLevelParam}
-                vrcConfigDir={vrcConfigDir ?? ''}
-                onVrcConfigDirCommit={setVrcConfigDir}
-                oscProxy={oscProxy}
-                onSetOscProxy={setOscProxy}
+                maxLevelParamAtom={maxLevelParamAtom}
+                vrcConfigDirAtom={vrcConfigDirAtom}
+                oscProxyAtom={oscProxyAtom}
             />
 
             {configuredSortedOutputs.map((outputAtom) => {
@@ -150,8 +133,6 @@ function SettingsBody({
                         key={outputAtom.toString()}
                         outputAtom={outputAtom}
                         infoAtom={configuredOutputInfoAtomFamily(outputAtom)}
-                        importedAllDeletesAt={importedAllDeletesAt}
-                        importedOutputDeletesAtById={importedOutputDeletesAtById}
                         onDelete={requestDeleteOutput}
                     />
                 );

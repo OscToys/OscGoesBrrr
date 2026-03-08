@@ -49,6 +49,7 @@ export abstract class AbstractJsonStateService<TData> extends TypedEventEmitter<
     private loadError?: string;
     private resolveInitialLoadPromise: (() => void) | undefined;
     private readonly initialLoadPromise: Promise<void>;
+    private initialLoadDone = false;
     private readonly defaultData: TData;
     private data: TData;
 
@@ -80,7 +81,9 @@ export abstract class AbstractJsonStateService<TData> extends TypedEventEmitter<
 
     async mutate(mutator: MutationRecipe<TData>): Promise<TData> {
         return await this.enqueue(async () => {
-            await this.ensureInitialLoad();
+            if (!this.initialLoadDone) {
+                throw this.logAndError(`Mutate ran before initial load completed`);
+            }
             const loadError = this.getLoadError();
             if (loadError) throw new Error(loadError);
 
@@ -92,9 +95,7 @@ export abstract class AbstractJsonStateService<TData> extends TypedEventEmitter<
             }
             const next = this.normalizeData(produced);
             if (Object.is(next, this.data)) return this.data;
-            this.log(`Saving`);
             await this.writeDataToDisk(next);
-            this.log(`Saved`);
             this.emitChanged(next);
             return this.data;
         });
@@ -158,22 +159,24 @@ export abstract class AbstractJsonStateService<TData> extends TypedEventEmitter<
 
     protected async resetToDefaults() {
         await this.enqueue(async () => {
-            this.log(`Resetting`);
-            this.lastWrittenAtMs = Date.now();
             try {
+                this.log(`Resetting`);
+                this.lastWrittenAtMs = Date.now();
                 await fs.rm(this.savePath, {force: true});
                 this.lastKnownFileText = undefined;
+                await this.loadFromDisk();
                 this.log(`Reset`);
             } catch (error) {
                 throw this.logAndError(`Failed to reset`, error);
             }
-            await this.loadFromDisk();
         });
     }
 
-    private logAndError(msg: string, error: unknown) {
-        const ex = error instanceof Error ? error.message : String(error);
-        const full = `[${path.basename(this.savePath)}] ${msg}: ${ex}`;
+    private logAndError(msg: string, error?: unknown) {
+        let full = `[${path.basename(this.savePath)}] ${msg}`;
+        if (error) {
+            full += `: ${error instanceof Error ? error.message : String(error)}`;
+        }
         console.error(full);
         return new Error(full);
     }
@@ -218,13 +221,11 @@ export abstract class AbstractJsonStateService<TData> extends TypedEventEmitter<
     }
 
     private async loadFromDisk(prefetchedRawText?: string): Promise<void> {
-        this.log(`Loading`);
         try {
+            this.log(`Loading`);
             const {normalized, sourceText, shouldPersist} = await this.readAndNormalizeData(prefetchedRawText);
             if (shouldPersist) {
-                this.log(`Saving`);
                 await this.writeDataToDisk(normalized);
-                this.log(`Saved`);
             } else {
                 this.lastKnownFileText = sourceText;
             }
@@ -272,11 +273,13 @@ export abstract class AbstractJsonStateService<TData> extends TypedEventEmitter<
     }
 
     private async writeDataToDisk(data: TData): Promise<void> {
+        this.log(`Saving`);
         const serialized = JSON.stringify(data, null, 2);
         this.lastWrittenAtMs = Date.now(); // This is set before the save on purpose since the watcher could activate any time
         await fs.mkdir(path.dirname(this.savePath), {recursive: true});
         await fs.writeFile(this.savePath, serialized);
         this.lastKnownFileText = serialized;
+        this.log(`Saved`);
     }
 
     private ensureInitialLoad(): Promise<void> {
@@ -284,6 +287,7 @@ export abstract class AbstractJsonStateService<TData> extends TypedEventEmitter<
     }
 
     private markInitialLoadDone() {
+        this.initialLoadDone = true;
         this.resolveInitialLoadPromise?.();
         this.resolveInitialLoadPromise = undefined;
     }

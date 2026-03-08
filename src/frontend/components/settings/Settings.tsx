@@ -73,7 +73,7 @@ export default function Settings() {
                     onDoubleClick={() => setDevToolsUnlocked((prev) => !prev)}
                     sx={{userSelect: 'none'}}
                 >
-                    Settings
+                    Home
                 </Typography>
                 {devToolsUnlocked && (
                     <Stack direction={{xs: 'column', sm: 'row'}} spacing={1.25} alignItems="flex-start">

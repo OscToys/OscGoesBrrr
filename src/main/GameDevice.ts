@@ -1,5 +1,5 @@
 import {OscValue} from "./OscConnection";
-import {BridgeSource} from "./bridge";
+import {OutputLink} from "../common/configTypes";
 
 // These are just here so don't accidentally typo one of the OGB standard contact key names
 
@@ -93,80 +93,64 @@ export default class GameDevice {
         return undefined;
     }
 
-    getSources(): BridgeSource[] {
-        const sources: BridgeSource[] = [];
-        if (!this.isTps) {
-            if (this.type === 'Orf') {
-                sources.push(new BridgeSource('orf', this.id, 'touchSelf',
-                    this.getBool('TouchSelfClose') ? this.getNumber('TouchSelf') ?? 0 : 0));
-                sources.push(new BridgeSource('orf', this.id, 'touchOthers',
-                    this.getBool('TouchOthersClose') ? this.getNumber('TouchOthers') ?? 0 : 0));
+    getSources(link: Extract<OutputLink, {kind: 'vrchat.sps.plug' | 'vrchat.sps.socket' | 'vrchat.sps.touch'}>): Array<{id: string, level: number}> {
+        const includeSet = new Set(link.filter.include.map(value => value.trim()).filter(Boolean));
+        const excludeSet = new Set(link.filter.exclude.map(value => value.trim()).filter(Boolean));
+        if (excludeSet.has(this.id)) return [];
+        if (includeSet.size > 0 && !includeSet.has(this.id)) return [];
 
+        const out: Array<{id: string, level: number}> = [];
+        const pushIfEnabled = (enabled: boolean, sourceKey: string, level: number) => {
+            if (!enabled) return;
+            out.push({id: `${this.id}/${sourceKey}`, level});
+        };
+
+        if (!this.isTps) {
+            if (this.type === 'Orf' && link.kind === 'vrchat.sps.socket') {
+                const touchSelf = this.getBool('TouchSelfClose') ? this.getNumber('TouchSelf') ?? 0 : 0;
+                const touchOthers = this.getBool('TouchOthersClose') ? this.getNumber('TouchOthers') ?? 0 : 0;
                 const penSelfLegacy = this.getNumber('PenSelf');
                 const penSelfNew = this.getNewPenAmount(true);
-                sources.push(new BridgeSource('orf', this.id, 'penSelfLegacy',
-                    penSelfLegacy ?? 0));
-                sources.push(new BridgeSource('orf', this.id, 'penSelfNew',
-                    penSelfNew ?? 0));
-                sources.push(new BridgeSource('orf', this.id, 'penSelf',
-                    penSelfNew ?? penSelfLegacy ?? 0));
-
+                const penSelf = penSelfNew ?? penSelfLegacy ?? 0;
                 const penOthersLegacyClose = this.getBool('PenOthersClose') || this.get('PenOthersClose') == undefined;
                 const penOthersLegacy = penOthersLegacyClose ? this.getNumber('PenOthers') : undefined;
                 const penOthersNew = this.getNewPenAmount(false);
-                sources.push(new BridgeSource('orf', this.id, 'penOthersLegacy',
-                    penOthersLegacy ?? 0));
-                sources.push(new BridgeSource('orf', this.id, 'penOthersNew',
-                    penOthersNew ?? 0));
-                sources.push(new BridgeSource('orf', this.id, 'penOthers',
-                    penOthersNew ?? penOthersLegacy ?? 0));
+                const penOthers = penOthersNew ?? penOthersLegacy ?? 0;
+                const frotOthers = this.getNumber('FrotOthers') ?? 0;
 
-                sources.push(new BridgeSource('orf', this.id, 'frotOthers',
-                    this.getNumber('FrotOthers') ?? 0));
+                pushIfEnabled(link.ownHands, 'touchSelf', touchSelf);
+                pushIfEnabled(link.otherHands, 'touchOthers', touchOthers);
+                pushIfEnabled(link.myPlugs, 'penSelf', penSelf);
+                pushIfEnabled(link.otherPlugs, 'penOthers', penOthers);
+                pushIfEnabled(link.otherSockets, 'frotOthers', frotOthers);
             }
-            if (this.type === 'Pen') {
-                sources.push(new BridgeSource('pen', this.id, 'touchSelf',
-                    this.getBool('TouchSelfClose') ? this.getNumber('TouchSelf') ?? 0 : 0));
-                sources.push(new BridgeSource('pen', this.id, 'touchOthers',
-                    this.getBool('TouchOthersClose') ? this.getNumber('TouchOthers') ?? 0 : 0));
-                sources.push(new BridgeSource('pen', this.id, 'penSelf',
-                    this.getNumber('PenSelf') ?? 0));
-                sources.push(new BridgeSource('pen', this.id, 'penOthers',
-                    this.getNumber('PenOthers') ?? 0));
-                sources.push(new BridgeSource('pen', this.id, 'frotOthers',
-                    this.getBool('FrotOthersClose') ? this.getNumber('FrotOthers') ?? 0 : 0));
+            if (this.type === 'Pen' && link.kind === 'vrchat.sps.plug') {
+                const touchSelf = this.getBool('TouchSelfClose') ? this.getNumber('TouchSelf') ?? 0 : 0;
+                const touchOthers = this.getBool('TouchOthersClose') ? this.getNumber('TouchOthers') ?? 0 : 0;
+                const penSelf = this.getNumber('PenSelf') ?? 0;
+                const penOthers = this.getNumber('PenOthers') ?? 0;
+                const frotOthers = this.getBool('FrotOthersClose') ? this.getNumber('FrotOthers') ?? 0 : 0;
+
+                pushIfEnabled(link.ownHands, 'touchSelf', touchSelf);
+                pushIfEnabled(link.otherHands, 'touchOthers', touchOthers);
+                pushIfEnabled(link.mySockets, 'penSelf', penSelf);
+                pushIfEnabled(link.otherSockets, 'penOthers', penOthers);
+                pushIfEnabled(link.otherPlugs, 'frotOthers', frotOthers);
             }
-            if (this.type === 'Touch') {
-                sources.push(new BridgeSource('touch', this.id, 'touchSelf',
-                    this.getNumber('Self') ?? 0));
-                sources.push(new BridgeSource('touch', this.id, 'touchOthers',
-                    this.getNumber('Others') ?? 0));
+            if (this.type === 'Touch' && link.kind === 'vrchat.sps.touch') {
+                pushIfEnabled(link.ownHands, 'touchSelf', this.getNumber('Self') ?? 0);
+                pushIfEnabled(link.otherHands, 'touchOthers', this.getNumber('Others') ?? 0);
             }
         } else {
-            if (this.type === 'Orf') {
-                sources.push(new BridgeSource('orf', this.id, 'penOthers',
-                    this.getNumber('Depth_In') ?? 0));
+            if (this.type === 'Orf' && link.kind === 'vrchat.sps.socket') {
+                pushIfEnabled(link.otherPlugs, 'penOthers', this.getNumber('Depth_In') ?? 0);
             }
-            if (this.type === 'Pen') {
-                sources.push(new BridgeSource('pen', this.id, 'penOthers',
-                    this.getNumber('RootRoot') ?? 0));
+            if (this.type === 'Pen' && link.kind === 'vrchat.sps.plug') {
+                pushIfEnabled(link.otherSockets, 'penOthers', this.getNumber('RootRoot') ?? 0);
             }
         }
-        return sources;
-    }
 
-    getStatus() {
-        const out = [];
-        out.push(`${this.type}:${this.id}`);
-        const selfLength = this.recordedSelfLength.getLength();
-        const othersLength = this.recordedOthersLength.getLength();
-        if (selfLength) out.push(`  Nearby self-penetrator length: ${selfLength.toFixed(2)}m`);
-        if (othersLength) out.push(`  Nearby penetrator length: ${othersLength.toFixed(2)}m`);
-        for (const source of this.getSources()) {
-            if (source.value == 0) continue;
-            out.push(`  ${source.featureName}=${Math.round(source.value*100)}%`);
-        }
-        return out.join('\n');
+        return out;
     }
 }
 

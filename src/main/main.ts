@@ -84,8 +84,7 @@ handleIpc('settings-state:request', async () => {
     const detectedSpsTouchZoneIds = Array.from(new Set(gameDevices.filter(device => device.type === 'Touch').map(device => device.id))).sort();
     const history = await backendDataService.getAllDeviceHistory();
     await importedOutputPromotionService.cleanupExpiredImportedOutputs();
-    const importedAllDeletesAt = await importedOutputPromotionService.getImportedAllDeletionTime();
-    const importedOutputDeletesAtById = await importedOutputPromotionService.getImportedSpecificDeletionTimes();
+    const importedDeletesAt = await importedOutputPromotionService.getImportedDeletesAt();
     const oscStatusSnapshot = oscConnection.getStatusSnapshot();
     const oscqueryStatus = vrchatOscqueryService.getStatus();
     const ogbOscPort = oscConnection.socketopen ? (oscStatusSnapshot.mdnsWorking ? oscConnection.port : 9001) : undefined;
@@ -239,8 +238,7 @@ handleIpc('settings-state:request', async () => {
                 detectedSpsTouchZoneIds,
                 detectedVrcConfigDir,
             },
-            importedAllDeletesAt,
-            importedOutputDeletesAtById,
+            importedDeletesAt,
         },
     });
 
