@@ -130,7 +130,7 @@ export type OutputLinkMutatorKind = OutputLinkMutator['kind'];
 export interface Output {
     id: string;
     links: OutputLink[];
-    updatesPerSecond?: number;
+    updatesPerSecond?: number; // Now unused
     linear?: Partial<OutputLinearActuatorConfig>;
 }
 

@@ -210,8 +210,6 @@ export class BridgeOutput {
         const now = Date.now();
         const timeDeltaReal = now - this.lastPushTime;
         const config = this.getConfig();
-        const updatesPerSecond = config.updatesPerSecond ?? 0;
-        if (updatesPerSecond > 0 && timeDeltaReal < (1000 / updatesPerSecond)) return;
         const timeDelta = clamp(timeDeltaReal, 0, 250); // safety limited
 
         const sources = this.getRelevantSources(gameDevices, audioLevel, config);
