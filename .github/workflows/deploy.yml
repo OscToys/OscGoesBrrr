@@ -113,7 +113,8 @@ jobs:
           ssh-key: ${{ secrets.VERSION_DEPLOY_KEY }}
       - uses: actions/setup-node@v6
         with:
-          node-version-file: '.nvmrc'
+          # Can't use .nvmrc because we don't clone the repo for this job
+          node-version: 24
       - name: Update Version Manifest
         run: |
           jq \
