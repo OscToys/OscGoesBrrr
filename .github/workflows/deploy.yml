@@ -30,7 +30,10 @@ jobs:
         id: determine_version
         run: |
           pnpm install --frozen-lockfile
-          pnpm exec semantic-release --dry-run
+          VERSION="$(pnpm exec release-it --release-version)"
+          TAG_NAME="v${VERSION}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tagName=$TAG_NAME" >> "$GITHUB_OUTPUT"
       - name: Validate Version Outputs
         run: |
           if [ -z "${{ steps.determine_version.outputs.version }}" ] || [ -z "${{ steps.determine_version.outputs.tagName }}" ]; then
