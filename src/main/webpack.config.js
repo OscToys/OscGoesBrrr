@@ -12,6 +12,7 @@ const config = {
         path: path.resolve(__dirname, '../../app'),
         filename: 'main.bundle.js',
         publicPath: 'app/',
+        module: true,
     },
     target: 'electron-main',
     devtool: 'source-map',
@@ -51,6 +52,9 @@ const config = {
     },
     resolve: {
         extensions: ['', '.ts', '.tsx', '.js', '.jsx'],
+    },
+    experiments: {
+        outputModule: true,
     },
     mode: 'development',
     watchOptions: {

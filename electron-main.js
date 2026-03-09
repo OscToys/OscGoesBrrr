@@ -1,4 +1,4 @@
-const { app, dialog } = require("electron");
+import { app, dialog } from "electron";
 
 let fatalExitStarted = false;
 
@@ -41,7 +41,7 @@ process.on("unhandledRejection", (error) => {
 });
 
 try {
-  require("./app/main.bundle.js");
+  await import("./app/main.bundle.js");
 } catch (error) {
   fatalExit("App threw an error during load", error);
 }
