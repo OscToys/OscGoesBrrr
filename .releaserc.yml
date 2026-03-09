@@ -4,7 +4,8 @@ branches:
     prerelease: true
 plugins:
   - - "@semantic-release/commit-analyzer"
-    - releaseRules:
+    - preset: conventionalcommits
+      releaseRules:
         - breaking: true
           release: major
   - - "@semantic-release/exec"
