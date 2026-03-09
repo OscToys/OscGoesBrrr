@@ -18,6 +18,8 @@ jobs:
     steps:
       - name: Checkout repo
         uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v6
         with:
@@ -27,14 +29,13 @@ jobs:
         id: determine_version
         run: |
           pnpm install --frozen-lockfile
-          VERSION=$(pnpm exec tsx .github/workflows/scripts/determineVersion.ts)
-          echo "Next Version: $VERSION"
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "tagName=release/$VERSION" >> $GITHUB_OUTPUT
-        env:
-          OGB_BRANCH_NAME: ${{ github.ref_name }}
-          OGB_BETA: ${{ github.ref_name != github.event.repository.default_branch }}
-          OGB_COMMIT_SHA: ${{ github.sha }}
+          pnpm exec semantic-release --dry-run
+      - name: Validate Version Outputs
+        run: |
+          if [ -z "${{ steps.determine_version.outputs.version }}" ] || [ -z "${{ steps.determine_version.outputs.tagName }}" ]; then
+            echo "No new release version was produced (likely already released)."
+            exit 1
+          fi
     outputs:
       version: ${{ steps.determine_version.outputs.version }}
       tagName: ${{ steps.determine_version.outputs.tagName }}
@@ -117,7 +118,8 @@ jobs:
       - name: Update Version Manifest
         run: |
           pushd versions
-          node ../repo/.github/workflows/scripts/updateManifest "$VERSION" "$DOWNLOAD_URL"
+          jq --arg v "$VERSION" --arg u "$DOWNLOAD_URL" '.latestVersion = $v | .latestInstaller = $u' updates.json > updates.json.tmp
+          mv updates.json.tmp updates.json
           popd
         env:
           VERSION: ${{ needs.version.outputs.version }}
@@ -130,5 +132,3 @@ jobs:
           git config user.email noreply@osc.toys
           git diff --quiet || git commit -am "Release from $GITHUB_SHA"
           git push
-
-
