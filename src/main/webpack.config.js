@@ -1,10 +1,11 @@
 import path from 'node:path';
 import webpack from 'webpack';
 import {fileURLToPath} from "node:url";
-import typiaTransform from 'typia/lib/transform.js';
+import typiaTransformModule from "typia/lib/transform.js";
+const typiaTransform = typiaTransformModule.default;
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 
-export default {
+const config = {
     context: __dirname,
     entry: './main',
     output: {
@@ -24,7 +25,7 @@ export default {
                         configFile: path.resolve(__dirname, './tsconfig.json'),
                         onlyCompileBundledFiles: false,
                         getCustomTransformers: (program) => ({
-                            before: [typiaTransform.default(program, undefined, { addDiagnostic: () => {} })]
+                            before: [typiaTransform(program, undefined, { addDiagnostic: () => {} })]
                         })
                     }
                 }],
@@ -56,3 +57,6 @@ export default {
         poll: 1000,
     },
 };
+
+// noinspection JSUnusedGlobalSymbols
+export default config;

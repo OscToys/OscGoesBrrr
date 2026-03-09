@@ -57,8 +57,7 @@ jobs:
       - name: Build
         run: |
           pnpm install --frozen-lockfile --config.platform=win32
-          (cd src/main && pnpm exec webpack)
-          (cd src/frontend && pnpm exec webpack)
+          pnpm run build
           pnpm exec electron-builder \
             --win nsis portable \
             --config.extraMetadata.version="$VERSION" \
@@ -119,12 +118,22 @@ jobs:
       - name: Update Version Manifest
         run: |
           pushd versions
-          jq --arg v "$VERSION" --arg u "$DOWNLOAD_URL" '.latestVersion = $v | .latestInstaller = $u' updates.json > updates.json.tmp
+          jq \
+            --arg v "$VERSION" \
+            --arg ws "$WINDOWS_SETUP_URL" \
+            --arg wp "$WINDOWS_PORTABLE_URL" \
+            '.latestVersion = $v
+             | .latestInstaller = $ws
+             | .downloadUrls = ((.downloadUrls // {}) + {
+                 windowsSetup: $ws,
+                 windowsPortable: $wp
+               })' updates.json > updates.json.tmp
           mv updates.json.tmp updates.json
           popd
         env:
           VERSION: ${{ needs.version.outputs.version }}
-          DOWNLOAD_URL: ${{ fromJSON(needs.release.outputs.assets)[0].browser_download_url }}
+          WINDOWS_SETUP_URL: https://github.com/${{ github.repository }}/releases/download/${{ needs.version.outputs.tagName }}/OscGoesBrrr-setup-${{ needs.version.outputs.version }}.exe
+          WINDOWS_PORTABLE_URL: https://github.com/${{ github.repository }}/releases/download/${{ needs.version.outputs.tagName }}/OscGoesBrrr-portable-${{ needs.version.outputs.version }}.exe
       - name: Push version manifest
         working-directory: versions
         run: |

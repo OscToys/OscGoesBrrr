@@ -4,15 +4,18 @@ import child_process from 'child_process';
 import got from 'got';
 import semver from 'semver';
 import stream from 'stream/promises';
-// @ts-ignore
-import versionPath from "./version.txt";
 import tmpPromise from 'tmp-promise';
 import typia from "typia";
 import {Service} from "typedi";
+import {getPortableExecutablePath} from "./portableData";
 
 interface UpdatesJsonSchema {
     latestVersion: string;
-    latestInstaller: string;
+    latestInstaller?: string;
+    downloadUrls?: {
+        windowsSetup?: string;
+        windowsPortable?: string;
+    };
 }
 
 @Service()
@@ -51,9 +54,16 @@ export default class Updater {
             return;
         }
 
-        const exe = updates.latestInstaller;
-
         if (!app.isPackaged) throw new Error('App is not packaged');
+
+        const portableExecutablePath = getPortableExecutablePath();
+        const isPortableMode = portableExecutablePath !== undefined;
+        const downloadUrl = isPortableMode
+            ? updates.downloadUrls?.windowsPortable
+            : updates.downloadUrls?.windowsSetup ?? updates.latestInstaller;
+        if (!downloadUrl) throw new Error(isPortableMode
+            ? "No portable update URL available in updates manifest"
+            : "No installer URL available in updates manifest");
 
         const resp = await dialog.showMessageBox({
             title: 'Update',
@@ -68,11 +78,44 @@ export default class Updater {
             prefix: "OGB-update-",
             postfix: ".exe"
         });
-        await stream.pipeline(got.stream(exe), createWriteStream(localPath));
+        await stream.pipeline(got.stream(downloadUrl), createWriteStream(localPath));
         console.log("Downloaded");
 
         console.log("Running updater ...");
-        child_process.spawn(localPath, { detached: true, stdio: 'ignore' });
+        if (isPortableMode) {
+            launchPortableSwapAndRelaunch(localPath, portableExecutablePath);
+        } else {
+            child_process.spawn(localPath, { detached: true, stdio: 'ignore' });
+        }
         app.exit(0);
     }
+}
+
+function launchPortableSwapAndRelaunch(stagedExePath: string, portableExecutablePath: string | undefined): void {
+    if (!portableExecutablePath) {
+        throw new Error("Portable mode requires PORTABLE_EXECUTABLE_DIR and PORTABLE_EXECUTABLE_FILE");
+    }
+
+    const staged = escapeForCmdSet(stagedExePath);
+    const current = escapeForCmdSet(portableExecutablePath);
+    const command = [
+        `set "SRC=${staged}"`,
+        `set "DST=${current}"`,
+        // Retry swap while the old process is still shutting down.
+        `for /l %i in (1,1,30) do (@move /y "%SRC%" "%DST%" >nul 2>&1 && goto launch || timeout /t 1 /nobreak >nul)`,
+        "exit /b 1",
+        ":launch",
+        `start "" "%DST%"`,
+    ].join(" & ");
+
+    const updater = child_process.spawn("cmd.exe", ["/d", "/s", "/c", command], {
+        detached: true,
+        stdio: "ignore",
+        windowsHide: true,
+    });
+    updater.unref();
+}
+
+function escapeForCmdSet(value: string): string {
+    return value.replace(/%/g, "%%").replace(/"/g, '""');
 }

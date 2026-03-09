@@ -1,14 +1,13 @@
 {
   "name": "OscGoesBrrr",
   "version": "0.0.0-dev",
+  "type": "module",
   "description": "Haptics for VRChat",
   "main": "electron-main.cjs",
   "scripts": {
     "preinstall": "node -e \"const n=require('fs').readFileSync('.nvmrc','utf8').trim().replace(/^v/,'');if(process.version.slice(1).split('.')[0]!==n){console.error('Node '+process.version.slice(1)+' != .nvmrc '+n);process.exit(1)}\"",
     "start": "electron .",
     "watch": "webpack --watch --config src/main/webpack.config.js --config src/frontend/webpack.config.js",
-    "watchFrontend": "cd src/frontend && webpack --watch",
-    "watchMain": "cd src/main && webpack --watch",
     "build": "webpack --config src/main/webpack.config.js --config src/frontend/webpack.config.js",
     "rebuild": "pnpm run build && pnpm run start",
     "typecheck": "pnpm exec tsc -p src/main/tsconfig.json --noEmit && pnpm exec tsc -p src/frontend/tsconfig.json --noEmit"
