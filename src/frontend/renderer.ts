@@ -1,4 +1,3 @@
-import { ipcRenderer } from 'electron';
 import * as ReactDOM from 'react-dom/client';
 
 // @ts-ignore
@@ -7,6 +6,10 @@ import style1 from './bootstrap.css';
 import style2 from './styles.scss';
 import Main from "./components/Main";
 import React from "react";
+import createCache from "@emotion/cache";
+import {CacheProvider} from "@emotion/react";
+import {createTheme, CssBaseline, ThemeProvider} from "@mui/material";
+import {Provider as JotaiProvider} from "jotai";
 
 window.addEventListener('DOMContentLoaded', async () => {
   style1.use();
@@ -14,6 +17,29 @@ window.addEventListener('DOMContentLoaded', async () => {
   const div = document.createElement("div");
   div.id = "maindiv";
   document.body.appendChild(div);
+  const cache = createCache({
+    key: 'mui',
+    container: document.head ?? document.body,
+  });
+  const theme = createTheme({
+    palette: {
+      mode: 'dark',
+      primary: {main: '#5fa3ff'},
+      success: {main: '#2e7d32'},
+    },
+  });
   const root = ReactDOM.createRoot(div);
-  root.render(React.createElement(Main));
+  root.render(React.createElement(
+      CacheProvider,
+      {value: cache},
+      React.createElement(JotaiProvider,
+          null,
+          React.createElement(
+              ThemeProvider,
+              {theme},
+              React.createElement(CssBaseline),
+              React.createElement(Main),
+          ),
+      ),
+  ));
 });

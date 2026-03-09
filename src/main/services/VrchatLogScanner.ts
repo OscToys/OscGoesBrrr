@@ -6,7 +6,7 @@ import VrchatLogFinder from "./VrchatLogFinder";
 @Service()
 export default class VrchatLogScanner {
     private readonly logger;
-    public failure: string | undefined;
+    public failure?: string;
 
     constructor(
         logger: LoggerService,

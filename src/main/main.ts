@@ -1,284 +1,263 @@
 import 'reflect-metadata';
 import 'source-map-support/register';
-import {app, BrowserWindow, Menu, Tray, shell, ipcMain, dialog, desktopCapturer} from 'electron';
-import path from 'path';
+import {app} from 'electron';
 import util from 'util';
 import Bridge from './bridge';
-import fs from 'fs/promises';
-import fsPlain from 'fs';
 import Updater from './updater';
 import OscConnection from "./OscConnection";
 import Buttplug from "./Buttplug";
 import VrcConfigCheck from "./VrcConfigCheck";
-// @ts-ignore
-import iconPath from '../icons/ogb-logo.ico';
-// @ts-ignore
-import indexHtmlPath from './index.html';
-import {Container, ServiceNotFoundError} from "typedi";
+import {Container} from "typedi";
 import MainWindowService from "./services/MainWindowService";
-import OgbConfigService from "./services/OgbConfigService";
+import ConfigService from "./services/ConfigService";
 import LoggerService from "./services/LoggerService";
 import VrchatOscqueryService from "./services/VrchatOscqueryService";
 import VrchatLogScanner from "./services/VrchatLogScanner";
+import VrchatLogFinder from "./services/VrchatLogFinder";
+import BackendDataService from "./services/BackendDataService";
+import ImportedOutputPromotionService from "./services/migrate/ImportedOutputPromotionService";
+import {handleIpc} from "./ipc";
+import {OscqueryStatus} from "../common/ipcContract";
+import type {ButtplugFeatureInformation, Device, IntifaceDeviceFeatureSelection} from "./ButtplugSpec";
+import {configurePortableDataPaths} from "./portableData";
 
-try {
-  app.enableSandbox();
-  process.on("uncaughtException", (err) => {
-    dialog.showErrorBox("Fatal Error", err.stack + '');
-    app.exit(1);
-  });
-  process.on("unhandledRejection", (err) => {
-    console.error('Unhandled rejection', err);
-  });
+app.enableSandbox();
 
-  const gotTheLock = app.requestSingleInstanceLock();
-  if (!gotTheLock) {
+const gotTheLock = app.requestSingleInstanceLock();
+if (!gotTheLock) {
     app.exit();
-  }
+    process.exit(0);
+}
+configurePortableDataPaths(app);
 
-  const updater = new Updater();
-  updater.checkAndNotify();
+const container = Container;
+container.get(Updater);
+const configService = container.get(ConfigService);
+const backendDataService = container.get(BackendDataService);
+const importedOutputPromotionService = container.get(ImportedOutputPromotionService);
 
-  const savePath = path.join(app.getPath('appData'), 'OscGoesBrrr', 'config.txt');
-  const configMap = new OgbConfigService();
-  let configTxt = '';
+const vrcConfigCheck = container.get(VrcConfigCheck);
+const mainWindowService = container.get(MainWindowService);
+const logger = container.get(LoggerService);
+const oscConnection = container.get(OscConnection);
+const vrchatOscqueryService = container.get(VrchatOscqueryService);
+const logScanner = container.get(VrchatLogScanner);
+const vrchatLogFinder = container.get(VrchatLogFinder);
 
-  let butt: Buttplug | undefined;
-
-  function loadConfig(txt: string) {
-    configTxt = txt;
-    const oldConfigMap = new Map<string, string>(configMap);
-    configMap.clear();
-    for (let line of configTxt.split('\n')) {
-      line = line.trim();
-      if (line.startsWith('/') || line.startsWith('#')) continue;
-      const split = line.split('=', 2);
-      const key = split[0]!.trim();
-      if (!key) continue;
-      const value = (split.length > 1 ? split[1]! : '').trim();
-      configMap.set(key, value);
-    }
-
-    if (oldConfigMap.get('bio.port') !== configMap.get('bio.port')) {
-      if (butt) butt.delayRetry();
-    }
-  }
-
-  const vrcConfigCheck = new VrcConfigCheck();
-  vrcConfigCheck.start();
-
-  if (fsPlain.existsSync(savePath)) {
-    loadConfig(fsPlain.readFileSync(savePath, {encoding: 'utf-8'}));
-  }
-
-  let mainWindow_: BrowserWindow | undefined;
-
-  function getMainWindow() {
-    return mainWindow_ && !mainWindow_.isDestroyed() ? mainWindow_ : undefined;
-  }
-
-  function createWindow() {
-    const oldMainWindow = getMainWindow();
-    if (oldMainWindow) {
-      if (oldMainWindow.isMinimized()) oldMainWindow.restore()
-      oldMainWindow.focus()
-      return;
-    }
-    const mainWindow = mainWindow_ = new BrowserWindow({
-      width: 1024,
-      height: 768,
-      webPreferences: {
-        preload: path.join(app.getAppPath(), 'app/preload.js')
-      },
-      icon: path.join(app.getAppPath(), iconPath),
-      title: 'OscGoesBrrr v' + app.getVersion()
-    })
-    mainWindow.setMenuBarVisibility(false);
-    mainWindow.loadFile(indexHtmlPath);
-    mainWindow.on('closed', () => mainWindow_ = undefined);
-    mainWindow.on('page-title-updated', e => e.preventDefault());
-    mainWindow.webContents.setWindowOpenHandler(details => {
-      shell.openExternal(details.url);
-      return {action: 'deny'};
-    });
-  }
-
-  app.whenReady().then(() => {
-    createWindow()
-    app.on('activate', createWindow);
-  })
-
-//app.on('window-all-closed', e => e.preventDefault());
-
-  app.on('second-instance', createWindow);
-
-  /*
-  let tray = null
-  app.whenReady().then(() => {
-    tray = new Tray(path.join(app.getAppPath(), 'tps-bio.png'));
-    const contextMenu = Menu.buildFromTemplate([
-      { label: 'Exit', click: async () => { app.quit() } },
-    ])
-    tray.setToolTip('OSC Goes Brrr');
-    tray.setContextMenu(contextMenu);
-    tray.on('click', createWindow);
-  })
-   */
-
-  const container = Container;
-  container.set(MainWindowService, new MainWindowService(getMainWindow));
-  container.set(OgbConfigService, configMap);
-  const logger = container.get(LoggerService);
-  const oscConnection = container.get(OscConnection);
-  const vrchatOscqueryService = container.get(VrchatOscqueryService);
-  const logScanner = container.get(VrchatLogScanner);
-
-  {
+{
     const systemLogger = logger.get('system');
     console.log = (...args) => systemLogger.log("LOG", util.format(...args));
     console.warn = (...args) => systemLogger.log("WARN", util.format(...args));
     console.error = (...args) => systemLogger.log("ERROR", util.format(...args));
-    process
-        .on('unhandledRejection', (reason, p) => {
-          systemLogger.log('REJECTION', reason, p);
-        })
-        .on('uncaughtException', err => {
-          systemLogger.log('EXCEPTION', err);
-        });
-  }
+}
 
-  const buttLogger = logger.get('bioLog');
-  butt = new Buttplug(buttLogger, configMap);
-  const bridge = new Bridge(oscConnection, butt, buttLogger, configMap);
+const butt = container.get(Buttplug);
+const bridge = container.get(Bridge);
 
-  ipcMain.handle('bioStatus:get', async (_event, text) => {
-    let bioStatus = '';
-    if (butt && butt.wsReady()) {
-      const devices = Array.from(bridge.getToys()).map(toy => toy.getStatus());
-      devices.sort();
-      let devicesStr;
-      if (devices.length) {
-        devicesStr = devices.join('\n');
-      } else {
-        devicesStr = 'None';
-      }
-      bioStatus = 'Connected to Intiface!\nConnected Devices:\n' + devicesStr;
-    } else {
-      bioStatus = 'Not connected to Intiface.\nIs Intiface running?\nDid you click Start Server?';
-    }
-    return bioStatus;
-  });
-
-  ipcMain.handle('oscStatus:get', async (_event, text) => {
-
-    const gameDevices = Array.from(bridge.getGameDevices());
-    const sections: string[] = [];
-
-    if (vrcConfigCheck.oscEnabled === false) {
-      sections.push(`OSC is disabled in your game.\nEnable it in the radial menu:\nOptions > OSC > Enabled`);
-    }
-    if (vrcConfigCheck.selfInteractEnabled === false) {
-      sections.push('Self-Interaction is disabled in your game.\nThis breaks many OGB features.\nEnable it in the quick menu:\nSettings > Avatar Interactions > Self Interact');
-    }
-    if (vrcConfigCheck.everyoneInteractEnabled === false) {
-      sections.push('Interaction is not set to everyone in game.\nEnable it in the quick menu:\nSettings > Avatar Interactions > Everyone');
-    }
-    if (logScanner.failure) {
-      sections.push(`VRChat's log indicated that it failed to start OSC:\n${logScanner.failure}`);
-    }
-
-    if (!oscConnection || !oscConnection.socketopen) {
-      sections.push(`OSC socket is starting ...`);
-    } else {
-      sections.push(
-        `OGB OSC: ${oscConnection.port}\n`
-        + `OGB OSCQ: ${oscConnection.useOscQuery ? 'Enabled' : 'Disabled'}\n`
-        + `VRC OSC: ${vrchatOscqueryService.getOscAddress()?.join(':')}\n`
-        + `VRC OSCQ: ${vrchatOscqueryService.getOscqueryAddress()?.join(':')}`
-      );
-      if (oscConnection && (!oscConnection.lastReceiveTime || oscConnection.lastReceiveTime < Date.now() - 15_000)) {
-        sections.push(`No updates received recently.\nIs the game open and active?`);
-      }
-      if (oscConnection?.waitingForBulk) {
-        sections.push(`Waiting for bulk packet from OSCQuery`);
-      }
-    }
-
-    if (vrcConfigCheck.selfInteractEnabled !== false) {
-      const hasVrcfHaptics = gameDevices.some(device => device.type == 'Pen' || device.type == 'Orf');
-      let isVrcfHapticsUpToDate = false;
-      if (oscConnection) {
-        for (const [key, value] of oscConnection.entries()) {
-          if (key == "VFH/Version/9"
-              || key == "VFH/Version/10"
-              || (key.startsWith("OGB/Pen/") && key.endsWith("/Version/8"))
-              || (key.startsWith("OGB/Orf/") && key.endsWith("/Version/9"))
-          ) {
-            isVrcfHapticsUpToDate = true;
-            break;
-          }
-        }
-      }
-      if (hasVrcfHaptics && !isVrcfHapticsUpToDate) {
-        sections.push('OUTDATED AVATAR DETECTED\n' +
-            'Your avatar was not built using\nthe newest version of VRCFury Haptics.\n' +
-            'Penetration may not work or be less effective.')
-      }
-    }
-
-    if (gameDevices.length > 0) {
-      const gameDeviceStatuses = gameDevices.map(d => d.getStatus());
-      gameDeviceStatuses.sort();
-      sections.push(gameDeviceStatuses.join('\n'));
-    }
-
-    const globalSources = bridge.getGlobalSources(false);
-    if (globalSources.length > 0) {
-      const globalSourcesLines = globalSources
-          .map(source => source.deviceType + '.' + source.deviceName + '.' + source.featureName + '=' + source.value);
-      globalSourcesLines.sort();
-      sections.push("Other sources:\n" + globalSourcesLines.join('\n'));
-    }
-
-    return sections.join('\n\n');
-  });
-
-  ipcMain.handle('avatarParams:get', async (_event, text) => {
+handleIpc('avatarParams:get', async () => {
     const map = new Map<string, unknown>();
     if (oscConnection) {
-      for (const [key, value] of oscConnection.entries()) {
-        map.set(key, value.get());
-      }
+        for (const [key, value] of oscConnection.entries()) {
+            map.set(key, value.get());
+        }
     }
     return map;
-  });
+});
 
-  ipcMain.handle('config:save', (_event, text) => {
-    loadConfig(text);
+handleIpc('settings-state:request', async () => {
+    await backendDataService.get();
 
-    fs.mkdir(path.dirname(savePath), {recursive: true}).then(() => fs.writeFile(savePath, text));
-    const mainWindow = getMainWindow();
-    if (mainWindow) mainWindow.webContents.send('config:saved');
-  });
-  ipcMain.handle('config:load', (_event) => {
-    return configTxt;
-  });
+    const error = backendDataService.getLoadError();
+    if (error) {
+        mainWindowService.send('settings-state:changed', {ok: false, error});
+        return;
+    }
 
-  ipcMain.handle('fft:status', (_event, level) => {
-    if (typeof level != 'number') return;
+    const intifaceConnected = butt.wsReady();
+    const vrchatConnected = oscConnection.isGameOpenAndActive();
+    const detectedVrcConfigDir = await vrchatLogFinder.getDetectedVrcConfigDir();
+    const connectedOutputDevices = Array.from(bridge.getOutputs());
+    const gameDevices = Array.from(bridge.getGameDevices());
+    const hasSpsZones = gameDevices.some(device => device.type === 'Pen' || device.type === 'Orf' || device.type === 'Touch');
+    const detectedSpsPlugIds = Array.from(new Set(gameDevices.filter(device => device.type === 'Pen').map(device => device.id))).sort();
+    const detectedSpsSocketIds = Array.from(new Set(gameDevices.filter(device => device.type === 'Orf').map(device => device.id))).sort();
+    const detectedSpsTouchZoneIds = Array.from(new Set(gameDevices.filter(device => device.type === 'Touch').map(device => device.id))).sort();
+    const history = await backendDataService.getAllDeviceHistory();
+    await importedOutputPromotionService.cleanupExpiredImportedOutputs();
+    const importedDeletesAt = await importedOutputPromotionService.getImportedDeletesAt();
+    const oscStatusSnapshot = oscConnection.getStatusSnapshot();
+    const oscqueryStatus = vrchatOscqueryService.getStatus();
+    const ogbOscPort = oscConnection.socketopen ? (oscStatusSnapshot.mdnsWorking ? oscConnection.port : 9001) : undefined;
+    const ogbOscqueryPort = oscStatusSnapshot.mdnsWorking ? oscConnection.port : undefined;
+    const vrcOscPort = vrchatOscqueryService.getOscAddress()?.[1];
+    const vrcOscqueryPort = vrchatOscqueryService.getOscqueryAddress()?.[1];
+
+    const hasVrcfHaptics = gameDevices.some(device => device.type == 'Pen' || device.type == 'Orf');
+    let isVrcfHapticsUpToDate = false;
+    for (const [key] of oscConnection.entries()) {
+        if (key == "VFH/Version/9"
+                || key == "VFH/Version/10"
+                || (key.startsWith("OGB/Pen/") && key.endsWith("/Version/8"))
+                || (key.startsWith("OGB/Orf/") && key.endsWith("/Version/9"))
+        ) {
+            isVrcfHapticsUpToDate = true;
+            break;
+        }
+    }
+    const outdatedAvatarDetected = hasVrcfHaptics && !isVrcfHapticsUpToDate;
+
+    const result = new Map<string, {
+        id: string,
+        name: string,
+        connected: boolean,
+        showLinearActuatorOptions: boolean,
+        currentLevel: number,
+        lastSources: number[],
+    }>();
+    const naming = new Map<string, {
+        deviceName: string,
+        deviceIndex: number,
+        featureDescriptor?: string,
+        featureIndex: number,
+    }>();
+
+    const trimToUndefined = (raw: string | undefined): string | undefined => {
+        if (!raw) return undefined;
+        const trimmed = raw.trim();
+        return trimmed.length > 0 ? trimmed : undefined;
+    };
+
+    // Add history first as disconnected.
+    const getNaming = (feature: IntifaceDeviceFeatureSelection, id: string) => {
+        return {
+            deviceName: trimToUndefined(feature.device.DeviceDisplayName)
+                ?? trimToUndefined(feature.device.DeviceName)
+                ?? id,
+            deviceIndex: feature.device.DeviceIndex,
+            featureDescriptor: trimToUndefined(feature.feature.FeatureDescription),
+            featureIndex: feature.feature.FeatureIndex,
+        }
+    };
+    for (const [id, item] of Object.entries(history)) {
+        result.set(id, {
+            id,
+            name: id,
+            connected: false,
+            showLinearActuatorOptions: item.intiface.selectedOutput === 'Position' || item.intiface.selectedOutput === 'PositionWithDuration',
+            currentLevel: 0,
+            lastSources: [],
+        });
+        naming.set(id, getNaming(item.intiface, id));
+    }
+    for (const outputDevice of connectedOutputDevices) {
+        const id = outputDevice.bioFeature.id;
+        result.set(id, {
+            id,
+            name: id,
+            connected: true,
+            showLinearActuatorOptions: outputDevice.bioFeature.type === 'linear',
+            currentLevel: outputDevice.getCurrentLevel(),
+            lastSources: outputDevice.getLastSources(),
+        });
+        naming.set(id, getNaming(outputDevice.bioFeature.intiface, id));
+    }
+
+    const entries = Array.from(result.values());
+    const deviceNameToDeviceKeys = new Map<string, Set<string>>();
+    const featuresPerDevice = new Map<string, number>();
+    const descriptorCountsPerDevice = new Map<string, Map<string, number>>();
+    const deviceKey = (deviceName: string, deviceIndex?: number) => `${deviceName}::${deviceIndex ?? 'unknown'}`;
+
+    for (const entry of entries) {
+        const nameParts = naming.get(entry.id);
+        if (!nameParts) continue;
+        const key = deviceKey(nameParts.deviceName, nameParts.deviceIndex);
+        let deviceKeys = deviceNameToDeviceKeys.get(nameParts.deviceName);
+        if (!deviceKeys) {
+            deviceKeys = new Set<string>();
+            deviceNameToDeviceKeys.set(nameParts.deviceName, deviceKeys);
+        }
+        deviceKeys.add(key);
+        featuresPerDevice.set(key, (featuresPerDevice.get(key) ?? 0) + 1);
+        const descriptorKey = nameParts.featureDescriptor ?? '';
+        let descriptorCounts = descriptorCountsPerDevice.get(key);
+        if (!descriptorCounts) {
+            descriptorCounts = new Map<string, number>();
+            descriptorCountsPerDevice.set(key, descriptorCounts);
+        }
+        descriptorCounts.set(descriptorKey, (descriptorCounts.get(descriptorKey) ?? 0) + 1);
+    }
+
+    for (const entry of entries) {
+        const nameParts = naming.get(entry.id);
+        if (!nameParts) continue;
+        const key = deviceKey(nameParts.deviceName, nameParts.deviceIndex);
+        const duplicateDeviceName = (deviceNameToDeviceKeys.get(nameParts.deviceName)?.size ?? 0) > 1;
+        const hasMultipleFeaturesOnDevice = (featuresPerDevice.get(key) ?? 0) > 1;
+
+        let composed = nameParts.deviceName;
+        if (duplicateDeviceName && nameParts.deviceIndex !== undefined) {
+            composed += ` [${nameParts.deviceIndex}]`;
+        }
+        if (hasMultipleFeaturesOnDevice) {
+            if (nameParts.featureDescriptor) {
+                composed += ` - ${nameParts.featureDescriptor}`;
+            } else {
+                composed += ` - Output ${nameParts.featureIndex}`;
+            }
+        }
+        entry.name = composed;
+    }
+
+    mainWindowService.send('settings-state:changed', {
+        ok: true,
+        data: {
+            outputs: entries,
+            intifaceConnected,
+            vrchat: {
+                connected: vrchatConnected,
+                warnings: {
+                    hasSpsZones,
+                    outdatedAvatarDetected,
+                    oscEnabled: vrcConfigCheck.oscEnabled === false,
+                    selfInteract: vrcConfigCheck.selfInteractEnabled === false,
+                    everyoneInteract: vrcConfigCheck.everyoneInteractEnabled === false,
+                    oscStartup: Boolean(logScanner.failure),
+                    oscStartupText: logScanner.failure,
+                    logsFound: vrchatOscqueryService.getLogsFound(),
+                    oscqueryStatus,
+                    oscStatus: oscStatusSnapshot.status,
+                    mdnsWorking: oscStatusSnapshot.mdnsWorking,
+                },
+                ogbOscPort,
+                ogbOscqueryPort,
+                vrcOscPort,
+                vrcOscqueryPort,
+                detectedSpsPlugIds,
+                detectedSpsSocketIds,
+                detectedSpsTouchZoneIds,
+                detectedVrcConfigDir,
+            },
+            importedDeletesAt,
+        },
+    });
+
+});
+
+handleIpc('fft:status', (level) => {
     if (level < 0 || level > 1 || isNaN(level)) return;
     bridge.receivedFft(level);
-  })
+})
 
-  setInterval(() => {
-    const mainWindow = getMainWindow();
-    if (!mainWindow) return;
-    const audioLevel = parseFloat(configMap.get('audio') ?? '');
-    const on = !isNaN(audioLevel) && audioLevel > 0;
-    mainWindow.webContents.send(on ? 'fft:start' : 'fft:stop');
-  }, 1000);
-} catch(e) {
-  console.log("Startup error:");
-  console.log((e instanceof ServiceNotFoundError) ? e.message : e);
-  throw e;
-}
+setInterval(() => {
+    const hasSystemAudioLinks = Array.from(bridge.getOutputs()).some(outputDevice => {
+        const outputConfig = configService.getOutput(outputDevice.bioFeature.id);
+        return outputConfig?.links.some(link => link.kind === 'systemAudio') ?? false;
+    });
+    mainWindowService.send(hasSystemAudioLinks ? 'fft:start' : 'fft:stop');
+}, 1000);
+
+configService.startExternalWatch().catch((e) => {
+    console.error("Failed to start external config watch", e);
+});
+

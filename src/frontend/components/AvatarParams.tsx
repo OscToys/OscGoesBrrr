@@ -1,5 +1,5 @@
 import React, {useEffect, useState} from "react";
-import {ipcRenderer} from "electron";
+import {invokeIpc} from "../ipc";
 
 export default function AvatarParams({...rest}: {
 } & React.HTMLAttributes<HTMLDivElement>) {
@@ -7,17 +7,23 @@ export default function AvatarParams({...rest}: {
 
     useEffect(() => {
         let destroyed = false;
-        let timer: NodeJS.Timeout;
+        let timer: ReturnType<typeof setTimeout> | undefined;
         async function update() {
-            const status = await ipcRenderer.invoke("avatarParams:get");
-            if (destroyed) return;
-            setValues(status);
-            timer = setTimeout(update, 100);
+            try {
+                const status = await invokeIpc("avatarParams:get");
+                if (destroyed) return;
+                setValues(status);
+            } catch (error) {
+                if (destroyed) return;
+                console.error("Failed to poll avatar params", error);
+            } finally {
+                if (!destroyed) timer = setTimeout(update, 100);
+            }
         }
         update();
         return () => {
             destroyed = true;
-            clearInterval(timer);
+            if (timer !== undefined) clearTimeout(timer);
         };
     }, []);
 
@@ -35,7 +41,7 @@ export default function AvatarParams({...rest}: {
                 let valueColor = "#999";
                 if (value === true) valueColor = "#0f0";
                 if (value === false) valueColor = "#f00";
-                return <div><span style={{color: "#999"}}>{key}</span>=<span style={{color: valueColor}}>{value+""}</span></div>;
+                return <div key={key}><span style={{color: "#999"}}>{key}</span>=<span style={{color: valueColor}}>{value+""}</span></div>;
         })}
     </div>;
 }

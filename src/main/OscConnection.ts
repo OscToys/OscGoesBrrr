@@ -1,8 +1,6 @@
 import osc from 'osc';
-import {OscMessage} from 'osc';
+import {OscMessage, UDPPort} from 'osc';
 import dgram, {RemoteInfo} from 'dgram';
-import EventEmitter from "events"
-import type TypedEmitter from "typed-emitter"
 import {
     OSCQueryServer,
     OSCTypeSimple,
@@ -11,13 +9,15 @@ import {
 import portfinder from 'portfinder';
 import {Service} from "typedi";
 import MyAddressesService from "./services/MyAddressesService";
-import OgbConfigService from "./services/OgbConfigService";
+import ConfigService from "./services/ConfigService";
 import LoggerService from "./services/LoggerService";
 import VrchatOscqueryService from "./services/VrchatOscqueryService";
 import http from "node:http";
 import {Protocol} from "@homebridge/ciao";
 import { getResponder } from "@homebridge/ciao";
 import Bonjour from "bonjour-service";
+import TypedEventEmitter from "../common/TypedEventEmitter";
+import {OscStatus} from "../common/ipcContract";
 
 type MyEvents = {
     add: (key: string, value: OscValue) => void,
@@ -25,23 +25,28 @@ type MyEvents = {
 }
 
 @Service()
-export default class OscConnection extends (EventEmitter as new () => TypedEmitter<MyEvents>) {
+export default class OscConnection extends TypedEventEmitter<MyEvents> {
+    private static readonly STALE_MS = 15_000;
     private readonly _entries = new Map<string,OscValue>();
     private recentlyRcvdOscCmds = 0;
-    lastReceiveTime = 0;
+    private hasBulkSinceAvatarChange = false;
+    private isStale = true;
+    private entriesVisible = false;
+    private staleTimer?: NodeJS.Timeout;
     private readonly udpClient;
     private readonly logger;
-    private oscQuery: OSCQueryServer | undefined;
-    private oscSocket: osc.UDPPort | undefined;
+    private oscQuery?: OSCQueryServer;
+    private oscSocket?: UDPPort;
     socketopen = false;
-    private lastPacket: number = 0;
     public port: number = 0;
     private shutdown: (()=>void)[] = [];
-    public useOscQuery: boolean = true;
+    private mdnsWorking = true;
+    private mdnsWatchdogTimeout?: NodeJS.Timeout;
+    private hasReceivedPacketSinceOpen = false;
 
     constructor(
         private myAddresses: MyAddressesService,
-        private configMap: OgbConfigService,
+        private configService: ConfigService,
         private vrchatOscqueryService: VrchatOscqueryService,
         logger: LoggerService
     ) {
@@ -65,9 +70,10 @@ export default class OscConnection extends (EventEmitter as new () => TypedEmitt
             type: "oscjson",
             protocol: "tcp"
         });
-        const mdnsTimeout = setTimeout(() => {
+        this.mdnsWatchdogTimeout = setTimeout(() => {
             this.logger.log("Mdns watchdog timed out! Mdns must not work on this machine. Reverting to legacy port 9001 mode.");
-            this.useOscQuery = false;
+            this.mdnsWatchdogTimeout = undefined;
+            this.mdnsWorking = false;
             this.openSocket();
         }, 5000);
         mdnsBrowser.on('up', service => {
@@ -76,7 +82,10 @@ export default class OscConnection extends (EventEmitter as new () => TypedEmitt
             if (!ip) return;
             if (!this.myAddresses.has(ip)) return;
             this.logger.log("Mdns watchdog found own oscquery announcement");
-            clearTimeout(mdnsTimeout);
+            if (this.mdnsWatchdogTimeout) {
+                clearTimeout(this.mdnsWatchdogTimeout);
+                this.mdnsWatchdogTimeout = undefined;
+            }
             mdns.destroy();
         })
     }
@@ -87,17 +96,32 @@ export default class OscConnection extends (EventEmitter as new () => TypedEmitt
         let outPort = defPort;
 
         let stringPort = "";
-        if (input.includes(':')) {
-            const split = input.split(':');
-            outAddress = split[0]!;
-            stringPort = split[1]!;
+        if (input.startsWith('[')) {
+            const end = input.indexOf(']');
+            if (end > 0) {
+                outAddress = input.slice(1, end);
+                const rest = input.slice(end + 1);
+                if (rest.startsWith(':')) stringPort = rest.slice(1);
+            } else if (input) {
+                outAddress = input;
+            }
+        } else if (input.includes(':')) {
+            const first = input.indexOf(':');
+            const last = input.lastIndexOf(':');
+            if (first === last) {
+                outAddress = input.slice(0, first) || defAddress;
+                stringPort = input.slice(first + 1);
+            } else if (input) {
+                // likely an unbracketed IPv6 host without explicit port
+                outAddress = input;
+            }
         } else if (input.match(/^\d+$/)) {
             stringPort = input;
         } else if (input) {
             outAddress = input;
         }
 
-        const parsedPort = parseInt(stringPort);
+        const parsedPort = /^\d+$/.test(stringPort) ? parseInt(stringPort, 10) : NaN;
         if (!isNaN(parsedPort) && parsedPort > 0) outPort = parsedPort;
 
         return [outAddress, outPort];
@@ -119,19 +143,24 @@ export default class OscConnection extends (EventEmitter as new () => TypedEmitt
         // Shutdown old service
         this.updateBulkAttempt = undefined;
         this.waitingForBulk = false;
+        this.hasBulkSinceAvatarChange = false;
+        this.isStale = true;
+        this.hasReceivedPacketSinceOpen = false;
+        this.clearStaleTimer();
         this.clearValues();
         for(const s of this.shutdown) { s(); }
         this.shutdown.length = 0;
+        this.recomputeEntriesVisibility();
 
         let port = 9001;
-        if (this.useOscQuery) {
+        if (this.mdnsWorking) {
             port = this.port = await portfinder.getPortPromise({
                 port: 33776,
             });
         }
         this.logger.log(`Selected port: ${port}`);
 
-        if (this.useOscQuery) {
+        if (this.mdnsWorking) {
             this.logger.log(`Starting OSCQuery handler...`);
             const oscQuery = this.oscQuery = new OSCQueryServer({
                 httpPort: port,
@@ -186,22 +215,26 @@ export default class OscConnection extends (EventEmitter as new () => TypedEmitt
         oscSocket.on('ready', () => {
             this.socketopen = true;
             this.recentlyRcvdOscCmds = 0;
-            this.lastPacket = 0;
             this.logger.log('<-', 'OPEN');
             this.logger.log("Waiting for first message from OSC ...");
+            this.recomputeEntriesVisibility();
         });
-        this.shutdown.push(() => this.socketopen = false);
+        this.shutdown.push(() => {
+            this.socketopen = false;
+            this.hasBulkSinceAvatarChange = false;
+            this.isStale = true;
+            this.clearStaleTimer();
+            this.recomputeEntriesVisibility();
+        });
         oscSocket.on('error', (e: unknown) => {
             // node osc throws errors for all sorts of invalid packets and things we often receive
             // that otherwise shouldn't be fatal to the socket. Just ignore them.
         });
         oscSocket.on('data', (msg: Buffer) => {
-            const proxyPort = this.configMap.get('osc.proxy');
-            if (proxyPort) {
-                for (let p of proxyPort.split(',')) {
-                    const [address,port] = OscConnection.parsePort(p.trim(), '127.0.0.1', 0);
-                    if (port > 0) this.udpClient.send(msg, port, address);
-                }
+            const proxyTargets = this.configService.getCached().oscProxy;
+            for (const target of proxyTargets) {
+                const [address, port] = OscConnection.parsePort(target, '127.0.0.1', 0);
+                if (port > 0) this.udpClient.send(msg, port, address);
             }
         });
         oscSocket.on('message', (oscMsg: OscMessage, timeTag: unknown, rinfo: RemoteInfo) => {
@@ -214,12 +247,18 @@ export default class OscConnection extends (EventEmitter as new () => TypedEmitt
             //this.log(`Received OSC packet from: ${from}`);
             if (!receivedOne) {
                 receivedOne = true;
+                this.hasReceivedPacketSinceOpen = true;
+                if (this.mdnsWatchdogTimeout) {
+                    clearTimeout(this.mdnsWatchdogTimeout);
+                    this.mdnsWatchdogTimeout = undefined;
+                }
                 this.logger.log("Received an OSC message. We are probably connected.");
                 this.updateBulk();
             }
-            this.lastPacket = Date.now();
+            this.isStale = false;
+            this.scheduleStaleTimer();
             this.recentlyRcvdOscCmds++;
-            this.lastReceiveTime = Date.now();
+            this.recomputeEntriesVisibility();
 
             const path = oscMsg.address;
             if (!path) return;
@@ -227,6 +266,8 @@ export default class OscConnection extends (EventEmitter as new () => TypedEmitt
             if (path === '/avatar/change') {
                 this.logger.log('<-', 'Avatar change');
                 this.clearValues();
+                this.hasBulkSinceAvatarChange = false;
+                this.recomputeEntriesVisibility();
                 this.updateBulk();
                 return;
             }
@@ -257,7 +298,7 @@ export default class OscConnection extends (EventEmitter as new () => TypedEmitt
             return;
         }
         value.receivedUpdate(rawValue);
-        if (isNew) this.emit('add', param, value);
+        if (isNew && this.entriesVisible) this.emit('add', param, value);
     }
 
     private parseParamFromPath(path: string) {
@@ -296,6 +337,9 @@ export default class OscConnection extends (EventEmitter as new () => TypedEmitt
             const param = this.parseParamFromPath(key);
             this.receivedParamValue(param, value, true);
         }
+        console.log("OSCQ RECEIVED");
+        this.hasBulkSinceAvatarChange = true;
+        this.recomputeEntriesVisibility();
     }
 
     send(paramName: string, value: number) {
@@ -320,7 +364,75 @@ export default class OscConnection extends (EventEmitter as new () => TypedEmitt
     }
 
     entries() {
+        if (!this.entriesVisible) return new Map<string, OscValue>();
         return this._entries;
+    }
+
+    isGameOpenAndActive() {
+        return this.entriesVisible;
+    }
+
+    private clearStaleTimer() {
+        if (this.staleTimer) clearTimeout(this.staleTimer);
+        this.staleTimer = undefined;
+    }
+
+    private scheduleStaleTimer() {
+        this.clearStaleTimer();
+        this.staleTimer = setTimeout(() => {
+            this.staleTimer = undefined;
+            this.isStale = true;
+            this.recomputeEntriesVisibility();
+        }, OscConnection.STALE_MS);
+    }
+
+    private recomputeEntriesVisibility() {
+        const nextVisible = Boolean(
+            this.socketopen
+            && !this.isStale
+            && this.hasBulkSinceAvatarChange
+        );
+        if (nextVisible === this.entriesVisible) return;
+        this.entriesVisible = nextVisible;
+        this.emit('clear');
+        if (!nextVisible) return;
+        for (const [key, value] of this._entries.entries()) {
+            this.emit('add', key, value);
+        }
+    }
+
+    getStatusSnapshot(): {
+        status: OscStatus;
+        mdnsWorking: boolean;
+        oscqueryWaitingForBulk: boolean;
+    } {
+        const oscqueryWaitingForBulk = this.waitingForBulk || !this.hasBulkSinceAvatarChange;
+        if (!this.socketopen) {
+            return {
+                status: 'socketStarting',
+                mdnsWorking: this.mdnsWorking,
+                oscqueryWaitingForBulk,
+            };
+        }
+        if (!this.hasReceivedPacketSinceOpen) {
+            return {
+                status: 'waitingForFirstPacket',
+                mdnsWorking: this.mdnsWorking,
+                oscqueryWaitingForBulk,
+            };
+        }
+        if (this.isStale) {
+            return {
+                status: 'stale',
+                mdnsWorking: this.mdnsWorking,
+                oscqueryWaitingForBulk,
+            };
+        }
+        return {
+            status: 'connected',
+            mdnsWorking: this.mdnsWorking,
+            oscqueryWaitingForBulk,
+        };
     }
 }
 
@@ -328,7 +440,7 @@ type ValueEvents = {
     change: (oldValue: unknown, newValue: unknown) => void,
 }
 
-export class OscValue extends (EventEmitter as new () => TypedEmitter<ValueEvents>) {
+export class OscValue extends TypedEventEmitter<ValueEvents> {
     private value: unknown = undefined;
     private delta = 0;
 

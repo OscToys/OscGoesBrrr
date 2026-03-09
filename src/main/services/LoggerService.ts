@@ -1,7 +1,7 @@
-import {ipcMain} from "electron";
 import util from "util";
 import {Service} from "typedi";
 import MainWindowService from "./MainWindowService";
+import {handleIpc} from "../ipc";
 
 const origConsoleLog = console.log;
 
@@ -24,7 +24,7 @@ export default class LoggerService {
     constructor(
         private mainWindowService: MainWindowService
     ) {
-        ipcMain.handle('log:history', async(_event, text) => {
+        handleIpc('log:history', async() => {
             return this.history;
         });
     }
@@ -38,12 +38,10 @@ export default class LoggerService {
         if (this.sending) return;
         this.sending = true;
         try {
-            const mainWindow = this.mainWindowService!.get();
-
             const lines = util.format(...args);
             for (const line of lines.split('\n')) {
                 this.history.push(line);
-                mainWindow?.webContents.send(`log:line`, line);
+                this.mainWindowService.send('log:line', line);
             }
             while (this.history.length > 1000) {
                 this.history.shift();

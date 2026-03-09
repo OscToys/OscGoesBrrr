@@ -21,15 +21,19 @@ jobs:
         with:
           fetch-depth: 0
           fetch-tags: true
+      - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v6
         with:
-          node-version: 24
-          cache: npm
+          node-version-file: '.nvmrc'
+          cache: pnpm
       - name: Determine Version
         id: determine_version
         run: |
-          npm ci
-          npx --yes -p semantic-release -p @semantic-release/exec -p @semantic-release/commit-analyzer -p conventional-changelog-conventionalcommits semantic-release --dry-run
+          pnpm install --frozen-lockfile
+          VERSION="$(pnpm exec release-it --release-version)"
+          TAG_NAME="v${VERSION}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tagName=$TAG_NAME" >> "$GITHUB_OUTPUT"
       - name: Validate Version Outputs
         run: |
           if [ -z "${{ steps.determine_version.outputs.version }}" ] || [ -z "${{ steps.determine_version.outputs.tagName }}" ]; then
@@ -48,19 +52,20 @@ jobs:
     steps:
       - name: Checkout repo
         uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v6
         with:
-          node-version: 18
-          cache: npm
+          node-version-file: '.nvmrc'
+          cache: pnpm
       - name: Build
         run: |
-          npm ci --platform=win32
-          (cd src/main && npx webpack)
-          (cd src/frontend && npx webpack)
-          npx electron-builder \
-            --win nsis \
+          pnpm install --frozen-lockfile --config.platform=win32
+          pnpm run build
+          pnpm exec electron-builder \
+            --win nsis portable \
             --config.extraMetadata.version="$VERSION" \
-            --config.nsis.artifactName="OscGoesBrrr-setup-${VERSION}.exe"
+            --config.nsis.artifactName="OscGoesBrrr-setup-${VERSION}.exe" \
+            --config.portable.artifactName="OscGoesBrrr-portable-${VERSION}.exe"
         env:
           HOME: /root
           VERSION: ${{ needs.version.outputs.version }}
@@ -69,6 +74,7 @@ jobs:
           name: windows
           path: |
             dist/OscGoesBrrr-setup-${{ needs.version.outputs.version }}.exe
+            dist/OscGoesBrrr-portable-${{ needs.version.outputs.version }}.exe
 
   release:
     needs: [version, build_win]
@@ -76,15 +82,6 @@ jobs:
     outputs:
       assets: ${{ steps.release.outputs.assets }}
     steps:
-      - name: Fail If Tag Already Exists
-        env:
-          TAG_NAME: ${{ needs.version.outputs.tagName }}
-        run: |
-          REPO_URL="https://github.com/${GITHUB_REPOSITORY}.git"
-          if git ls-remote --tags --refs "$REPO_URL" "refs/tags/${TAG_NAME}" | grep -q .; then
-            echo "Tag ${TAG_NAME} already exists on origin."
-            exit 1
-          fi
       - name: Download artifacts
         uses: actions/download-artifact@v7
         with:
@@ -100,6 +97,7 @@ jobs:
           prerelease: ${{ github.ref_name != github.event.repository.default_branch }}
           files: |
             windows/OscGoesBrrr-setup-${{ needs.version.outputs.version }}.exe
+            windows/OscGoesBrrr-portable-${{ needs.version.outputs.version }}.exe
 
   update_manifest:
     needs: [version, release]
@@ -114,14 +112,24 @@ jobs:
           ssh-key: ${{ secrets.VERSION_DEPLOY_KEY }}
       - uses: actions/setup-node@v6
         with:
-          node-version: 24
+          node-version-file: '.nvmrc'
       - name: Update Version Manifest
         run: |
-          jq --arg v "$VERSION" --arg u "$DOWNLOAD_URL" '.latestVersion = $v | .latestInstaller = $u' updates.json > updates.json.tmp
+          jq \
+            --arg v "$VERSION" \
+            --arg ws "$WINDOWS_SETUP_URL" \
+            --arg wp "$WINDOWS_PORTABLE_URL" \
+            '.latestVersion = $v
+             | .latestInstaller = $ws
+             | .downloadUrls = ((.downloadUrls // {}) + {
+                 windowsSetup: $ws,
+                 windowsPortable: $wp
+               })' updates.json > updates.json.tmp
           mv updates.json.tmp updates.json
         env:
           VERSION: ${{ needs.version.outputs.version }}
-          DOWNLOAD_URL: https://github.com/${{ github.repository }}/releases/download/${{ needs.version.outputs.tagName }}/OscGoesBrrr-setup-${{ needs.version.outputs.version }}.exe
+          WINDOWS_SETUP_URL: https://github.com/${{ github.repository }}/releases/download/${{ needs.version.outputs.tagName }}/OscGoesBrrr-setup-${{ needs.version.outputs.version }}.exe
+          WINDOWS_PORTABLE_URL: https://github.com/${{ github.repository }}/releases/download/${{ needs.version.outputs.tagName }}/OscGoesBrrr-portable-${{ needs.version.outputs.version }}.exe
       - name: Push version manifest
         run: |
           git diff

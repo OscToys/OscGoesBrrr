@@ -11,14 +11,20 @@ import Bonjour from "bonjour-service";
 import {Service} from "typedi";
 import type {Service as BounjourService} from "bonjour-service";
 import got from "got";
-import { z } from 'zod';
+import typia from "typia";
 import VrchatLogFinder from "./VrchatLogFinder";
+import {OscqueryStatus} from "../../common/ipcContract";
 
-const HostInfo = z.object({
-    NAME: z.string().optional(),
-    OSC_IP: z.string().optional(),
-    OSC_PORT: z.number().optional(),
-});
+interface HostInfo {
+    NAME: string;
+    OSC_IP: string;
+    OSC_PORT: number;
+}
+
+interface OscQueryValueNode {
+    FULL_PATH: string;
+    VALUE: unknown[];
+}
 
 /** Finds and keeps track of the local VRChat OSCQ service address */
 @Service()
@@ -30,6 +36,8 @@ export default class VrchatOscqueryService {
     private oscAddress?: string;
     private oscPort?: number;
     private mdnsBrowser;
+    private status: OscqueryStatus = 'searching';
+    private logsFound = false;
 
     constructor(
         private myAddress: MyAddressesService,
@@ -37,6 +45,7 @@ export default class VrchatOscqueryService {
         logger: LoggerService
     ) {
         this.logger = logger.get("vrcOscQuery");
+        const serviceLogger = this.logger;
 
         const mdns = new Bonjour();
         this.mdnsBrowser = mdns.find({
@@ -46,7 +55,12 @@ export default class VrchatOscqueryService {
 
         (async () => {
             while(true) {
-                await this.rescan();
+                try {
+                    await this.rescan();
+                } catch (e) {
+                    serviceLogger.log("Error while rescanning OSCQuery", e instanceof Error ? e.stack : e);
+                    this.status = 'unknownError';
+                }
                 await new Promise(r => setTimeout(r, 5000));
             }
         })();
@@ -57,12 +71,23 @@ export default class VrchatOscqueryService {
             let stillGood = false;
             try {
                 const hostInfo = await this.getHostInfo(this.oscqAddress, this.oscqPort);
-                stillGood = true;
+                stillGood = this.isVrchatHostInfo(hostInfo);
             } catch(e) {}
-            if (stillGood) return;
+            if (stillGood) {
+                this.status = 'success';
+                return;
+            }
+            // Intentionally keep the last working OSC/OSCQuery endpoints cached even after a failed probe.
+            // VRChat discovery is flaky on some systems, and continuing to retry the last known good address
+            // is better than clearing it and temporarily having nothing to talk to.
         }
 
         this.logger.log("Scanning for VRC OscQuery ...");
+        if (this.status !== 'failedToConnectHttpServer') {
+            this.status = 'searching';
+        }
+        let sawHttpFailure = false;
+        let hadCandidate = false;
         for (const entry of (this.mdnsBrowser.services as BounjourService[])) {
             if (entry.protocol != 'tcp') continue;
             const ip = entry.addresses?.[0];
@@ -74,18 +99,39 @@ export default class VrchatOscqueryService {
                 continue;
             }
             if (ip != '127.0.0.1') {
-                if (await this.checkPort('127.0.0.1', port)) return;
+                hadCandidate = true;
+                const loopbackStatus = await this.checkPort('127.0.0.1', port);
+                if (loopbackStatus === 'success') return;
+                if (loopbackStatus === 'httpError') sawHttpFailure = true;
             }
-            if (await this.checkPort(ip, port)) return;
+            hadCandidate = true;
+            const entryStatus = await this.checkPort(ip, port);
+            if (entryStatus === 'success') return;
+            if (entryStatus === 'httpError') sawHttpFailure = true;
         }
 
         this.logger.log("Checking vrchat logs for oscquery port ...");
-        const portFromLogs = await this.getOscqueryPortFromLogs();
+        const {port: portFromLogs, logsFound} = await this.getOscqueryPortFromLogs();
+        this.logsFound = logsFound;
         if (portFromLogs) {
             this.logger.log(`Found port ${portFromLogs} in logs`);
-            await this.checkPort('127.0.0.1', portFromLogs);
+            hadCandidate = true;
+            const logPortStatus = await this.checkPort('127.0.0.1', portFromLogs);
+            if (logPortStatus === 'success') return;
+            if (logPortStatus === 'httpError') sawHttpFailure = true;
         } else {
             this.logger.log('Could not find port in logs');
+        }
+
+        if (sawHttpFailure) {
+            this.status = 'failedToConnectHttpServer';
+        } else if (this.status === 'failedToConnectHttpServer') {
+            // Keep this warning sticky until we successfully reconnect.
+            return;
+        } else if (hadCandidate) {
+            this.status = 'vrchatOscqueryBroadcastNotFound';
+        } else {
+            this.status = 'searching';
         }
     }
 
@@ -94,36 +140,52 @@ export default class VrchatOscqueryService {
             url: `http://${ip}:${port}/?HOST_INFO`,
             timeout: { request: 5000 }
         }).json();
-        return HostInfo.parse(json);
+        return typia.assert<HostInfo>(json);
     }
-    async checkPort(ip: string, port: number) {
+
+    async checkPort(ip: string, port: number): Promise<'success' | 'notVrchat' | 'httpError'> {
         try {
             const hostInfo = await this.getHostInfo(ip, port);
-            if (!hostInfo.NAME || !hostInfo.NAME.startsWith("VRChat-Client-") || !hostInfo.OSC_IP || !hostInfo.OSC_PORT) {
+            if (!this.isVrchatHostInfo(hostInfo)) {
                 this.logger.log(`Skipping (${hostInfo.NAME} is not VRChat)`);
-                return false;
+                return 'notVrchat';
             }
             this.logger.log(`Successfully found VRChat OscQuery`);
             this.oscAddress = hostInfo.OSC_IP;
             this.oscPort = hostInfo.OSC_PORT;
             this.oscqAddress = ip;
             this.oscqPort = port;
-            return true;
+            this.status = 'success';
+            return 'success';
         } catch(e) {
             this.logger.log("Port invalid", (e instanceof Error) ? e.stack : e);
         }
-        return false;
+        return 'httpError';
     }
 
-    async getOscqueryPortFromLogs() {
-        let port;
-        await this.logFinder.forEachLine(line => {
+    private isVrchatHostInfo(hostInfo: HostInfo) {
+        return hostInfo.NAME.startsWith("VRChat-Client-");
+    }
+
+    async getOscqueryPortFromLogs(): Promise<{port?: number, logsFound: boolean}> {
+        const latestLogPath = await this.logFinder.getLatestLog();
+        if (!latestLogPath) return {logsFound: false};
+
+        let port: number | undefined;
+        const input = fsPlain.createReadStream(latestLogPath);
+        try {
+            const lineReader = readline.createInterface({input});
+            for await (const line of lineReader) {
             const m = line.match("of type OSCQuery on (\\d+)");
             if (m) {
                 port = parseInt(m[1]!);
             }
-        });
-        return port;
+            }
+        } finally {
+            input.close();
+        }
+
+        return {port, logsFound: true};
     }
 
     async getBulk() {
@@ -137,19 +199,16 @@ export default class VrchatOscqueryService {
         return values;
     }
     collectValues(input: unknown, output: Record<string,unknown>) {
+        if (typia.is<OscQueryValueNode>(input) && input.VALUE.length > 0) {
+            output[input.FULL_PATH] = input.VALUE[0];
+        }
         if (Array.isArray(input)) {
             for (const child of input) {
                 this.collectValues(child, output);
             }
-        } else if (input instanceof Object) {
-            if ('FULL_PATH' in input
-                && typeof(input.FULL_PATH) == 'string'
-                && 'VALUE' in input
-                && Array.isArray(input.VALUE)
-                && input.VALUE.length > 0
-            ) {
-                output[input.FULL_PATH] = input.VALUE[0];
-            }
+            return;
+        }
+        if (typia.is<Record<string, unknown>>(input)) {
             for (const child of Object.values(input)) {
                 this.collectValues(child, output);
             }
@@ -164,5 +223,13 @@ export default class VrchatOscqueryService {
     getOscAddress(): [string,number] | null {
         if (!this.oscAddress || !this.oscPort) return null;
         return [this.oscAddress, this.oscPort];
+    }
+
+    getStatus(): OscqueryStatus {
+        return this.status;
+    }
+
+    getLogsFound(): boolean {
+        return this.logsFound;
     }
 }

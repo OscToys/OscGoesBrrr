@@ -1,13 +1,18 @@
 import path from 'node:path';
 import webpack from 'webpack';
 import {fileURLToPath} from "node:url";
+import typiaTransformModule from "typia/lib/transform.js";
+const typiaTransform = typiaTransformModule.default;
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 
-export default {
+const config = {
+    context: __dirname,
     entry: './main',
     output: {
         path: path.resolve(__dirname, '../../app'),
+        filename: 'main.bundle.js',
         publicPath: 'app/',
+        module: true,
     },
     target: 'electron-main',
     devtool: 'source-map',
@@ -15,7 +20,16 @@ export default {
         rules: [
             {
                 test: /\.tsx?$/,
-                use: [{loader: 'ts-loader', options: {onlyCompileBundledFiles: true}}],
+                use: [{
+                    loader: 'ts-loader',
+                    options: {
+                        configFile: path.resolve(__dirname, './tsconfig.json'),
+                        onlyCompileBundledFiles: false,
+                        getCustomTransformers: (program) => ({
+                            before: [typiaTransform(program, undefined, { addDiagnostic: () => {} })]
+                        })
+                    }
+                }],
                 exclude: /node_modules/,
             },
             {
@@ -39,8 +53,14 @@ export default {
     resolve: {
         extensions: ['', '.ts', '.tsx', '.js', '.jsx'],
     },
+    experiments: {
+        outputModule: true,
+    },
     mode: 'development',
     watchOptions: {
         poll: 1000,
     },
 };
+
+// noinspection JSUnusedGlobalSymbols
+export default config;

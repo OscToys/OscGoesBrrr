@@ -1,17 +1,16 @@
 import React, {useEffect, useState} from "react";
-import StatusBox, {LogBox} from "./StatusBox";
 import ToggleableAudioHandler from "./AudioHandler";
-import AdvancedConfig from "./AdvancedConfig";
 // @ts-ignore
 import logoPath from '../../icons/ogb-logo.png';
-import Home from "./Home";
+import Settings from "./settings/Settings";
 import classNames from "classnames";
 import DebugLog from "./DebugLog";
 import {FontAwesomeIcon} from "@fortawesome/react-fontawesome";
 import { faDiscord } from "@fortawesome/free-brands-svg-icons";
 import {IconDefinition} from "@fortawesome/fontawesome-common-types";
-import {faBarsStaggered, faCircleNodes, faHome, faPeopleGroup, faTerminal} from "@fortawesome/free-solid-svg-icons";
+import {faBarsStaggered, faCircleNodes, faHome, faTerminal} from "@fortawesome/free-solid-svg-icons";
 import AvatarParams from "./AvatarParams";
+import PageErrorBoundary from "./PageErrorBoundary";
 
 export default function Main() {
     const [page,setPage] = useState<string>("home");
@@ -21,6 +20,19 @@ export default function Main() {
             {icon && <FontAwesomeIcon icon={icon} />}
             <span>{name}</span>
         </div>;
+    }
+
+    let pageContent: React.ReactNode = null;
+    let pageName = "Unknown";
+    if (page == "home") {
+        pageName = "Home";
+        pageContent = <Settings/>;
+    } else if (page == "logs") {
+        pageName = "Debug Logs";
+        pageContent = <DebugLog/>;
+    } else if (page == "avatarParams") {
+        pageName = "Avatar Debugger";
+        pageContent = <AvatarParams/>;
     }
 
     return <div style={{display: 'flex', flexDirection: 'row', height: '100%'}}>
@@ -36,9 +48,9 @@ export default function Main() {
         </div>
 
         <div className="rightColumn">
-            {page == "home" && <Home/>}
-            {page == "logs" && <DebugLog/>}
-            {page == "avatarParams" && <AvatarParams/>}
+            <PageErrorBoundary key={page} pageName={pageName}>
+                {pageContent}
+            </PageErrorBoundary>
         </div>
     </div>;
 }

@@ -1,18 +1,23 @@
+import {Service} from "typedi";
+
+@Service()
 export default class VrcConfigCheck {
     oscEnabled?: boolean;
     selfInteractEnabled?: boolean;
     everyoneInteractEnabled?: boolean;
 
-    async start() {
-        const reg = await import('native-reg');
+    constructor() {
+        void this.start();
+    }
+
+    private async start() {
         while (true) {
             try { await this.check(); } catch {}
-            console.log(`OSC=${this.oscEnabled} SELF=${this.selfInteractEnabled} EVERYONE=${this.everyoneInteractEnabled}`);
             await new Promise(r => setTimeout(r, 5000));
         }
     }
 
-    async check() {
+    private async check() {
         const reg = await import('native-reg');
 
         const vrChatKey = reg.openKey(

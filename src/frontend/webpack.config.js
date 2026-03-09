@@ -1,21 +1,35 @@
 import path from 'node:path';
 import {fileURLToPath} from "node:url";
+import typiaTransformModule from "typia/lib/transform.js";
+const typiaTransform = typiaTransformModule.default;
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 
-export default {
+const config = {
+    context: __dirname,
     entry: './renderer',
     output: {
         path: path.resolve(__dirname, '../../app'),
         filename: 'preload.js',
         publicPath: '',
+        devtoolModuleFilenameTemplate: 'file:///[absolute-resource-path]',
     },
     target: 'electron-renderer',
-    devtool: 'source-map',
+    // Inline maps are more reliable for Electron preload-loaded renderer bundles.
+    devtool: 'inline-source-map',
     module: {
         rules: [
             {
                 test: /\.tsx?$/,
-                use: [{loader: 'ts-loader', options: {onlyCompileBundledFiles: true}}],
+                use: [{
+                    loader: 'ts-loader',
+                    options: {
+                        configFile: path.resolve(__dirname, './tsconfig.json'),
+                        onlyCompileBundledFiles: false,
+                        getCustomTransformers: program => ({
+                            before: [typiaTransform(program, undefined, { addDiagnostic: () => {} })]
+                        })
+                    }
+                }],
                 exclude: /node_modules/,
             },
             {
@@ -47,3 +61,6 @@ export default {
         poll: 1000,
     },
 };
+
+// noinspection JSUnusedGlobalSymbols
+export default config;
