@@ -2,10 +2,7 @@ import {App} from "electron";
 import path from "path";
 
 export function getPortableExecutablePath(): string | undefined {
-    const portableDir = process.env["PORTABLE_EXECUTABLE_DIR"];
-    const portableFile = process.env["PORTABLE_EXECUTABLE_FILE"];
-    if (!portableDir || !portableFile) return undefined;
-    return path.join(portableDir, portableFile);
+    return process.env["PORTABLE_EXECUTABLE_FILE"];
 }
 
 export function configurePortableDataPaths(app: App): void {

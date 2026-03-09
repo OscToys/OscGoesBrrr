@@ -96,26 +96,25 @@ function launchPortableSwapAndRelaunch(stagedExePath: string, portableExecutable
         throw new Error("Portable mode requires PORTABLE_EXECUTABLE_DIR and PORTABLE_EXECUTABLE_FILE");
     }
 
-    const staged = escapeForCmdSet(stagedExePath);
-    const current = escapeForCmdSet(portableExecutablePath);
-    const command = [
-        `set "SRC=${staged}"`,
-        `set "DST=${current}"`,
-        // Retry swap while the old process is still shutting down.
-        `for /l %i in (1,1,30) do (@move /y "%SRC%" "%DST%" >nul 2>&1 && goto launch || timeout /t 1 /nobreak >nul)`,
-        "exit /b 1",
-        ":launch",
-        `start "" "%DST%"`,
-    ].join(" & ");
-
-    const updater = child_process.spawn("cmd.exe", ["/d", "/s", "/c", command], {
-        detached: true,
-        stdio: "ignore",
-        windowsHide: true,
-    });
+    // Using cmd.exe by itself is error prone because the quoting behaviour is so bad
+    // Using powershell directly doesn't work for some reason when detached: true
+    // So... we use cmd.exe to run powershell.exe :shrug:
+    const script = "for($i=0;$i -lt 30;$i++){try{Move-Item -LiteralPath $env:OGB_SRC -Destination $env:OGB_DST -Force -ErrorAction Stop; Start-Sleep -Seconds 1; Start-Process -FilePath $env:OGB_DST; exit 0}catch{Start-Sleep -Seconds 1}}; exit 1";
+    const encoded = Buffer.from(script, "utf16le").toString("base64");
+    const command = `powershell.exe -NoProfile -NonInteractive -WindowStyle Hidden -EncodedCommand ${encoded}`;
+    const updater = child_process.spawn(
+        "cmd.exe",
+        ["/d", "/c", command],
+        {
+            detached: true,
+            stdio: "ignore",
+            windowsHide: true,
+            env: {
+                ...process.env,
+                OGB_SRC: stagedExePath,
+                OGB_DST: portableExecutablePath,
+            },
+        }
+    );
     updater.unref();
-}
-
-function escapeForCmdSet(value: string): string {
-    return value.replace(/%/g, "%%").replace(/"/g, '""');
 }
