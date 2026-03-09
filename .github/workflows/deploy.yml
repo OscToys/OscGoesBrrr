@@ -83,6 +83,15 @@ jobs:
     outputs:
       assets: ${{ steps.release.outputs.assets }}
     steps:
+      - name: Fail If Tag Already Exists
+        env:
+          TAG_NAME: ${{ needs.version.outputs.tagName }}
+        run: |
+          REPO_URL="https://github.com/${GITHUB_REPOSITORY}.git"
+          if git ls-remote --tags --refs "$REPO_URL" "refs/tags/${TAG_NAME}" | grep -q .; then
+            echo "Tag ${TAG_NAME} already exists on origin."
+            exit 1
+          fi
       - name: Download artifacts
         uses: actions/download-artifact@v8
         with:
