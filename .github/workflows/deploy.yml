@@ -121,7 +121,7 @@ jobs:
           mv updates.json.tmp updates.json
         env:
           VERSION: ${{ needs.version.outputs.version }}
-          DOWNLOAD_URL: ${{ fromJSON(needs.release.outputs.assets)[0].browser_download_url }}
+          DOWNLOAD_URL: https://github.com/${{ github.repository }}/releases/download/${{ needs.version.outputs.tagName }}/OscGoesBrrr-setup-${{ needs.version.outputs.version }}.exe
       - name: Push version manifest
         run: |
           git diff
