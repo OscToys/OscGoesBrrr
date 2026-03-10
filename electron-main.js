@@ -11,17 +11,17 @@ function toErrorMessage(error) {
 }
 
 function fatalExit(title, error) {
-  try {
-    dialog.showErrorBox(title, toErrorMessage(error));
-  } catch {
-    // Keep going; process still needs to exit.
-  }
-
   if (fatalExitStarted) {
     process.exit(1);
     return;
   }
   fatalExitStarted = true;
+
+  try {
+    dialog.showErrorBox(title, toErrorMessage(error));
+  } catch {
+    // Keep going; process still needs to exit.
+  }
 
   try {
     app.quit();

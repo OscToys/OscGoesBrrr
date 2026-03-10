@@ -1,11 +1,7 @@
 import osc from 'osc';
 import {OscMessage, UDPPort} from 'osc';
 import dgram, {RemoteInfo} from 'dgram';
-import {
-    OSCQueryServer,
-    OSCTypeSimple,
-    OSCQAccess, OSCQueryDiscovery, DiscoveredService, type OSCMethodDescription,
-} from "oscquery";
+import {OSCQueryServer, OSCQAccess} from "oscquery";
 import portfinder from 'portfinder';
 import {Service} from "typedi";
 import MyAddressesService from "./services/MyAddressesService";
@@ -54,8 +50,11 @@ export default class OscConnection extends TypedEventEmitter<MyEvents> {
 
         this.logger = logger.get('oscLog');
         this.udpClient = dgram.createSocket('udp4');
+        this.udpClient.on('error', (error) => {
+            this.logger.log('UDP proxy socket error', error);
+        });
 
-        this.openSocket();
+        void this.openSocket();
 
         setInterval(() => {
             if (!this.socketopen) return;
@@ -234,7 +233,12 @@ export default class OscConnection extends TypedEventEmitter<MyEvents> {
             const proxyTargets = this.configService.getCached().oscProxy;
             for (const target of proxyTargets) {
                 const [address, port] = OscConnection.parsePort(target, '127.0.0.1', 0);
-                if (port > 0) this.udpClient.send(msg, port, address);
+                if (port <= 0) continue;
+                this.udpClient.send(msg, port, address, (error) => {
+                    if (error) {
+                        this.logger.log(`Failed to proxy OSC packet to ${address}:${port}`, error);
+                    }
+                });
             }
         });
         oscSocket.on('message', (oscMsg: OscMessage, timeTag: unknown, rinfo: RemoteInfo) => {

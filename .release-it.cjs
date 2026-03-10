@@ -9,7 +9,6 @@ const preRelease = branchName
   .replace(/[^a-z0-9-]/g, "") || "beta";
 
 module.exports = {
-  increment: isMain ? "minor" : "prerelease",
   preRelease: isMain ? false : preRelease,
   git: {
     tagName: "v${version}",
@@ -20,5 +19,13 @@ module.exports = {
     requireCommits: true,
   },
   npm: false,
-  github: false
+  github: false,
+  plugins: {
+    "@release-it/conventional-changelog": {
+      preset: {
+        name: "conventionalcommits",
+      },
+      infile: false,
+    },
+  },
 };

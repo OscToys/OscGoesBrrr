@@ -10,6 +10,7 @@ type JsonStateEvents<TData> = {
 };
 
 type MutationRecipe<TData> = ((draft: Draft<TData>) => void) | TData;
+export type NormalizeSource = 'load' | 'mutate';
 
 /**
  * Base service for JSON-backed state with serialized I/O and change notifications.
@@ -93,7 +94,7 @@ export abstract class AbstractJsonStateService<TData> extends TypedEventEmitter<
             } else {
                 produced = mutator;
             }
-            const next = this.normalizeData(produced);
+            const next = this.normalizeData(produced, 'mutate');
             if (Object.is(next, this.data)) return this.data;
             await this.writeDataToDisk(next);
             this.emitChanged(next);
@@ -264,7 +265,7 @@ export abstract class AbstractJsonStateService<TData> extends TypedEventEmitter<
         const jsonBeforeUpgrade = JSON.stringify(parsedJson);
         const upgradedRaw = this.upgradeRawData(parsedJson);
         const parsed = this.parseDataFn(upgradedRaw);
-        const normalized = this.normalizeData(parsed);
+        const normalized = this.normalizeData(parsed, 'load');
         return {
             normalized,
             sourceText,
@@ -292,11 +293,11 @@ export abstract class AbstractJsonStateService<TData> extends TypedEventEmitter<
         this.resolveInitialLoadPromise = undefined;
     }
 
-    private normalizeData(data: TData): TData {
-        return produce(data, (draft) => this.normalizeDraft(draft));
+    private normalizeData(data: TData, source: NormalizeSource): TData {
+        return produce(data, (draft) => this.normalizeDraft(draft, source));
     }
 
-    protected normalizeDraft(_draft: Draft<TData>): void {
+    protected normalizeDraft(_draft: Draft<TData>, _source: NormalizeSource): void {
         // no-op by default
     }
 

@@ -1,14 +1,14 @@
 import {Service} from "typedi";
 import {Config, Output} from "../../common/configTypes";
-import {normalizeConfigDraft} from "../../common/configNormalization";
 import path from 'path';
 import {app, shell} from 'electron';
 import typia from "typia";
 import {freeze, type Draft} from "immer";
-import AbstractJsonStateService from "./AbstractJsonStateService";
+import AbstractJsonStateService, {type NormalizeSource} from "./AbstractJsonStateService";
 import MainWindowService from "./MainWindowService";
 import {handleIpc} from "../ipc";
 import LegacyTxtConfigImportService from "./migrate/LegacyTxtConfigImportService";
+import {normalizeConfigDraft} from "./configNormalization";
 
 @Service()
 export default class ConfigService extends AbstractJsonStateService<Config> {
@@ -37,8 +37,8 @@ export default class ConfigService extends AbstractJsonStateService<Config> {
         return this.getCached().outputs.find(t => t.id === id);
     }
 
-    protected override normalizeDraft(draft: Draft<Config>): void {
-        normalizeConfigDraft(draft);
+    protected override normalizeDraft(draft: Draft<Config>, source: NormalizeSource): void {
+        normalizeConfigDraft(draft, source);
     }
 
     private static upgradeRawConfig(raw: unknown): unknown {
