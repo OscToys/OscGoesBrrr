@@ -276,9 +276,15 @@ export abstract class AbstractJsonStateService<TData> extends TypedEventEmitter<
     private async writeDataToDisk(data: TData): Promise<void> {
         this.log(`Saving`);
         const serialized = JSON.stringify(data, null, 2);
+        const saveDir = path.dirname(this.savePath);
+        const tempPath = path.join(
+            saveDir,
+            `.${path.basename(this.savePath)}.${process.pid}.${Date.now()}.tmp`,
+        );
         this.lastWrittenAtMs = Date.now(); // This is set before the save on purpose since the watcher could activate any time
-        await fs.mkdir(path.dirname(this.savePath), {recursive: true});
-        await fs.writeFile(this.savePath, serialized);
+        await fs.mkdir(saveDir, {recursive: true});
+        await fs.writeFile(tempPath, serialized);
+        await fs.rename(tempPath, this.savePath);
         this.lastKnownFileText = serialized;
         this.log(`Saved`);
     }
