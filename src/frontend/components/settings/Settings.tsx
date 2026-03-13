@@ -1,4 +1,4 @@
-import {useState} from 'react';
+import {useEffect, useRef, useState} from 'react';
 import React from 'react';
 import SettingsBody from "./SettingsBody";
 import {
@@ -56,6 +56,32 @@ export default function Settings() {
     );
     const [resetTarget, setResetTarget] = useState<ResetTarget | undefined>(undefined);
     const [devToolsUnlocked, setDevToolsUnlocked] = useState(false);
+    const devSequenceRef = useRef('');
+
+    useEffect(() => {
+        const onKeyDown = (event: KeyboardEvent) => {
+            if (event.ctrlKey || event.altKey || event.metaKey || event.isComposing) return;
+            if (event.key.length !== 1) return;
+            const target = event.target;
+            if (
+                target instanceof HTMLInputElement ||
+                target instanceof HTMLTextAreaElement ||
+                target instanceof HTMLSelectElement ||
+                (target instanceof HTMLElement && target.isContentEditable)
+            ) {
+                return;
+            }
+
+            devSequenceRef.current = (devSequenceRef.current + event.key.toLowerCase()).slice(-3);
+            if (devSequenceRef.current === 'dev') {
+                devSequenceRef.current = '';
+                setDevToolsUnlocked((value) => !value);
+            }
+        };
+
+        window.addEventListener('keydown', onKeyDown);
+        return () => window.removeEventListener('keydown', onKeyDown);
+    }, []);
 
     const openConfigFile = async () => {
         await invokeIpc('config:open');

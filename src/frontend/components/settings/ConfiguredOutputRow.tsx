@@ -107,6 +107,12 @@ function ConfiguredOutputRow({outputAtom, infoAtom, onDelete}: Props) {
     if (warningText != null) {
         alerts.push({severity: "warning", content: warningText});
     }
+    if (info?.name?.toLowerCase().includes("lovense connect")) {
+        alerts.push({
+            severity: "warning",
+            content: "Lovense Connect support in Intiface is deprecated and likely doesn't work at all. Please consider removing Lovense Connect from your phone, remove Intiface from your desktop, and install the Intiface app from the app store on your phone. The intiface mobile app works in place of Lovense Connect.",
+        });
+    }
     if (importedExpiryWarning != null) {
         alerts.push({severity: "warning", content: importedExpiryWarning});
     }
