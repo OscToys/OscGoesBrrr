@@ -105,6 +105,16 @@ export default class LegacyTxtConfigImportService {
             } else {
                 newConfig.intifaceAddress = `${legacyBioWss ? "wss" : "ws"}://${raw}`;
             }
+            try {
+                const parsed = new URL(newConfig.intifaceAddress);
+                const hostname = parsed.hostname.toLowerCase();
+                const port = parsed.port || '12345';
+                if ((hostname === 'localhost' || hostname === '127.0.0.1') && port === '12345') {
+                    delete newConfig.intifaceAddress;
+                }
+            } catch {
+                // Leave as-is; ConfigService normalization handles invalid values.
+            }
         }
 
         newConfig.outputs = Array.from(outputsMap.values());

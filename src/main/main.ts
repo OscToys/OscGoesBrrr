@@ -74,6 +74,7 @@ handleIpc('settings-state:request', async () => {
     }
 
     const intifaceConnected = butt.wsReady();
+    const detectedIntifaceAddresses = butt.getDiscoveredIntifaceAddresses();
     const vrchatConnected = oscConnection.isGameOpenAndActive();
     const detectedVrcConfigDir = await vrchatLogFinder.getDetectedVrcConfigDir();
     const connectedOutputDevices = Array.from(bridge.getOutputs());
@@ -214,6 +215,7 @@ handleIpc('settings-state:request', async () => {
         data: {
             outputs: entries,
             intifaceConnected,
+            detectedIntifaceAddresses,
             vrchat: {
                 connected: vrchatConnected,
                 warnings: {

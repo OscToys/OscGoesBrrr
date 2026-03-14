@@ -1,5 +1,5 @@
 import React from "react";
-import {Alert, AlertColor, Stack, Typography} from "@mui/material";
+import {Alert, AlertColor, FormControlLabel, Radio, RadioGroup, Stack, Typography} from "@mui/material";
 import TextCommitInput from "../util/TextCommitInput";
 import MyAccordion from "../util/MyAccordion";
 import ConnectionBubble from "./ConnectionBubble";
@@ -23,6 +23,9 @@ function IntifaceSettingsSection({
     const intifaceConnected = useAtomValue(
         React.useMemo(() => selectAtom(settingsStateAtom, (state) => state.intifaceConnected), [settingsStateAtom]),
     );
+    const detectedIntifaceAddresses = useAtomValue(
+        React.useMemo(() => selectAtom(settingsStateAtom, (state) => state.detectedIntifaceAddresses), [settingsStateAtom]),
+    );
     const outputs = useAtomValue(
         React.useMemo(() => selectAtom(settingsStateAtom, (state) => state.outputs), [settingsStateAtom]),
     );
@@ -33,6 +36,9 @@ function IntifaceSettingsSection({
     } else if (!outputs.some((output) => output.connected)) {
         alerts.push({severity: "warning", content: "No devices are connected to Intiface"});
     }
+    const autoLabel = intifaceAddress === undefined
+        ? `Auto (Local / mDNS) - Detected: ${detectedIntifaceAddresses.length > 0 ? detectedIntifaceAddresses.join(", ") : 'Not found'}`
+        : 'Auto (Local / mDNS)';
 
     return (
         <MyAccordion
@@ -49,12 +55,31 @@ function IntifaceSettingsSection({
                 {alerts.map((alert, index) => (
                     <Alert key={index} severity={alert.severity}>{alert.content}</Alert>
                 ))}
-                <TextCommitInput
-                    value={intifaceAddress ?? ''}
-                    label="Server Address"
-                    placeholder="ws://localhost:12345"
-                    onCommit={setIntifaceAddress}
-                />
+                <RadioGroup
+                    value={intifaceAddress === undefined ? 'auto' : 'fixed'}
+                    onChange={(_event, value) => {
+                        if (value === 'auto') {
+                            setIntifaceAddress(undefined);
+                            return;
+                        }
+                        setIntifaceAddress('ws://localhost:12345');
+                    }}
+                >
+                    <FormControlLabel
+                        value="auto"
+                        control={<Radio />}
+                        label={autoLabel}
+                    />
+                    <FormControlLabel value="fixed" control={<Radio />} label="Fixed IP Address" />
+                </RadioGroup>
+                {intifaceAddress !== undefined && (
+                    <TextCommitInput
+                        value={intifaceAddress}
+                        label="Server Address"
+                        placeholder="ws://localhost:12345"
+                        onCommit={setIntifaceAddress}
+                    />
+                )}
             </Stack>
         </MyAccordion>
     );

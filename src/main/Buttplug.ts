@@ -18,6 +18,7 @@ import ConfigService from "./services/ConfigService";
 import {Service} from "typedi";
 import BackendDataService from "./services/BackendDataService";
 import ImportedOutputPromotionService from "./services/migrate/ImportedOutputPromotionService";
+import IntifaceMdnsService from "./services/IntifaceMdnsService";
 import typia from "typia";
 import {Result} from "../common/result";
 import TypedEventEmitter from "../common/TypedEventEmitter";
@@ -58,6 +59,7 @@ export default class Buttplug extends TypedEventEmitter<MyEvents> {
         private configService: ConfigService,
         private importedOutputPromotionService: ImportedOutputPromotionService,
         private backendDataService: BackendDataService,
+        private intifaceMdnsService: IntifaceMdnsService,
         loggerService: LoggerService,
     ) {
         super();
@@ -133,29 +135,132 @@ export default class Buttplug extends TypedEventEmitter<MyEvents> {
 
         const config = await this.configService.get();
         if (generation !== this.connectionGeneration) return;
-        const normalizedUri = config.intifaceAddress ?? 'ws://127.0.0.1:12345';
-        let uri;
-        try {
-            const parsed = new URL(normalizedUri);
-            if (parsed.hostname.toLowerCase() === 'localhost') {
-                parsed.hostname = '127.0.0.1';
-            }
-            uri = parsed.toString();
-        } catch {
-            uri = normalizedUri;
-        }
-        this.logger.log("Opening connection to server at " + uri);
-
-        let ws;
-        try {
-            ws = new WebSocket(uri);
-        } catch(e) {
-            this.logger.log('Init exception', e);
+        const candidateUris = config.intifaceAddress === undefined
+            ? this.getAutoIntifaceAddresses()
+            : [config.intifaceAddress ?? 'ws://127.0.0.1:12345'];
+        if (candidateUris.length === 0) {
+            this.logger.log(config.intifaceAddress === undefined ? 'Could not discover Intiface automatically' : 'No Intiface address configured');
             if (generation === this.connectionGeneration) this.requestReconnect();
             return;
         }
+        for (const candidateUri of candidateUris) {
+            const uri = this.normalizeUri(candidateUri);
+            this.logger.log("Opening connection to server at " + uri);
+            const connected = await this.openConnectionAttempt(generation, uri);
+            if (connected) {
+                return;
+            }
+            if (generation !== this.connectionGeneration) return;
+        }
+        if (generation === this.connectionGeneration) this.requestReconnect();
+    }
+
+    private normalizeUri(input: string): string {
+        try {
+            const parsed = new URL(input);
+            if (parsed.hostname.toLowerCase() === 'localhost') {
+                parsed.hostname = '127.0.0.1';
+            }
+            return parsed.toString();
+        } catch {
+            return input;
+        }
+    }
+
+    private getAutoIntifaceAddresses(): string[] {
+        return Array.from(new Set([
+            'ws://127.0.0.1:12345',
+            ...this.intifaceMdnsService.getAddresses(),
+        ]));
+    }
+
+    private async openConnectionAttempt(generation: number, uri: string): Promise<boolean> {
+        let ws: WebSocket;
+        try {
+            ws = new WebSocket(uri);
+        } catch (e) {
+            this.logger.log('Init exception', e);
+            return false;
+        }
+
+        this.logger.log('Opening websocket ...');
         this.ws = ws;
         this.wsGeneration = generation;
+
+        const result = await new Promise<boolean>((resolve) => {
+            let settled = false;
+            const finish = (value: boolean) => {
+                if (settled) return;
+                settled = true;
+                this.clearConnectionTimeout();
+                ws.removeAllListeners('message');
+                ws.removeAllListeners('error');
+                ws.removeAllListeners('close');
+                ws.removeAllListeners('open');
+                resolve(value);
+            };
+            ws.on('message', data => {
+                if (generation !== this.connectionGeneration) return;
+                this.onReceive(data);
+            });
+            ws.on('error', e => {
+                if (generation !== this.connectionGeneration) return;
+                this.logger.log('error', e);
+                finish(false);
+            });
+            ws.on('close', () => {
+                if (generation !== this.connectionGeneration) return;
+                finish(false);
+            });
+            ws.on('open', async () => {
+                if (generation !== this.connectionGeneration) {
+                    ws.terminate();
+                    finish(false);
+                    return;
+                }
+                try {
+                    this.clearConnectionTimeout();
+                    this.logger.log('open');
+                    await this.send({
+                        type: 'RequestServerInfo',
+                        ClientName: 'OscGoesBrrr',
+                        ProtocolVersionMajor: 4,
+                        ProtocolVersionMinor: 0,
+                    });
+                    if (generation !== this.connectionGeneration) {
+                        finish(false);
+                        return;
+                    }
+                    await this.send({type: 'RequestDeviceList'});
+                    if (generation !== this.connectionGeneration) {
+                        finish(false);
+                        return;
+                    }
+                    finish(true);
+                } catch (e) {
+                    this.logger.log('Init handshake failed', e);
+                    finish(false);
+                }
+            });
+            this.connectionTimeout = setTimeout(() => {
+                if (generation !== this.connectionGeneration) return;
+                this.logger.log('Timed out while opening socket');
+                finish(false);
+            }, 3000);
+        });
+
+        if (!result) {
+            if (this.ws === ws) {
+                this.ws = undefined;
+                this.wsGeneration = undefined;
+            }
+            try {
+                ws.on('error', () => {});
+                ws.on('close', () => {});
+                ws.terminate();
+            } catch {}
+            return false;
+        }
 
         ws.on('message', data => {
             if (generation !== this.connectionGeneration) return;
@@ -164,7 +269,7 @@ export default class Buttplug extends TypedEventEmitter<MyEvents> {
         ws.on('error', e => {
             if (generation !== this.connectionGeneration) return;
             this.logger.log('error', e);
-        })
+        });
         ws.on('close', () => {
             if (generation !== this.connectionGeneration) return;
             if (this.ws === ws) {
@@ -175,37 +280,13 @@ export default class Buttplug extends TypedEventEmitter<MyEvents> {
             this.stopScanTimer();
             this.logger.log('Connection closed');
             this.requestReconnect();
-        })
-        ws.on('open', async () => {
-            if (generation !== this.connectionGeneration) {
-                ws.terminate();
-                return;
-            }
-            try {
-                this.clearConnectionTimeout();
-                this.logger.log('open');
-                await this.send({
-                    type: 'RequestServerInfo',
-                    ClientName: 'OscGoesBrrr',
-                    ProtocolVersionMajor: 4,
-                    ProtocolVersionMinor: 0,
-                });
-                if (generation !== this.connectionGeneration) return;
-                await this.send({ type: 'RequestDeviceList' });
-                if (generation !== this.connectionGeneration) return;
-                this.startScanTimer(generation);
-            } catch (e) {
-                this.logger.log('Init handshake failed', e);
-                if (generation === this.connectionGeneration) this.requestReconnect();
-            }
         });
+        this.startScanTimer(generation);
+        return true;
+    }
 
-        this.logger.log('Opening websocket ...');
-        this.connectionTimeout = setTimeout(() => {
-            if (generation !== this.connectionGeneration) return;
-            this.logger.log('Timed out while opening socket');
-            this.requestReconnect();
-        }, 3000);
+    getDiscoveredIntifaceAddresses(): string[] {
+        return this.intifaceMdnsService.getAddresses();
     }
 
     private startScanTimer(generation: number) {

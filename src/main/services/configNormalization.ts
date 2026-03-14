@@ -35,10 +35,7 @@ export function normalizeAddress(
 
 export function normalizeConfigDraft(draft: Draft<Config>, source: NormalizeSource): void {
     const normalizedIntifaceAddress = normalizeAddress(draft.intifaceAddress);
-    const shouldUnsetIntifaceAddress =
-        normalizedIntifaceAddress === undefined
-        || normalizedIntifaceAddress === 'ws://localhost:12345';
-    if (shouldUnsetIntifaceAddress) delete draft.intifaceAddress;
+    if (normalizedIntifaceAddress === undefined) delete draft.intifaceAddress;
     else draft.intifaceAddress = normalizedIntifaceAddress;
 
     draft.oscProxy = draft.oscProxy.map(target => {

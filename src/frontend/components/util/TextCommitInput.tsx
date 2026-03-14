@@ -6,6 +6,7 @@ interface Props {
     label?: string;
     placeholder?: string;
     helperText?: string;
+    disabled?: boolean;
     liveNormalize?: (next: string) => string;
     suggestions?: string[];
     startAdornment?: React.ReactNode;
@@ -13,7 +14,7 @@ interface Props {
     onCommit: (next: string) => void;
 }
 
-export default function TextCommitInput({value, label, placeholder, helperText, liveNormalize, suggestions, startAdornment, endAdornment, onCommit}: Props) {
+export default function TextCommitInput({value, label, placeholder, helperText, disabled, liveNormalize, suggestions, startAdornment, endAdornment, onCommit}: Props) {
     const [draft, setDraft] = useState(value);
     const [focused, setFocused] = useState(false);
     const skipNextBlurCommitRef = useRef(false);
@@ -83,6 +84,7 @@ export default function TextCommitInput({value, label, placeholder, helperText, 
                         label={label}
                         placeholder={placeholder}
                         helperText={helperText}
+                        disabled={disabled}
                         InputLabelProps={{shrink: true}}
                         InputProps={{
                             ...params.InputProps,
@@ -115,6 +117,7 @@ export default function TextCommitInput({value, label, placeholder, helperText, 
             spellCheck={false}
             size="small"
             fullWidth
+            disabled={disabled}
             slotProps={{
                 inputLabel: {shrink: true},
                 ...(startAdornment !== undefined || endAdornment !== undefined
