@@ -23,13 +23,23 @@ function IntifaceSettingsSection({
     const intifaceConnected = useAtomValue(
         React.useMemo(() => selectAtom(settingsStateAtom, (state) => state.intifaceConnected), [settingsStateAtom]),
     );
+    const intifaceAddressOffSubnet = useAtomValue(
+        React.useMemo(() => selectAtom(settingsStateAtom, (state) => state.intifaceAddressOffSubnet), [settingsStateAtom]),
+    );
     const outputs = useAtomValue(
         React.useMemo(() => selectAtom(settingsStateAtom, (state) => state.outputs), [settingsStateAtom]),
     );
     const [intifaceAddress, setIntifaceAddress] = useAtom(intifaceAddressAtom);
     const alerts: {severity: AlertColor; content: string}[] = [];
     if (!intifaceConnected) {
-        alerts.push({severity: "error", content: "Intiface is not connected."});
+        if (intifaceAddress !== undefined && intifaceAddressOffSubnet) {
+            alerts.push({
+                severity: "error",
+                content: "The IP you entered is not on your local network. Make sure the device is on wifi, connected to the same router, and not using a VPN.",
+            });
+        } else {
+            alerts.push({severity: "error", content: "Intiface is not connected."});
+        }
     } else if (!outputs.some((output) => output.connected)) {
         alerts.push({severity: "warning", content: "No devices are connected to Intiface"});
     }

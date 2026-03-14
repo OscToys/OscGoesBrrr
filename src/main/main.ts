@@ -16,6 +16,7 @@ import VrchatLogScanner from "./services/VrchatLogScanner";
 import VrchatLogFinder from "./services/VrchatLogFinder";
 import BackendDataService from "./services/BackendDataService";
 import ImportedOutputPromotionService from "./services/migrate/ImportedOutputPromotionService";
+import MyAddressesService from "./services/MyAddressesService";
 import {handleIpc} from "./ipc";
 import {OscqueryStatus} from "../common/ipcContract";
 import type {ButtplugFeatureInformation, Device, IntifaceDeviceFeatureSelection} from "./ButtplugSpec";
@@ -43,6 +44,7 @@ const oscConnection = container.get(OscConnection);
 const vrchatOscqueryService = container.get(VrchatOscqueryService);
 const logScanner = container.get(VrchatLogScanner);
 const vrchatLogFinder = container.get(VrchatLogFinder);
+const myAddressesService = container.get(MyAddressesService);
 
 {
     const systemLogger = logger.get('system');
@@ -74,6 +76,10 @@ handleIpc('settings-state:request', async () => {
     }
 
     const intifaceConnected = butt.wsReady();
+    const intifaceAddressOffSubnet = isFixedIntifaceAddressOffSubnet(
+        configService.getCached().intifaceAddress,
+        myAddressesService,
+    );
     const vrchatConnected = oscConnection.isGameOpenAndActive();
     const detectedVrcConfigDir = await vrchatLogFinder.getDetectedVrcConfigDir();
     const connectedOutputDevices = Array.from(bridge.getOutputs());
@@ -214,6 +220,7 @@ handleIpc('settings-state:request', async () => {
         data: {
             outputs: entries,
             intifaceConnected,
+            intifaceAddressOffSubnet,
             vrchat: {
                 connected: vrchatConnected,
                 warnings: {
@@ -243,6 +250,25 @@ handleIpc('settings-state:request', async () => {
     });
 
 });
+
+function isFixedIntifaceAddressOffSubnet(
+    intifaceAddress: string | undefined,
+    myAddressesService: MyAddressesService,
+): boolean {
+    if (!intifaceAddress) return false;
+    try {
+        const parsed = new URL(intifaceAddress);
+        const hostname = parsed.hostname.trim();
+        if (!hostname) return false;
+        const normalized = hostname.toLowerCase();
+        if (normalized === 'localhost' || normalized === '127.0.0.1' || normalized === '::1') {
+            return false;
+        }
+        return !myAddressesService.sharesSubnet(hostname);
+    } catch {
+        return false;
+    }
+}
 
 handleIpc('fft:status', (level) => {
     if (level < 0 || level > 1 || isNaN(level)) return;

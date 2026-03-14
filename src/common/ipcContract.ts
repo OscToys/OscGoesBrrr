@@ -53,6 +53,7 @@ export interface SettingsStateVrchat {
 export interface SettingsStatePayload {
     outputs: OutputDeviceInfo[];
     intifaceConnected: boolean;
+    intifaceAddressOffSubnet: boolean;
     vrchat: SettingsStateVrchat;
     importedDeletesAt?: number;
 }
