@@ -433,7 +433,7 @@ export class DeviceFeature {
         if (signedNormalized > 0.001 && mapped <= 0 && max > 0) {
             return 1;
         }
-        if (signedNormalized < 0.001 && mapped >= 0 && min < 0) {
+        if (signedNormalized < -0.001 && mapped >= 0 && min < 0) {
             return -1;
         }
         return mapped;
