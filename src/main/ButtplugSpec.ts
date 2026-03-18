@@ -46,7 +46,7 @@ export interface ButtplugOutputCommandMap {
     Oscillate: ButtplugScalarOutputCommand;
     Constrict: ButtplugScalarOutputCommand;
     Position: ButtplugScalarOutputCommand;
-    PositionWithDuration: ButtplugDurationOutputCommand;
+    HwPositionWithDuration: ButtplugDurationOutputCommand;
 }
 
 export type ButtplugKnownOutputType = keyof ButtplugOutputCommandMap;

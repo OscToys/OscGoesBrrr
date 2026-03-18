@@ -26,7 +26,7 @@ import clamp from "../common/clamp";
 type DeviceMotionType = 'linear' | 'vibrate' | 'rotate';
 
 const getDeviceMotionTypeFromOutputType = (outputType: ButtplugOutputType): DeviceMotionType => {
-    if (outputType === 'Position' || outputType === 'PositionWithDuration') return 'linear';
+    if (outputType === 'Position' || outputType === 'HwPositionWithDuration') return 'linear';
     if (outputType === 'Rotate') return 'rotate';
     return 'vibrate';
 };
@@ -355,7 +355,7 @@ export default class Buttplug extends TypedEventEmitter<MyEvents> {
                 ?? pick('Oscillate')
                 ?? pick('Constrict')
                 ?? pick('Rotate')
-                ?? pick('PositionWithDuration')
+                ?? pick('HwPositionWithDuration')
                 ?? pick('Position');
             if (!selected) continue;
 
@@ -442,8 +442,8 @@ export class DeviceFeature {
     setLevel(level: number, duration = 0) {
         const selectedOutput = this.intiface.selectedOutput;
         const command: ButtplugOutputCommand = (() => {
-            if (selectedOutput === 'PositionWithDuration') {
-                return {PositionWithDuration: {Value: this.toValueRange(level), Duration: Math.max(0, Math.round(duration))}};
+            if (selectedOutput === 'HwPositionWithDuration') {
+                return {HwPositionWithDuration: {Value: this.toValueRange(level), Duration: Math.max(0, Math.round(duration))}};
             }
             if (selectedOutput === 'Position') {
                 return {Position: {Value: this.toValueRange(level)}};

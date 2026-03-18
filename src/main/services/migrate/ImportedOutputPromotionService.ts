@@ -128,7 +128,7 @@ export default class ImportedOutputPromotionService {
         if (outputMap.Vibrate) return 'vibrate';
         if (outputMap.Oscillate) return 'vibrate';
         if (outputMap.Rotate) return 'rotate';
-        if (outputMap.PositionWithDuration) return 'linear';
+        if (outputMap.HwPositionWithDuration) return 'linear';
         if (outputMap.Position) return 'linear';
         return undefined;
     }
