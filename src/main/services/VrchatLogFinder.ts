@@ -75,7 +75,7 @@ export default class VrchatLogFinder {
         try {
             this.logger.log(`Trying ${libraryFoldersPath}...`);
             const libraryFolders = await fs.readFile(libraryFoldersPath, {encoding: "utf-8"});
-            const libraryFoldersParsed = typia.assert<SteamLibraryFolders>(VdfParser.parse(libraryFolders));
+            const libraryFoldersParsed = typia.assert<SteamLibraryFolders>(VdfParser.parse(libraryFolders, { types: false, arrayify: true }));
             const libraries = Object.values(libraryFoldersParsed.libraryfolders);
             const targetLibrary = libraries.find((l) => Object.keys(l.apps).includes("438100"));
             if (targetLibrary) {
