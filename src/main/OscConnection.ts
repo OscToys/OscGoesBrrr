@@ -152,17 +152,18 @@ export default class OscConnection extends TypedEventEmitter<MyEvents> {
         this.recomputeEntriesVisibility();
 
         let port = 9001;
+        let oscquery_port = port;
         if (this.mdnsWorking) {
-            port = this.port = await portfinder.getPortPromise({
+            oscquery_port = this.port = await portfinder.getPortPromise({
                 port: 33776,
             });
         }
-        this.logger.log(`Selected port: ${port}`);
+        this.logger.log(`Selected port: ${oscquery_port}`);
 
         if (this.mdnsWorking) {
             this.logger.log(`Starting OSCQuery handler...`);
             const oscQuery = this.oscQuery = new OSCQueryServer({
-                httpPort: port,
+                httpPort: oscquery_port,
                 serviceName: "OGB"
             });
             this.shutdown.push(() => oscQuery.stop());
@@ -174,13 +175,13 @@ export default class OscConnection extends TypedEventEmitter<MyEvents> {
             this.shutdown.push(() => httpServer.close());
             httpServer.on('error', e => this.logger.log(`HTTP server error ${e.stack}`));
             await new Promise<void>((resolve, reject) => {
-                httpServer.listen(port, () => {
+                httpServer.listen(oscquery_port, () => {
                     resolve();
                 }).on('error', (err) => {
                     reject(err);
                 });
             });
-            this.logger.log(`Started on port ${port}`);
+            this.logger.log(`Started on port ${oscquery_port}`);
 
             this.logger.log(`Starting OSCQuery MDNS server...`);
             const mdns = getResponder();
@@ -188,7 +189,7 @@ export default class OscConnection extends TypedEventEmitter<MyEvents> {
             const mdnsService = mdns.createService({
                 name: "OGB",
                 type: "oscjson",
-                port: port,
+                port: oscquery_port,
                 protocol: "tcp" as Protocol,
             });
             // Do this async, in case it never returns, which seems to happen for some reason
