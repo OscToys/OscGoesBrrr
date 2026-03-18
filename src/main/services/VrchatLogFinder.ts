@@ -109,7 +109,7 @@ export default class VrchatLogFinder {
             const possibleSteamRoots = [
                 Path.resolve(home, '.var/app/com.valvesoftware.Steam/.local/share/Steam'),
                 Path.resolve(home, '.local/share/Steam'),
-                Path.resolve(home, '.steam')
+                Path.resolve(home, '.steam/steam')
             ];
 
             for (const steamRoot of possibleSteamRoots) {
