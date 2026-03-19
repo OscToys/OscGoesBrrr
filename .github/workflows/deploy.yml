@@ -77,8 +77,37 @@ jobs:
             dist/OscGoesBrrr-setup-${{ needs.version.outputs.version }}.exe
             dist/OscGoesBrrr-portable-${{ needs.version.outputs.version }}.exe
 
+  build_linux:
+    needs: [version]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: '.nvmrc'
+          cache: pnpm
+      - name: Install rpm build tools
+        run: sudo apt-get update && sudo apt-get install -y rpm
+      - name: Build
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm run build
+          pnpm exec electron-builder \
+            --linux AppImage rpm \
+            --config.extraMetadata.version="$VERSION"
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+      - uses: actions/upload-artifact@v7
+        with:
+          name: linux
+          path: |
+            dist/OscGoesBrrr-${{ needs.version.outputs.version }}.AppImage
+            dist/OscGoesBrrr-${{ needs.version.outputs.version }}.rpm
+
   release:
-    needs: [version, build_win]
+    needs: [version, build_win, build_linux]
     runs-on: ubuntu-latest
     outputs:
       assets: ${{ steps.release.outputs.assets }}
@@ -92,11 +121,16 @@ jobs:
             echo "Tag ${TAG_NAME} already exists on origin."
             exit 1
           fi
-      - name: Download artifacts
+      - name: Download Windows artifacts
         uses: actions/download-artifact@v8
         with:
           name: windows
           path: windows
+      - name: Download Linux artifacts
+        uses: actions/download-artifact@v8
+        with:
+          name: linux
+          path: linux
       - name: Release
         id: release
         uses: softprops/action-gh-release@v2
@@ -108,6 +142,8 @@ jobs:
           files: |
             windows/OscGoesBrrr-setup-${{ needs.version.outputs.version }}.exe
             windows/OscGoesBrrr-portable-${{ needs.version.outputs.version }}.exe
+            linux/OscGoesBrrr-${{ needs.version.outputs.version }}.AppImage
+            linux/OscGoesBrrr-${{ needs.version.outputs.version }}.rpm
 
   update_manifest:
     needs: [version, release]
@@ -130,17 +166,23 @@ jobs:
             --arg v "$VERSION" \
             --arg ws "$WINDOWS_SETUP_URL" \
             --arg wp "$WINDOWS_PORTABLE_URL" \
+            --arg la "$LINUX_APPIMAGE_URL" \
+            --arg lr "$LINUX_RPM_URL" \
             '.latestVersion = $v
              | .latestInstaller = $ws
              | .downloadUrls = ((.downloadUrls // {}) + {
                  windowsSetup: $ws,
-                 windowsPortable: $wp
+                 windowsPortable: $wp,
+                 linuxAppImage: $la,
+                 linuxRpm: $lr
                })' updates.json > updates.json.tmp
           mv updates.json.tmp updates.json
         env:
           VERSION: ${{ needs.version.outputs.version }}
           WINDOWS_SETUP_URL: https://github.com/${{ github.repository }}/releases/download/${{ needs.version.outputs.tagName }}/OscGoesBrrr-setup-${{ needs.version.outputs.version }}.exe
           WINDOWS_PORTABLE_URL: https://github.com/${{ github.repository }}/releases/download/${{ needs.version.outputs.tagName }}/OscGoesBrrr-portable-${{ needs.version.outputs.version }}.exe
+          LINUX_APPIMAGE_URL: https://github.com/${{ github.repository }}/releases/download/${{ needs.version.outputs.tagName }}/OscGoesBrrr-${{ needs.version.outputs.version }}.AppImage
+          LINUX_RPM_URL: https://github.com/${{ github.repository }}/releases/download/${{ needs.version.outputs.tagName }}/OscGoesBrrr-${{ needs.version.outputs.version }}.rpm
       - name: Push version manifest
         run: |
           git diff
