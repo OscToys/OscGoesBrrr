@@ -1,8 +1,7 @@
 import path from 'node:path';
 import webpack from 'webpack';
 import {fileURLToPath} from "node:url";
-import typiaTransformModule from "typia/lib/transform.js";
-const typiaTransform = typiaTransformModule.default;
+import typiaTransform from "typia/lib/transform";
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 
 const config = {
