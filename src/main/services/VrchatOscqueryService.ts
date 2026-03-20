@@ -1,12 +1,7 @@
-import {DiscoveredService, OSCQueryDiscovery} from "oscquery";
 import MyAddressesService from "./MyAddressesService";
 import LoggerService from "./LoggerService";
-import Path from "path";
-import {app} from "electron";
-import fs from "fs/promises";
 import fsPlain from "fs";
 import * as readline from "node:readline/promises";
-import path from "path";
 import Bonjour, {type Browser} from "bonjour-service";
 import {Service} from "typedi";
 import type {Service as BounjourService} from "bonjour-service";

@@ -23,31 +23,29 @@ export type OscStatus =
     | 'waitingForFirstPacket'
     | 'stale';
 
-export interface VrchatWarnings {
-    hasSpsZones: boolean;
-    outdatedAvatarDetected: boolean;
-    oscEnabled: boolean;
-    selfInteract: boolean;
-    everyoneInteract: boolean;
-    oscStartup: boolean;
-    oscStartupText?: string;
-    logsFound: boolean;
-    oscqueryStatus: OscqueryStatus;
-    oscStatus: OscStatus;
-    mdnsWorking: boolean;
-}
-
 export interface SettingsStateVrchat {
     connected: boolean;
-    warnings: VrchatWarnings;
-    ogbOscPort?: number;
-    ogbOscqueryPort?: number;
-    vrcOscPort?: number;
-    vrcOscqueryPort?: number;
+    diagnostics: {
+        hasSpsZones: boolean;
+        outdatedAvatarDetected: boolean;
+        oscEnabled: boolean;
+        selfInteract: boolean;
+        everyoneInteract: boolean;
+        oscStartup: boolean;
+        oscStartupText?: string;
+        ogbOscPort?: number;
+        ogbOscqueryPort?: number;
+        vrcOscPort?: number;
+        vrcOscqueryPort?: number;
+        oscStatus: OscStatus;
+        oscqueryStatus: OscqueryStatus;
+        oscqueryWaitingForBulk: boolean;
+        logsFound: boolean;
+        detectedVrcConfigDir?: string;
+    };
     detectedSpsPlugIds: string[];
     detectedSpsSocketIds: string[];
     detectedSpsTouchZoneIds: string[];
-    detectedVrcConfigDir?: string;
 }
 
 export interface SettingsStatePayload {

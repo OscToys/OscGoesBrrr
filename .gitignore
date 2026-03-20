@@ -1,6 +1,7 @@
 node_modules
-/.idea
+/.idea/
 /config.txt
-/dist
-/app
+/dist/
+/app/
 /native/steamvr_overlay/build/
+/ref/

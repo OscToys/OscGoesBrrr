@@ -26,7 +26,8 @@ export default class LegacyTxtConfigImportService {
         console.log("Migrating old config.txt to config.json");
 
         const newConfig: Config = {
-            version: 2,
+            version: 3,
+            useOscQuery: true,
             oscProxy: [],
             outputs: []
         };

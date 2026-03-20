@@ -12,9 +12,10 @@ import {normalizeConfigDraft} from "./configNormalization";
 
 @Service()
 export default class ConfigService extends AbstractJsonStateService<Config> {
-    private static readonly CURRENT_CONFIG_VERSION = 2;
+    private static readonly CURRENT_CONFIG_VERSION = 3;
     private static readonly DEFAULT_CONFIG: Config = freeze({
         version: ConfigService.CURRENT_CONFIG_VERSION,
+        useOscQuery: true,
         oscProxy: [],
         outputs: [],
     }, true);
@@ -48,7 +49,7 @@ export default class ConfigService extends AbstractJsonStateService<Config> {
             throw new Error(`Unknown config version during upgrade: ${version}`);
         }
 
-        if (version > 2) {
+        if (version > 3) {
             throw new Error(`Unsupported config version: ${version}`);
         }
 
@@ -89,6 +90,11 @@ export default class ConfigService extends AbstractJsonStateService<Config> {
                 }
             }
             config.version = 2;
+        }
+
+        if (version < 3) {
+            config.useOscQuery = true;
+            config.version = 3;
         }
 
         return config;

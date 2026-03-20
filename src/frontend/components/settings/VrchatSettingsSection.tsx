@@ -1,5 +1,5 @@
 import React, {ReactNode} from "react";
-import {Alert, AlertColor, Box, Button, IconButton, InputAdornment, Stack, TextField, Typography} from "@mui/material";
+import {Alert, AlertColor, Box, Button, FormControlLabel, IconButton, InputAdornment, Stack, Switch, TextField, Typography} from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import {pushItem, removeAt, replaceAt} from "../../../common/arrayDraft";
 import {produce} from "immer";
@@ -14,6 +14,7 @@ import {selectAtom} from "jotai/utils";
 interface Props {
     expanded: boolean;
     onChange: (expanded: boolean) => void;
+    useOscQueryAtom: PrimitiveAtom<boolean>;
     maxLevelParamAtom: PrimitiveAtom<string | undefined>;
     vrcConfigDirAtom: PrimitiveAtom<string | undefined>;
     oscProxyAtom: PrimitiveAtom<string[]>;
@@ -22,19 +23,21 @@ interface Props {
 function VrchatSettingsSection({
     expanded,
     onChange,
+    useOscQueryAtom,
     maxLevelParamAtom,
     vrcConfigDirAtom,
     oscProxyAtom,
 }: Props) {
     const settingsStateAtom = useSettingsStateAtom();
     const vrchatAtom = React.useMemo(() => selectAtom(settingsStateAtom, (state) => state.vrchat), [settingsStateAtom]);
+    const [useOscQuery, setUseOscQuery] = useAtom(useOscQueryAtom);
     const [maxLevelParam, setMaxLevelParam] = useAtom(maxLevelParamAtom);
     const [vrcConfigDir, setVrcConfigDir] = useAtom(vrcConfigDirAtom);
     const [oscProxy, setOscProxy] = useAtom(oscProxyAtom);
     const vrchat = useAtomValue(vrchatAtom);
     const alerts: {severity: AlertColor; content: ReactNode}[] = [];
 
-    if (vrchat.connected && !vrchat.warnings.hasSpsZones) {
+    if (vrchat.connected && !vrchat.diagnostics.hasSpsZones) {
         alerts.push({
             severity: "warning",
             content: (
@@ -46,44 +49,44 @@ function VrchatSettingsSection({
             ),
         });
     }
-    if (vrchat.warnings.outdatedAvatarDetected) {
+    if (vrchat.diagnostics.outdatedAvatarDetected) {
         alerts.push({
             severity: "warning",
             content: "Your current avatar was created using an outdated version of SPS. Features may not work correctly or may be less effective.",
         });
     }
-    if (vrchat.warnings.oscEnabled) {
+    if (vrchat.diagnostics.oscEnabled) {
         alerts.push({
             severity: "error",
             content: "OSC is disabled in the in-game settings. This setting must be enabled. Enable it in the radial menu: Options > OSC > Enabled.",
         });
     }
-    if (vrchat.warnings.selfInteract) {
+    if (vrchat.diagnostics.selfInteract) {
         alerts.push({
             severity: "error",
             content: "Self-Interaction is disabled in the in-game settings. This setting must be enabled. Enable it in the quick menu: Settings > Avatar Interactions > Self Interact.",
         });
     }
-    if (vrchat.warnings.everyoneInteract) {
+    if (vrchat.diagnostics.everyoneInteract) {
         alerts.push({
             severity: "warning",
             content: "Interaction is not set to 'Everyone' in the in-game settings. You will not be able to interact with most players. Enable it in the quick menu: Settings > Avatar Interactions > Everyone.",
         });
     }
-    if (vrchat.warnings.oscStartup) {
+    if (vrchat.diagnostics.oscStartup) {
         alerts.push({
             severity: "error",
-            content: `VRChat's logs indicate that its OSC failed to start: ${vrchat.warnings.oscStartupText ?? 'Unknown reason'}.`,
+            content: `VRChat's logs indicate that its OSC failed to start: ${vrchat.diagnostics.oscStartupText ?? 'Unknown reason'}.`,
         });
     }
-    if (!vrchat.warnings.logsFound) {
+    if (!vrchat.diagnostics.logsFound) {
         alerts.push({
             severity: "warning",
             content: "Could not find the VRChat log files. This can result in delayed initial connection, or complete failure if mDNS is not available.",
         });
     }
 
-    if (vrchat.warnings.oscqueryStatus === 'failedToConnectHttpServer') {
+    if (vrchat.diagnostics.oscqueryStatus === 'failedToConnectHttpServer') {
         alerts.push({
             severity: "error",
             content: (
@@ -97,22 +100,22 @@ function VrchatSettingsSection({
                 </>
             ),
         });
-    } else if (vrchat.warnings.oscqueryStatus === 'vrchatOscqueryBroadcastNotFound') {
+    } else if (vrchat.diagnostics.oscqueryStatus === 'vrchatOscqueryBroadcastNotFound') {
         alerts.push({
             severity: "error",
             content: "VRChat OSCQuery broadcast has not been found yet.",
         });
-    } else if (vrchat.warnings.oscqueryStatus === 'unknownError') {
+    } else if (vrchat.diagnostics.oscqueryStatus === 'unknownError') {
         alerts.push({
             severity: "error",
             content: "Unknown OSCQuery scan error occurred.",
         });
-    } else if (vrchat.warnings.oscStatus === 'socketStarting') {
+    } else if (vrchat.diagnostics.oscStatus === 'socketStarting') {
         alerts.push({
             severity: "error",
             content: "OSC socket is starting...",
         });
-    } else if (vrchat.warnings.oscStatus === 'waitingForFirstPacket') {
+    } else if (vrchat.diagnostics.oscStatus === 'waitingForFirstPacket') {
         alerts.push({
             severity: "error",
             content: (
@@ -127,7 +130,7 @@ function VrchatSettingsSection({
                 </>
             ),
         });
-    } else if (vrchat.warnings.oscStatus === 'stale') {
+    } else if (vrchat.diagnostics.oscStatus === 'stale') {
         alerts.push({
             severity: "error",
             content: (
@@ -144,13 +147,6 @@ function VrchatSettingsSection({
         });
     }
 
-    if (!vrchat.warnings.mdnsWorking) {
-        alerts.push({
-            severity: "warning",
-            content: "OSCQuery is disabled because mDNS does not work on this PC. This means you cannot use any other OSC apps at the same time.",
-        });
-    }
-
     if (!vrchat.connected && !alerts.some((alert) => alert.severity === "error")) {
         alerts.push({
             severity: "error",
@@ -159,6 +155,17 @@ function VrchatSettingsSection({
     }
 
     const connectionColor = getConnectionBubbleColor(alerts);
+    const diagnosticsText = [
+        `OGB OSC: ${vrchat.diagnostics.ogbOscPort ?? "n/a"}`,
+        `OGB OSCQ: ${vrchat.diagnostics.ogbOscqueryPort ?? "n/a"}`,
+        `OGB OSC status: ${vrchat.diagnostics.oscStatus}`,
+        `OGB bulk: ${vrchat.diagnostics.oscqueryWaitingForBulk ? "waiting" : "ready"}`,
+        `VRC OSCQ: ${vrchat.diagnostics.vrcOscqueryPort ?? "n/a"}`,
+        `VRC OSC: ${vrchat.diagnostics.vrcOscPort ?? "n/a"}`,
+        `VRC OSCQ status: ${vrchat.diagnostics.oscqueryStatus}`,
+        `Logs: ${vrchat.diagnostics.logsFound ? "found" : "missing"}`,
+        `Detected: ${vrchat.diagnostics.detectedVrcConfigDir ?? "not found"}`,
+    ].join(" | ");
 
     return (
         <MyAccordion
@@ -184,11 +191,25 @@ function VrchatSettingsSection({
                     placeholder="Parameter Name"
                     onCommit={setMaxLevelParam}
                 />
+                <Stack spacing={0.25}>
+                    <FormControlLabel
+                        control={
+                            <Switch
+                                checked={useOscQuery}
+                                onChange={(_, checked) => setUseOscQuery(checked)}
+                            />
+                        }
+                        label="Use OSCQuery"
+                        sx={{m: 0}}
+                    />
+                    <Typography variant="caption" color="text.secondary">
+                        Reduces conflicts with other OSC apps, but may not work on all systems
+                    </Typography>
+                </Stack>
                 <TextCommitInput
                     value={vrcConfigDir ?? ''}
                     label="VRChat Config Directory"
                     placeholder="Auto-detected"
-                    helperText={`Detected: ${vrchat.detectedVrcConfigDir ?? 'Not found'}`}
                     onCommit={setVrcConfigDir}
                 />
                 <Stack spacing={1.25}>
@@ -242,6 +263,9 @@ function VrchatSettingsSection({
                         </Button>
                     </Box>
                 </Stack>
+                <Typography variant="caption" color="text.secondary">
+                    {diagnosticsText}
+                </Typography>
             </Stack>
         </MyAccordion>
     );

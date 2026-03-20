@@ -34,6 +34,7 @@ function SettingsBody({
     const [vrchatExpanded, setVrchatExpanded] = useState(false);
     const [pendingDeleteOutputId, setPendingDeleteOutputId] = useState<string | null>(null);
     const intifaceAddressAtom = useMemo(() => focusKeyAtom(configAtom, 'intifaceAddress'), [configAtom]);
+    const useOscQueryAtom = useMemo(() => focusKeyAtom(configAtom, 'useOscQuery'), [configAtom]);
     const maxLevelParamAtom = useMemo(() => focusKeyAtom(configAtom, 'maxLevelParam'), [configAtom]);
     const vrcConfigDirAtom = useMemo(() => focusKeyAtom(configAtom, 'vrcConfigDir'), [configAtom]);
     const oscProxyAtom = useMemo(() => focusKeyAtom(configAtom, 'oscProxy'), [configAtom]);
@@ -122,6 +123,7 @@ function SettingsBody({
             <VrchatSettingsSection
                 expanded={vrchatExpanded}
                 onChange={setVrchatExpanded}
+                useOscQueryAtom={useOscQueryAtom}
                 maxLevelParamAtom={maxLevelParamAtom}
                 vrcConfigDirAtom={vrcConfigDirAtom}
                 oscProxyAtom={oscProxyAtom}

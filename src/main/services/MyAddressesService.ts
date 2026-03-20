@@ -30,11 +30,19 @@ export default class MyAddressesService {
     }
 
     has(ip: string) {
-        return this.myAddresses.has(ip);
+        const normalized = normalizeIpAddress(ip);
+        if (!normalized) return false;
+        return this.myAddresses.has(normalized);
+    }
+
+    getExternalIpv4Addresses() {
+        return this.ipv4Interfaces.map(entry => entry.address);
     }
 
     sharesSubnet(ip: string) {
-        const targetInt = ipv4ToInt(ip);
+        const normalized = normalizeIpAddress(ip);
+        if (!normalized) return false;
+        const targetInt = ipv4ToInt(normalized);
         if (targetInt === undefined) return false;
         for (const entry of this.ipv4Interfaces) {
             const addressInt = ipv4ToInt(entry.address);
@@ -46,6 +54,14 @@ export default class MyAddressesService {
         }
         return false;
     }
+}
+
+function normalizeIpAddress(address: string | undefined): string | undefined {
+    if (!address) return undefined;
+    if (address.startsWith("::ffff:")) {
+        return address.substring("::ffff:".length);
+    }
+    return address;
 }
 
 function ipv4ToInt(address: string): number | undefined {

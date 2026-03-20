@@ -17,6 +17,9 @@ import VrchatLogFinder from "./services/VrchatLogFinder";
 import BackendDataService from "./services/BackendDataService";
 import ImportedOutputPromotionService from "./services/migrate/ImportedOutputPromotionService";
 import MyAddressesService from "./services/MyAddressesService";
+import OscQueryPortService from "./services/OscQueryPortService";
+import OscQueryHttpServerService from "./services/OscQueryHttpServerService";
+import OscQueryMdnsBroadcastService from "./services/OscQueryMdnsBroadcastService";
 import {handleIpc} from "./ipc";
 import {OscqueryStatus} from "../common/ipcContract";
 import type {ButtplugFeatureInformation, Device, IntifaceDeviceFeatureSelection} from "./ButtplugSpec";
@@ -45,6 +48,9 @@ const vrchatOscqueryService = container.get(VrchatOscqueryService);
 const logScanner = container.get(VrchatLogScanner);
 const vrchatLogFinder = container.get(VrchatLogFinder);
 const myAddressesService = container.get(MyAddressesService);
+const oscQueryPortService = container.get(OscQueryPortService);
+container.get(OscQueryHttpServerService);
+container.get(OscQueryMdnsBroadcastService);
 
 {
     const systemLogger = logger.get('system');
@@ -93,8 +99,10 @@ handleIpc('settings-state:request', async () => {
     const importedDeletesAt = await importedOutputPromotionService.getImportedDeletesAt();
     const oscStatusSnapshot = oscConnection.getStatusSnapshot();
     const oscqueryStatus = vrchatOscqueryService.getStatus();
-    const ogbOscPort = oscConnection.socketopen ? (oscStatusSnapshot.mdnsWorking ? oscConnection.port : 9001) : undefined;
-    const ogbOscqueryPort = oscStatusSnapshot.mdnsWorking ? oscConnection.port : undefined;
+    const useOscQuery = configService.getCached().useOscQuery;
+    const oscQueryPort = useOscQuery ? await oscQueryPortService.get() : undefined;
+    const ogbOscPort = oscConnection.socketopen ? (useOscQuery ? oscQueryPort : 9001) : undefined;
+    const ogbOscqueryPort = oscQueryPort;
     const vrcOscPort = vrchatOscqueryService.getOscAddress()?.[1];
     const vrcOscqueryPort = vrchatOscqueryService.getOscqueryAddress()?.[1];
 
@@ -131,6 +139,10 @@ handleIpc('settings-state:request', async () => {
         if (!raw) return undefined;
         const trimmed = raw.trim();
         return trimmed.length > 0 ? trimmed : undefined;
+    };
+    const maskUserInPath = (raw: string | undefined): string | undefined => {
+        if (!raw) return undefined;
+        return raw.replace(/(Users[\\/])([^\\/]+)/i, "$1***");
     };
 
     // Add history first as disconnected.
@@ -223,7 +235,7 @@ handleIpc('settings-state:request', async () => {
             intifaceAddressOffSubnet,
             vrchat: {
                 connected: vrchatConnected,
-                warnings: {
+                diagnostics: {
                     hasSpsZones,
                     outdatedAvatarDetected,
                     oscEnabled: vrcConfigCheck.oscEnabled === false,
@@ -231,19 +243,19 @@ handleIpc('settings-state:request', async () => {
                     everyoneInteract: vrcConfigCheck.everyoneInteractEnabled === false,
                     oscStartup: Boolean(logScanner.failure),
                     oscStartupText: logScanner.failure,
-                    logsFound: vrchatOscqueryService.getLogsFound(),
-                    oscqueryStatus,
+                    ogbOscPort,
+                    ogbOscqueryPort,
+                    vrcOscPort,
+                    vrcOscqueryPort,
                     oscStatus: oscStatusSnapshot.status,
-                    mdnsWorking: oscStatusSnapshot.mdnsWorking,
+                    oscqueryStatus,
+                    oscqueryWaitingForBulk: oscStatusSnapshot.oscqueryWaitingForBulk,
+                    logsFound: vrchatOscqueryService.getLogsFound(),
+                    detectedVrcConfigDir: maskUserInPath(detectedVrcConfigDir),
                 },
-                ogbOscPort,
-                ogbOscqueryPort,
-                vrcOscPort,
-                vrcOscqueryPort,
                 detectedSpsPlugIds,
                 detectedSpsSocketIds,
                 detectedSpsTouchZoneIds,
-                detectedVrcConfigDir,
             },
             importedDeletesAt,
         },
