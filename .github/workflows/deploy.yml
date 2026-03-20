@@ -65,8 +65,8 @@ jobs:
           pnpm exec electron-builder \
             --win nsis portable \
             --config.extraMetadata.version="$VERSION" \
-            --config.nsis.artifactName="OscGoesBrrr-windows-setup-${VERSION}.${ext}" \
-            --config.portable.artifactName="OscGoesBrrr-windows-portable-${VERSION}.${ext}"
+            --config.nsis.artifactName="OscGoesBrrr-windows-setup-${VERSION}.exe" \
+            --config.portable.artifactName="OscGoesBrrr-windows-portable-${VERSION}.exe"
         env:
           HOME: /root
           VERSION: ${{ needs.version.outputs.version }}
@@ -97,7 +97,8 @@ jobs:
           pnpm exec electron-builder \
             --linux AppImage rpm \
             --config.extraMetadata.version="$VERSION" \
-            --config.linux.artifactName="OscGoesBrrr-linux-${VERSION}.${ext}"
+            --config.AppImage.artifactName="OscGoesBrrr-linux-${VERSION}.AppImage" \
+            --config.rpm.artifactName="OscGoesBrrr-linux-${VERSION}.rpm"
         env:
           VERSION: ${{ needs.version.outputs.version }}
       - uses: actions/upload-artifact@v7
