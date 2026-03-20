@@ -65,8 +65,8 @@ jobs:
           pnpm exec electron-builder \
             --win nsis portable \
             --config.extraMetadata.version="$VERSION" \
-            --config.nsis.artifactName="OscGoesBrrr-setup-${VERSION}.exe" \
-            --config.portable.artifactName="OscGoesBrrr-portable-${VERSION}.exe"
+            --config.nsis.artifactName="OscGoesBrrr-windows-setup-${VERSION}.${ext}" \
+            --config.portable.artifactName="OscGoesBrrr-windows-portable-${VERSION}.${ext}"
         env:
           HOME: /root
           VERSION: ${{ needs.version.outputs.version }}
@@ -74,8 +74,8 @@ jobs:
         with:
           name: windows
           path: |
-            dist/OscGoesBrrr-setup-${{ needs.version.outputs.version }}.exe
-            dist/OscGoesBrrr-portable-${{ needs.version.outputs.version }}.exe
+            dist/OscGoesBrrr-windows-setup-${{ needs.version.outputs.version }}.exe
+            dist/OscGoesBrrr-windows-portable-${{ needs.version.outputs.version }}.exe
 
   build_linux:
     needs: [version]
@@ -97,15 +97,15 @@ jobs:
           pnpm exec electron-builder \
             --linux AppImage rpm \
             --config.extraMetadata.version="$VERSION" \
-            --config.linux.artifactName="OscGoesBrrr-${VERSION}.${ext}"
+            --config.linux.artifactName="OscGoesBrrr-linux-${VERSION}.${ext}"
         env:
           VERSION: ${{ needs.version.outputs.version }}
       - uses: actions/upload-artifact@v7
         with:
           name: linux
           path: |
-            dist/OscGoesBrrr-${{ needs.version.outputs.version }}.AppImage
-            dist/OscGoesBrrr-${{ needs.version.outputs.version }}.rpm
+            dist/OscGoesBrrr-linux-${{ needs.version.outputs.version }}.AppImage
+            dist/OscGoesBrrr-linux-${{ needs.version.outputs.version }}.rpm
 
   release:
     needs: [version, build_win, build_linux]
@@ -141,10 +141,10 @@ jobs:
           name: Release ${{ needs.version.outputs.version }}
           prerelease: ${{ github.ref_name != github.event.repository.default_branch }}
           files: |
-            windows/OscGoesBrrr-setup-${{ needs.version.outputs.version }}.exe
-            windows/OscGoesBrrr-portable-${{ needs.version.outputs.version }}.exe
-            linux/OscGoesBrrr-${{ needs.version.outputs.version }}.AppImage
-            linux/OscGoesBrrr-${{ needs.version.outputs.version }}.rpm
+            windows/OscGoesBrrr-windows-setup-${{ needs.version.outputs.version }}.exe
+            windows/OscGoesBrrr-windows-portable-${{ needs.version.outputs.version }}.exe
+            linux/OscGoesBrrr-linux-${{ needs.version.outputs.version }}.AppImage
+            linux/OscGoesBrrr-linux-${{ needs.version.outputs.version }}.rpm
 
   update_manifest:
     needs: [version, release]
@@ -183,10 +183,10 @@ jobs:
         env:
           VERSION: ${{ needs.version.outputs.version }}
           GENERIC_DOWNLOAD_URL: https://github.com/${{ github.repository }}/releases/tag/${{ needs.version.outputs.tagName }}
-          WINDOWS_SETUP_URL: https://github.com/${{ github.repository }}/releases/download/${{ needs.version.outputs.tagName }}/OscGoesBrrr-setup-${{ needs.version.outputs.version }}.exe
-          WINDOWS_PORTABLE_URL: https://github.com/${{ github.repository }}/releases/download/${{ needs.version.outputs.tagName }}/OscGoesBrrr-portable-${{ needs.version.outputs.version }}.exe
-          LINUX_APPIMAGE_URL: https://github.com/${{ github.repository }}/releases/download/${{ needs.version.outputs.tagName }}/OscGoesBrrr-${{ needs.version.outputs.version }}.AppImage
-          LINUX_RPM_URL: https://github.com/${{ github.repository }}/releases/download/${{ needs.version.outputs.tagName }}/OscGoesBrrr-${{ needs.version.outputs.version }}.rpm
+          WINDOWS_SETUP_URL: https://github.com/${{ github.repository }}/releases/download/${{ needs.version.outputs.tagName }}/OscGoesBrrr-windows-setup-${{ needs.version.outputs.version }}.exe
+          WINDOWS_PORTABLE_URL: https://github.com/${{ github.repository }}/releases/download/${{ needs.version.outputs.tagName }}/OscGoesBrrr-windows-portable-${{ needs.version.outputs.version }}.exe
+          LINUX_APPIMAGE_URL: https://github.com/${{ github.repository }}/releases/download/${{ needs.version.outputs.tagName }}/OscGoesBrrr-linux-${{ needs.version.outputs.version }}.AppImage
+          LINUX_RPM_URL: https://github.com/${{ github.repository }}/releases/download/${{ needs.version.outputs.tagName }}/OscGoesBrrr-linux-${{ needs.version.outputs.version }}.rpm
       - name: Push version manifest
         run: |
           git diff
