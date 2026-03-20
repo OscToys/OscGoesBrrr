@@ -97,7 +97,7 @@ jobs:
           pnpm exec electron-builder \
             --linux AppImage rpm \
             --config.extraMetadata.version="$VERSION" \
-            --config.AppImage.artifactName="OscGoesBrrr-linux-${VERSION}.AppImage" \
+            --config.appImage.artifactName="OscGoesBrrr-linux-${VERSION}.AppImage" \
             --config.rpm.artifactName="OscGoesBrrr-linux-${VERSION}.rpm"
         env:
           VERSION: ${{ needs.version.outputs.version }}
