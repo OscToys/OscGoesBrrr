@@ -67,12 +67,12 @@ export default class Updater {
             return;
         }
 
-        // if (!app.isPackaged) {
-        //     this.availableUpdate = undefined;
-        //     this.pendingInstallAction = undefined;
-        //     console.log("Update available, but app is in dev mode and unpackaged");
-        //     return;
-        // }
+        if (!app.isPackaged) {
+            this.availableUpdate = undefined;
+            this.pendingInstallAction = undefined;
+            console.log("Update available, but app is in dev mode and unpackaged");
+            return;
+        }
 
         this.availableUpdate = {
             version: updates.latestVersion,

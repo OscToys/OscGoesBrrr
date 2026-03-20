@@ -3,6 +3,10 @@
   "version": "0.0.0-dev",
   "type": "module",
   "description": "Haptics for VRChat",
+  "author": {
+    "name": "OscToys",
+    "email": "noreply@osc.toys"
+  },
   "main": "electron-main.js",
   "scripts": {
     "preinstall": "node scripts/check-node-version.js",
@@ -90,7 +94,8 @@
     "linux": {
       "target": "AppImage",
       "icon": "src/icons/ogb-logo.png",
-      "artifactName": "OscGoesBrrr.AppImage"
+      "artifactName": "OscGoesBrrr.AppImage",
+      "maintainer": "OscToys <noreply@osc.toys>"
     },
     "nsis": {
       "installerIcon": "src/icons/ogb-installer.ico"
