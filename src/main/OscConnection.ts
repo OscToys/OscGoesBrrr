@@ -9,7 +9,7 @@ import ConfigService from "./services/ConfigService";
 import LoggerService from "./services/LoggerService";
 import VrchatOscqueryService from "./services/VrchatOscqueryService";
 import http from "node:http";
-import {Protocol} from "@homebridge/ciao";
+import {Protocol, type CiaoService} from "@homebridge/ciao";
 import { getResponder } from "@homebridge/ciao";
 import Bonjour from "bonjour-service";
 import TypedEventEmitter from "../common/TypedEventEmitter";
@@ -19,6 +19,11 @@ type MyEvents = {
     add: (key: string, value: OscValue) => void,
     clear: () => void
 }
+
+const CIAO_REPUBLISH_EVENT = "republish";
+type RepublishableCiaoService = CiaoService & {
+    emit(event: typeof CIAO_REPUBLISH_EVENT, callback?: (error?: Error) => void): boolean;
+};
 
 @Service()
 export default class OscConnection extends TypedEventEmitter<MyEvents> {
@@ -79,8 +84,9 @@ export default class OscConnection extends TypedEventEmitter<MyEvents> {
             if (service.port != this.port) return;
             const ip = service.addresses?.[0];
             if (!ip) return;
+            if (ip === '127.0.0.1') return;
             if (!this.myAddresses.has(ip)) return;
-            this.logger.log("Mdns watchdog found own oscquery announcement");
+            this.logger.log(`Mdns watchdog found own oscquery announcement from ${ip}`);
             if (this.mdnsWatchdogTimeout) {
                 clearTimeout(this.mdnsWatchdogTimeout);
                 this.mdnsWatchdogTimeout = undefined;
@@ -130,6 +136,14 @@ export default class OscConnection extends TypedEventEmitter<MyEvents> {
         this.logger.log('<-', 'ERROR', e);
     }
 
+    private normalizeRemoteAddress(remoteAddress: string | undefined): string | undefined {
+        if (!remoteAddress) return undefined;
+        if (remoteAddress.startsWith("::ffff:")) {
+            return remoteAddress.substring("::ffff:".length);
+        }
+        return remoteAddress;
+    }
+
     private async openSocket() {
         try {
             await this.openSocketUnsafe();
@@ -163,14 +177,29 @@ export default class OscConnection extends TypedEventEmitter<MyEvents> {
             this.logger.log(`Starting OSCQuery handler...`);
             const oscQuery = this.oscQuery = new OSCQueryServer({
                 httpPort: port,
-                serviceName: "OGB"
+                serviceName: "OGB",
+                oscIp: "127.0.0.1"
             });
             this.shutdown.push(() => oscQuery.stop());
             oscQuery.addMethod("/avatar/change", { access: OSCQAccess.WRITEONLY });
             this.logger.log(`Started`);
 
             this.logger.log(`Starting OSCQuery HTTP server...`);
-            const httpServer = http.createServer(oscQuery._httpHandler.bind(oscQuery));
+            const httpServer = http.createServer((req, res) => {
+                const remoteAddress = this.normalizeRemoteAddress(req.socket.remoteAddress);
+                this.logger.log(
+                    `OSCQuery HTTP ${req.method ?? "UNKNOWN"} ${req.url ?? "/"} from ${remoteAddress ?? "unknown"}`
+                );
+                if (!remoteAddress || !this.myAddresses.has(remoteAddress)) {
+                    this.logger.log(
+                        `OSCQuery HTTP rejecting non-local request from ${remoteAddress ?? "unknown"}`
+                    );
+                    res.statusCode = 403;
+                    res.end("Forbidden");
+                    return;
+                }
+                oscQuery._httpHandler(req, res);
+            });
             this.shutdown.push(() => httpServer.close());
             httpServer.on('error', e => this.logger.log(`HTTP server error ${e.stack}`));
             await new Promise<void>((resolve, reject) => {
@@ -191,11 +220,52 @@ export default class OscConnection extends TypedEventEmitter<MyEvents> {
                 port: port,
                 protocol: "tcp" as Protocol,
             });
+            let stopped = false;
+            let republishTimer: NodeJS.Timeout | undefined;
+            let republishInFlight = false;
+            const scheduleRepublish = () => {
+                if (stopped) return;
+                republishTimer = setTimeout(() => {
+                    void republishMdnsService(mdnsService);
+                }, 5000);
+                republishTimer.unref();
+            };
+            const republishMdnsService = async (service: RepublishableCiaoService) => {
+                if (stopped || republishInFlight) {
+                    scheduleRepublish();
+                    return;
+                }
+                republishInFlight = true;
+                try {
+                    await new Promise<void>((resolve, reject) => {
+                        service.emit(CIAO_REPUBLISH_EVENT, (error?: Error) => {
+                            if (error) {
+                                reject(error);
+                                return;
+                            }
+                            resolve();
+                        });
+                    });
+                } catch (e) {
+                    this.logger.log(`MDNS periodic rebroadcast error ${e instanceof Error ? e.stack : e}`);
+                } finally {
+                    republishInFlight = false;
+                    scheduleRepublish();
+                }
+            };
+            this.shutdown.push(() => {
+                stopped = true;
+                if (republishTimer) {
+                    clearTimeout(republishTimer);
+                    republishTimer = undefined;
+                }
+            });
             // Do this async, in case it never returns, which seems to happen for some reason
             (async () => {
                 try {
                     await mdnsService.advertise();
                     this.logger.log(`MDNS is advertising`);
+                    scheduleRepublish();
                 } catch (e) {
                     this.logger.log(`MDNS advertising error ${e instanceof Error ? e.stack : e}`);
                 }
@@ -256,7 +326,7 @@ export default class OscConnection extends TypedEventEmitter<MyEvents> {
                     clearTimeout(this.mdnsWatchdogTimeout);
                     this.mdnsWatchdogTimeout = undefined;
                 }
-                this.logger.log("Received an OSC message. We are probably connected.");
+                this.logger.log(`Received an OSC message from ${from}. We are probably connected.`);
                 this.updateBulk();
             }
             this.isStale = false;

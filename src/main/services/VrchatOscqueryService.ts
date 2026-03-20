@@ -7,7 +7,7 @@ import fs from "fs/promises";
 import fsPlain from "fs";
 import * as readline from "node:readline/promises";
 import path from "path";
-import Bonjour from "bonjour-service";
+import Bonjour, {type Browser} from "bonjour-service";
 import {Service} from "typedi";
 import type {Service as BounjourService} from "bonjour-service";
 import got from "got";
@@ -35,7 +35,7 @@ export default class VrchatOscqueryService {
     private oscqPort?: number;
     private oscAddress?: string;
     private oscPort?: number;
-    private mdnsBrowser;
+    private mdnsBrowser: Browser;
     private status: OscqueryStatus = 'searching';
     private logsFound = false;
 
@@ -67,11 +67,13 @@ export default class VrchatOscqueryService {
     }
 
     async rescan() {
+        this.mdnsBrowser.update();
+
         if (this.oscqAddress && this.oscqPort) {
             let stillGood = false;
             try {
                 const hostInfo = await this.getHostInfo(this.oscqAddress, this.oscqPort);
-                stillGood = this.isVrchatHostInfo(hostInfo);
+                stillGood = hostInfo !== undefined && this.isVrchatHostInfo(hostInfo);
             } catch(e) {}
             if (stillGood) {
                 this.status = 'success';
@@ -135,17 +137,23 @@ export default class VrchatOscqueryService {
         }
     }
 
-    async getHostInfo(ip: string, port: number) {
+    async getHostInfo(ip: string, port: number): Promise<HostInfo | undefined> {
         const json = await got({
             url: `http://${ip}:${port}/?HOST_INFO`,
             timeout: { request: 5000 }
         }).json();
-        return typia.assert<HostInfo>(json);
+        if (!typia.is<HostInfo>(json)) {
+            return undefined;
+        }
+        return json;
     }
 
     async checkPort(ip: string, port: number): Promise<'success' | 'notVrchat' | 'httpError'> {
         try {
             const hostInfo = await this.getHostInfo(ip, port);
+            if (!hostInfo) {
+                return 'notVrchat';
+            }
             if (!this.isVrchatHostInfo(hostInfo)) {
                 this.logger.log(`Skipping (${hostInfo.NAME} is not VRChat)`);
                 return 'notVrchat';
