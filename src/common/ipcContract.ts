@@ -52,6 +52,11 @@ export interface SettingsStatePayload {
     outputs: OutputDeviceInfo[];
     intifaceConnected: boolean;
     intifaceAddressOffSubnet: boolean;
+    updateAvailable?: {
+        version?: string;
+        downloadUrl?: string;
+        status: 'downloading' | 'installIpc' | 'download' | 'error';
+    };
     vrchat: SettingsStateVrchat;
     importedDeletesAt?: number;
 }
@@ -59,6 +64,7 @@ export interface SettingsStatePayload {
 export interface IpcInvokeMap {
     'oscStatus:get': {args: []; result: string};
     'avatarParams:get': {args: []; result: Map<string, unknown>};
+    'updater:install': {args: []; result: void};
     'config:request': {args: []; result: void};
     'config:reset': {args: []; result: void};
     'config:open': {args: []; result: string};

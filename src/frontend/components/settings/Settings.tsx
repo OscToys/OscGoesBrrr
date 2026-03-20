@@ -10,9 +10,11 @@ import {
     DialogContent,
     DialogContentText,
     DialogTitle,
+    IconButton,
     Stack,
     Typography,
 } from "@mui/material";
+import CloseIcon from "@mui/icons-material/Close";
 import {invokeIpc} from "../../ipc";
 import {SettingsStatePayload} from "../../../common/ipcContract";
 import {Result} from "../../../common/result";
@@ -54,9 +56,22 @@ export default function Settings() {
     const hasSettingsStateData = useAtomValue(
         React.useMemo(() => selectAtom(settingsStateAtom, value => value !== undefined), [settingsStateAtom]),
     );
+    const updateAvailable = useAtomValue(
+        React.useMemo(() => selectAtom(settingsStateAtom, value => value?.updateAvailable), [settingsStateAtom]),
+    );
+    const canShowUpdateAction = updateAvailable !== undefined
+        && updateAvailable.status !== 'error';
+    const [dismissedUpdateKey, setDismissedUpdateKey] = useState<string | undefined>(undefined);
     const [resetTarget, setResetTarget] = useState<ResetTarget | undefined>(undefined);
     const [devToolsUnlocked, setDevToolsUnlocked] = useState(false);
     const devSequenceRef = useRef('');
+
+    useEffect(() => {
+        const nextKey = updateAvailable
+            ? `${updateAvailable.status}:${updateAvailable.version ?? ''}:${updateAvailable.downloadUrl ?? ''}`
+            : undefined;
+        setDismissedUpdateKey((current) => current === nextKey ? current : undefined);
+    }, [updateAvailable]);
 
     useEffect(() => {
         const onKeyDown = (event: KeyboardEvent) => {
@@ -118,6 +133,48 @@ export default function Settings() {
                 {loadError && <Alert severity="error">{loadError}</Alert>}
                 {stateLoadError && <Alert severity="error">{stateLoadError}</Alert>}
                 {saveError && <Alert severity="error">{saveError}</Alert>}
+                {hasSettingsStateData && updateAvailable && dismissedUpdateKey !== `${updateAvailable.status}:${updateAvailable.version ?? ''}:${updateAvailable.downloadUrl ?? ''}` && (
+                    <Alert
+                        severity={updateAvailable.status === 'error' ? 'error' : 'warning'}
+                        action={(
+                            <Stack direction="row" spacing={1} alignItems="center">
+                                {canShowUpdateAction && (
+                                    <Button
+                                        color="inherit"
+                                        size="small"
+                                        disabled={updateAvailable.status === 'downloading'}
+                                        onClick={async () => {
+                                            if (updateAvailable.status === 'installIpc') {
+                                                await invokeIpc('updater:install');
+                                                return;
+                                            }
+                                            window.open(updateAvailable.downloadUrl ?? "https://osc.toys", "_blank");
+                                        }}
+                                    >
+                                        {updateAvailable.status === 'downloading'
+                                            ? 'Downloading...'
+                                            : updateAvailable.status === 'installIpc'
+                                                ? 'Install'
+                                                : 'Download'}
+                                    </Button>
+                                )}
+                                <IconButton
+                                    size="small"
+                                    color="inherit"
+                                    onClick={() => {
+                                        setDismissedUpdateKey(`${updateAvailable.status}:${updateAvailable.version ?? ''}:${updateAvailable.downloadUrl ?? ''}`);
+                                    }}
+                                >
+                                    <CloseIcon fontSize="small" />
+                                </IconButton>
+                            </Stack>
+                        )}
+                    >
+                        {updateAvailable.status === 'error'
+                            ? 'Failed to check for updates'
+                            : `New update available: ${updateAvailable.version}`}
+                    </Alert>
+                )}
                 {!hasConfigData && !loadError && (
                     <Alert severity="info">Loading configuration...</Alert>
                 )}

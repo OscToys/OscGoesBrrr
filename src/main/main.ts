@@ -35,7 +35,7 @@ if (!gotTheLock) {
 configurePortableDataPaths(app);
 
 const container = Container;
-container.get(Updater);
+const updater = container.get(Updater);
 const configService = container.get(ConfigService);
 const backendDataService = container.get(BackendDataService);
 const importedOutputPromotionService = container.get(ImportedOutputPromotionService);
@@ -233,6 +233,7 @@ handleIpc('settings-state:request', async () => {
             outputs: entries,
             intifaceConnected,
             intifaceAddressOffSubnet,
+            updateAvailable: updater.getAvailableUpdate(),
             vrchat: {
                 connected: vrchatConnected,
                 diagnostics: {

@@ -1,4 +1,4 @@
-import { dialog, app } from 'electron';
+import { app } from 'electron';
 import { createWriteStream } from "fs";
 import child_process from 'child_process';
 import got from 'got';
@@ -8,86 +8,134 @@ import tmpPromise from 'tmp-promise';
 import typia from "typia";
 import {Service} from "typedi";
 import {getPortableExecutablePath} from "./portableData";
+import {handleIpc} from "./ipc";
 
 interface UpdatesJsonSchema {
     latestVersion: string;
-    latestInstaller?: string;
     downloadUrls?: {
+        generic?: string;
         windowsSetup?: string;
         windowsPortable?: string;
     };
 }
 
+interface AvailableUpdateInfo {
+    version?: string;
+    downloadUrl?: string;
+    status: 'downloading' | 'installIpc' | 'download' | 'error';
+}
+
 @Service()
 export default class Updater {
+    private availableUpdate?: AvailableUpdateInfo;
+    private pendingInstallAction?: () => void;
+
     constructor() {
+        handleIpc('updater:install', async () => {
+            await this.installAvailableUpdate();
+        });
         void this.checkAndNotify();
     }
 
-    async checkAndNotify(notifyOnFailure = false) {
+    getAvailableUpdate() {
+        return this.availableUpdate;
+    }
+
+    async checkAndNotify() {
         try {
             await this.checkAndNotifyUnsafe();
         } catch(e) {
             console.log("Update failed", e);
-            if (notifyOnFailure) {
-                dialog.showErrorBox('Updated failed', e instanceof Error ? e.stack+"" : e+"");
-            }
+            this.availableUpdate = {
+                status: 'error',
+            };
         }
     }
     async checkAndNotifyUnsafe() {
-        if (process.platform !== 'win32') {
-            console.log("Not checking for updates, not on windows");
-            return;
-        }
-
         console.log("Checking for updates ...");
 
-        let myversion = app.getVersion();
-        if (!myversion) throw new Error('Failed to load local version file');
+        const myversion = app.getVersion();
 
         const updatesJson = await got('https://updates.osc.toys/updates.json').json() as unknown;
         const updates = typia.assert<UpdatesJsonSchema>(updatesJson);
         console.log("Autoupdate version is " + updates.latestVersion);
 
         if (semver.gte(myversion, updates.latestVersion, { loose: true })) {
+            this.availableUpdate = undefined;
+            this.pendingInstallAction = undefined;
             console.log("Autoupdate doesn't need to do anything, app already up to date");
             return;
         }
 
-        if (!app.isPackaged) throw new Error('App is not packaged');
+        // if (!app.isPackaged) {
+        //     this.availableUpdate = undefined;
+        //     this.pendingInstallAction = undefined;
+        //     console.log("Update available, but app is in dev mode and unpackaged");
+        //     return;
+        // }
 
-        const portableExecutablePath = getPortableExecutablePath();
-        const isPortableMode = portableExecutablePath !== undefined;
-        const downloadUrl = isPortableMode
-            ? updates.downloadUrls?.windowsPortable
-            : updates.downloadUrls?.windowsSetup ?? updates.latestInstaller;
-        if (!downloadUrl) throw new Error(isPortableMode
-            ? "No portable update URL available in updates manifest"
-            : "No installer URL available in updates manifest");
+        this.availableUpdate = {
+            version: updates.latestVersion,
+            downloadUrl: updates.downloadUrls?.generic,
+            status: 'download',
+        };
 
-        const resp = await dialog.showMessageBox({
-            title: 'Update',
-            message: `Version ${updates.latestVersion} is available`,
-            buttons: ['Install', 'Skip'],
-            cancelId: 1
-        });
-        if (resp.response !== 0) return;
+        if (process.platform === 'win32') {
+            this.availableUpdate = {
+                version: updates.latestVersion,
+                downloadUrl: updates.downloadUrls?.generic,
+                status: 'downloading',
+            };
 
-        console.log("Downloading update ...");
-        const localPath = await tmpPromise.tmpName({
-            prefix: "OGB-update-",
-            postfix: ".exe"
-        });
-        await stream.pipeline(got.stream(downloadUrl), createWriteStream(localPath));
-        console.log("Downloaded");
+            void (async () => {
+                const portableExecutablePath = getPortableExecutablePath();
+                const isPortableMode = portableExecutablePath !== undefined;
+                const downloadUrl = isPortableMode
+                    ? updates.downloadUrls?.windowsPortable
+                    : updates.downloadUrls?.windowsSetup;
+                if (!downloadUrl) throw new Error(isPortableMode
+                    ? "No portable update URL available in updates manifest"
+                    : "No installer URL available in updates manifest");
 
-        console.log("Running updater ...");
-        if (isPortableMode) {
-            launchPortableSwapAndRelaunch(localPath, portableExecutablePath);
-        } else {
-            child_process.spawn(localPath, { detached: true, stdio: 'ignore' });
+                console.log("Downloading update in background ...");
+                const localPath = await tmpPromise.tmpName({
+                    prefix: "OGB-update-",
+                    postfix: ".exe"
+                });
+                await stream.pipeline(got.stream(downloadUrl), createWriteStream(localPath));
+                console.log("Background update download complete");
+
+                this.pendingInstallAction = () => {
+                    console.log("Running updater ...");
+                    if (isPortableMode) {
+                        launchPortableSwapAndRelaunch(localPath, portableExecutablePath);
+                    } else {
+                        child_process.spawn(localPath, { detached: true, stdio: 'ignore' });
+                    }
+                    app.exit(0);
+                };
+                this.availableUpdate = {
+                    version: updates.latestVersion,
+                    downloadUrl: updates.downloadUrls?.generic,
+                    status: 'installIpc',
+                };
+            })().catch((error) => {
+                console.log("Background update preparation failed", error);
+                this.availableUpdate = {
+                    version: updates.latestVersion,
+                    downloadUrl: updates.downloadUrls?.generic,
+                    status: 'download',
+                };
+                this.pendingInstallAction = undefined;
+            });
         }
-        app.exit(0);
+    }
+
+    async installAvailableUpdate() {
+        if (!this.pendingInstallAction) {
+            throw new Error("Update is not ready to install yet");
+        }
+        this.pendingInstallAction();
     }
 }
 
