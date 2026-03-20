@@ -1,10 +1,11 @@
 import React, {ReactNode} from "react";
-import {Alert, AlertColor, Box, Button, FormControlLabel, IconButton, InputAdornment, Stack, Switch, TextField, Typography} from "@mui/material";
+import {Alert, AlertColor, Box, Button, FormControl, FormControlLabel, FormHelperText, IconButton, InputAdornment, Stack, Switch, TextField, Typography} from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import {pushItem, removeAt, replaceAt} from "../../../common/arrayDraft";
 import {produce} from "immer";
 import TextCommitInput from "../util/TextCommitInput";
 import MyAccordion from "../util/MyAccordion";
+import NotchedBox from "../util/NotchedBox";
 import ConnectionBubble from "./ConnectionBubble";
 import {type PrimitiveAtom, useAtom, useAtomValue} from "jotai";
 import {getConnectionBubbleColor} from "../../utils/connectionBubbleColor";
@@ -28,6 +29,8 @@ function VrchatSettingsSection({
     vrcConfigDirAtom,
     oscProxyAtom,
 }: Props) {
+    const [advancedExpanded, setAdvancedExpanded] = React.useState(false);
+    const [diagnosticsExpanded, setDiagnosticsExpanded] = React.useState(false);
     const settingsStateAtom = useSettingsStateAtom();
     const vrchatAtom = React.useMemo(() => selectAtom(settingsStateAtom, (state) => state.vrchat), [settingsStateAtom]);
     const [useOscQuery, setUseOscQuery] = useAtom(useOscQueryAtom);
@@ -185,87 +188,107 @@ function VrchatSettingsSection({
                     </Alert>
                 ))}
 
-                <TextCommitInput
-                    value={maxLevelParam ?? ''}
-                    label="Send Max Level to Avatar Controller Parameter"
-                    placeholder="Parameter Name"
-                    onCommit={setMaxLevelParam}
-                />
-                <Stack spacing={0.25}>
-                    <FormControlLabel
-                        control={
-                            <Switch
-                                checked={useOscQuery}
-                                onChange={(_, checked) => setUseOscQuery(checked)}
-                            />
+                <Stack spacing={0}>
+                    <MyAccordion
+                        expanded={advancedExpanded}
+                        onChange={setAdvancedExpanded}
+                        sx={{bgcolor: 'action.hover'}}
+                        summary={
+                            <Stack spacing={0.25}>
+                                <Typography variant="subtitle2">Advanced VRChat Settings</Typography>
+                                <Typography variant="caption" color="text.secondary">
+                                    These do not need modified for most installations -- Use the defaults!
+                                </Typography>
+                            </Stack>
                         }
-                        label="Use OSCQuery"
-                        sx={{m: 0}}
-                    />
-                    <Typography variant="caption" color="text.secondary">
-                        Reduces conflicts with other OSC apps, but may not work on all systems
-                    </Typography>
+                    >
+                        <Stack spacing={2}>
+                            <NotchedBox label="Use OSCQuery (Reduces conflicts with other OSC apps, but doesn't work on all systems)">
+                                <Switch
+                                    checked={useOscQuery}
+                                    onChange={(_, checked) => setUseOscQuery(checked)}
+                                />
+                            </NotchedBox>
+                            <TextCommitInput
+                                value={maxLevelParam ?? ''}
+                                label="Expose Max Level as an Avatar Parameter (Unusual)"
+                                placeholder="Parameter Name"
+                                onCommit={setMaxLevelParam}
+                            />
+                            <TextCommitInput
+                                value={vrcConfigDir ?? ''}
+                                label="VRChat Config Directory"
+                                placeholder="Auto-detected"
+                                onCommit={setVrcConfigDir}
+                            />
+                            <NotchedBox label="OSC Proxy">
+                                <Stack spacing={1.25}>
+                                    <Typography variant="caption" color="text.secondary">
+                                        Proxy raw OSC data to another port, for other apps that do not support OSCQuery
+                                    </Typography>
+                                    {oscProxy.length === 0 && (
+                                        <TextField
+                                            size="small"
+                                            fullWidth
+                                            spellCheck={false}
+                                            value=""
+                                            placeholder="No proxy targets configured."
+                                            disabled
+                                        />
+                                    )}
+                                    {oscProxy.map((port, index) => (
+                                        <TextCommitInput
+                                            key={index}
+                                            label={`Target ${index + 1}`}
+                                            value={port}
+                                            placeholder="ip:port"
+                                            onCommit={value => {
+                                                setOscProxy(produce(oscProxy, draft => replaceAt(draft, index, value)));
+                                            }}
+                                            endAdornment={
+                                                <InputAdornment position="end">
+                                                    <IconButton
+                                                        color="error"
+                                                        aria-label={`Remove target ${index + 1}`}
+                                                        onClick={() => setOscProxy(produce(oscProxy, draft => removeAt(draft, index)))}
+                                                        edge="end"
+                                                        size="small"
+                                                        sx={{
+                                                            width: 28,
+                                                            height: 28,
+                                                            borderRadius: '50%',
+                                                        }}
+                                                    >
+                                                        <CloseIcon fontSize="small" />
+                                                    </IconButton>
+                                                </InputAdornment>
+                                            }
+                                        />
+                                    ))}
+                                    <Box>
+                                        <Button
+                                            variant="outlined"
+                                            sx={{textTransform: 'none'}}
+                                            onClick={() => setOscProxy(produce(oscProxy, draft => pushItem(draft, '')))}
+                                        >
+                                            Add target
+                                        </Button>
+                                    </Box>
+                                </Stack>
+                            </NotchedBox>
+                        </Stack>
+                    </MyAccordion>
+                    <MyAccordion
+                        expanded={diagnosticsExpanded}
+                        onChange={setDiagnosticsExpanded}
+                        sx={{bgcolor: 'action.hover'}}
+                        summary={<Typography variant="subtitle2">Diagnostics</Typography>}
+                    >
+                        <Typography variant="caption" color="text.secondary">
+                            {diagnosticsText}
+                        </Typography>
+                    </MyAccordion>
                 </Stack>
-                <TextCommitInput
-                    value={vrcConfigDir ?? ''}
-                    label="VRChat Config Directory"
-                    placeholder="Auto-detected"
-                    onCommit={setVrcConfigDir}
-                />
-                <Stack spacing={1.25}>
-                    <Typography variant="subtitle2">OSC Proxy</Typography>
-                    {oscProxy.length === 0 && (
-                        <TextField
-                            size="small"
-                            fullWidth
-                            spellCheck={false}
-                            value=""
-                            placeholder="No proxy targets configured."
-                            disabled
-                        />
-                    )}
-                    {oscProxy.map((port, index) => (
-                        <TextCommitInput
-                            key={index}
-                            label={`Target ${index + 1}`}
-                            value={port}
-                            placeholder="ip:port"
-                            onCommit={value => {
-                                setOscProxy(produce(oscProxy, draft => replaceAt(draft, index, value)));
-                            }}
-                            endAdornment={
-                                <InputAdornment position="end">
-                                    <IconButton
-                                        color="error"
-                                        aria-label={`Remove target ${index + 1}`}
-                                        onClick={() => setOscProxy(produce(oscProxy, draft => removeAt(draft, index)))}
-                                        edge="end"
-                                        size="small"
-                                        sx={{
-                                            width: 28,
-                                            height: 28,
-                                            borderRadius: '50%',
-                                        }}
-                                    >
-                                        <CloseIcon fontSize="small" />
-                                    </IconButton>
-                                </InputAdornment>
-                            }
-                        />
-                    ))}
-                    <Box>
-                        <Button
-                            variant="outlined"
-                            sx={{textTransform: 'none'}}
-                            onClick={() => setOscProxy(produce(oscProxy, draft => pushItem(draft, '')))}
-                        >
-                            Add target
-                        </Button>
-                    </Box>
-                </Stack>
-                <Typography variant="caption" color="text.secondary">
-                    {diagnosticsText}
-                </Typography>
             </Stack>
         </MyAccordion>
     );
