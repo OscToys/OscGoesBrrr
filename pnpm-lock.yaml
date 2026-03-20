@@ -159,8 +159,8 @@ importers:
         specifier: ^5.9.3
         version: 5.9.3
       typia:
-        specifier: ^11.0.3
-        version: 11.0.3(@types/node@24.12.0)(typescript@5.9.3)
+        specifier: ^12.0.1
+        version: 12.0.1(@types/node@24.12.0)(typescript@5.9.3)
       vdf-parser:
         specifier: ^1.2.1
         version: 1.2.1
@@ -952,9 +952,6 @@ packages:
     peerDependencies:
       release-it: ^18.0.0 || ^19.0.0
 
-  '@samchon/openapi@6.0.1':
-    resolution: {integrity: sha512-+nkznmCf/6YavoVkvWg60YoC0UbXY/oK9uMZReyrFcIcXecf+YoWmOLUg+TlgHi+h+6DPgRy6zRkZfiRd3uRnA==}
-
   '@sec-ant/readable-stream@0.4.1':
     resolution: {integrity: sha512-831qok9r2t8AlxLko40y2ebgSDhenenCatLVeW/uBtnHPyhHOvG0C7TvfgecV+wHzIm5KUICgzmVpWS+IMEAeg==}
 
@@ -1143,6 +1140,18 @@ packages:
 
   '@types/yauzl@2.10.3':
     resolution: {integrity: sha512-oJoftv0LSuaDZE3Le4DbKX+KS9G36NzOeSap90UIK0yMA/NhKJhqlSGtNDORNRaIbQfzjXDrQa0ytJ6mNRGz/Q==}
+
+  '@typia/core@12.0.1':
+    resolution: {integrity: sha512-w7BZDLliZ4sJJW6WNN2cMhpLhKHghRELRZynCsfX1eFbQqsi3/lVtvpkTBSzEZXzuFJjb6VxyugB/e2gIZZeKw==}
+
+  '@typia/interface@12.0.1':
+    resolution: {integrity: sha512-HUlNN6Iqq3LXecVCzoSdwTYIZ4dq7eYRbUsNREPvtM10Ej1J2dKIH6zCEl9Ey0tQhcAwexdbubfLOSUQQYCD5A==}
+
+  '@typia/transform@12.0.1':
+    resolution: {integrity: sha512-SX4VCRPHTxRY3l99iU74yn8iqZIQ0DE4939n+XYoojKlvFVmTlg/OCMxsWq3xe6Qw19Vaa8bdcXGV4tx+TAlqw==}
+
+  '@typia/utils@12.0.1':
+    resolution: {integrity: sha512-JIKsRhY4jxLtl/obttkR3vGp8d8hPysY6g0PUsIEDZ9/OO85OU7q8lYhu2GkZOJN/7htyqP+95GhpSNt2uELBQ==}
 
   '@webassemblyjs/ast@1.14.1':
     resolution: {integrity: sha512-nuBEDgQfm1ccRp/8bCQrx1frohyufl4JlbMMZ4P1wpeOfDhF6FQkxZJ1b/e+PLwr6X1Nhw6OLme5usuBWYBvuQ==}
@@ -3571,8 +3580,8 @@ packages:
     engines: {node: '>=14.17'}
     hasBin: true
 
-  typia@11.0.3:
-    resolution: {integrity: sha512-L7x7WzOCpFyNCauWl6VYJVEG9EHZi5EPNBRzxTO1luaLCd6WEDf+xrJNT+hMZ8U+0X7hCsR1EUpi29LdHhvCvA==}
+  typia@12.0.1:
+    resolution: {integrity: sha512-meL2qpo6yYFj6wC5coz7T3XpQT9+UjdHErhw46jGfmLFJUq6Za74B0/KYMDRjLxF/0Fd63oVx6X3+MUlI1ZJcQ==}
     hasBin: true
     peerDependencies:
       typescript: '>=4.8.0 <5.10.0'
@@ -4574,8 +4583,6 @@ snapshots:
       - conventional-commits-filter
       - conventional-commits-parser
 
-  '@samchon/openapi@6.0.1': {}
-
   '@sec-ant/readable-stream@0.4.1': {}
 
   '@serialport/binding-mock@10.2.2':
@@ -4766,6 +4773,23 @@ snapshots:
     dependencies:
       '@types/node': 25.4.0
     optional: true
+
+  '@typia/core@12.0.1':
+    dependencies:
+      '@typia/interface': 12.0.1
+      '@typia/utils': 12.0.1
+
+  '@typia/interface@12.0.1': {}
+
+  '@typia/transform@12.0.1':
+    dependencies:
+      '@typia/core': 12.0.1
+      '@typia/interface': 12.0.1
+      '@typia/utils': 12.0.1
+
+  '@typia/utils@12.0.1':
+    dependencies:
+      '@typia/interface': 12.0.1
 
   '@webassemblyjs/ast@1.14.1':
     dependencies:
@@ -7333,10 +7357,13 @@ snapshots:
 
   typescript@5.9.3: {}
 
-  typia@11.0.3(@types/node@24.12.0)(typescript@5.9.3):
+  typia@12.0.1(@types/node@24.12.0)(typescript@5.9.3):
     dependencies:
-      '@samchon/openapi': 6.0.1
       '@standard-schema/spec': 1.1.0
+      '@typia/core': 12.0.1
+      '@typia/interface': 12.0.1
+      '@typia/transform': 12.0.1
+      '@typia/utils': 12.0.1
       commander: 10.0.1
       comment-json: 4.6.2
       inquirer: 8.2.7(@types/node@24.12.0)
