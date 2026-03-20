@@ -6,10 +6,9 @@ import LoggerService from "./LoggerService";
 export default class OscQueryPortService {
     private readonly logger;
     private readonly portPromise: Promise<number>;
-    private port?: number;
 
     constructor(logger: LoggerService) {
-        this.logger = logger.get("oscLog");
+        this.logger = logger.get("OscQueryPortService");
         this.portPromise = this.selectPort();
     }
 
@@ -19,9 +18,8 @@ export default class OscQueryPortService {
 
     private async selectPort() {
         const port = await portfinder.getPortPromise({
-            port: 33786,
+            port: 33776,
         });
-        this.port = port;
         this.logger.log(`Selected OSCQuery port: ${port}`);
         return port;
     }
