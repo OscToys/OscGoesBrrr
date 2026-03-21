@@ -242,6 +242,7 @@ handleIpc('settings-state:request', async () => {
                     oscEnabled: vrcConfigCheck.oscEnabled === false,
                     selfInteract: vrcConfigCheck.selfInteractEnabled === false,
                     everyoneInteract: vrcConfigCheck.everyoneInteractEnabled === false,
+                    loggingFull: vrcConfigCheck.loggingFull !== false,
                     oscStartup: Boolean(logScanner.failure),
                     oscStartupText: logScanner.failure,
                     ogbOscPort,

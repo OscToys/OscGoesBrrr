@@ -47,7 +47,7 @@ const config = {
     externals: {
         'bufferutil': 'commonjs2 doesnotexist',
         'utf-8-validate': 'commonjs2 doesnotexist',
-        'native-reg': 'commonjs2 native-reg',
+        'native-reg': 'node-commonjs native-reg',
     },
     resolve: {
         extensions: ['', '.ts', '.tsx', '.js', '.jsx'],

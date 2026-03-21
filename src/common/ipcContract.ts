@@ -31,6 +31,7 @@ export interface SettingsStateVrchat {
         oscEnabled: boolean;
         selfInteract: boolean;
         everyoneInteract: boolean;
+        loggingFull: boolean;
         oscStartup: boolean;
         oscStartupText?: string;
         ogbOscPort?: number;

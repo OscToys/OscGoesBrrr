@@ -61,19 +61,25 @@ function VrchatSettingsSection({
     if (vrchat.diagnostics.oscEnabled) {
         alerts.push({
             severity: "error",
-            content: "OSC is disabled in the in-game settings. This setting must be enabled. Enable it in the radial menu: Options > OSC > Enabled.",
+            content: "OSC is disabled in the in-game VRChat settings. This setting must be enabled. Enable it in the radial menu: Options > OSC > Enabled.",
         });
     }
     if (vrchat.diagnostics.selfInteract) {
         alerts.push({
             severity: "error",
-            content: "Self-Interaction is disabled in the in-game settings. This setting must be enabled. Enable it in the quick menu: Settings > Avatar Interactions > Self Interact.",
+            content: "Self-Interaction is disabled in the in-game VRChat settings. This setting must be enabled. Enable it in the quick menu: Settings > Avatar Interactions > Self Interact.",
         });
     }
     if (vrchat.diagnostics.everyoneInteract) {
         alerts.push({
             severity: "warning",
-            content: "Interaction is not set to 'Everyone' in the in-game settings. You will not be able to interact with most players. Enable it in the quick menu: Settings > Avatar Interactions > Everyone.",
+            content: "Interaction is not set to 'Everyone' in the in-game VRChat settings. You will not be able to interact with most players. Enable it in the quick menu: Settings > Avatar Interactions > Everyone.",
+        });
+    }
+    if (!vrchat.diagnostics.loggingFull) {
+        alerts.push({
+            severity: "warning",
+            content: "Logging is not set to 'Full' in the in-game VRChat settings. This will prevent OGB from connecting to VRChat quickly, or at all in some cases. Set 'Logging' to 'Full' in VRChat's Settings > Debug.",
         });
     }
     if (vrchat.diagnostics.oscStartup) {
