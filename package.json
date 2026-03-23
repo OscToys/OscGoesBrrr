@@ -76,7 +76,7 @@
     "vdf-parser": "^1.2.1",
     "webpack": "^5.105.4",
     "webpack-cli": "^7.0.2",
-    "ws": "^8.19.0"
+    "ws": "^8.20.0"
   },
   "build": {
     "appId": "toys.osc.oscgoesbrrr",
