@@ -33,7 +33,7 @@
     "@mui/icons-material": "^7.3.9",
     "@mui/material": "^7.3.9",
     "@release-it/conventional-changelog": "^10.0.6",
-    "@tanstack/query-core": "^5.91.2",
+    "@tanstack/query-core": "^5.95.2",
     "@tsconfig/strictest": "^2.0.8",
     "@types/lodash": "^4.17.24",
     "@types/node": "^24.12.0",
