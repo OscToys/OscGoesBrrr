@@ -50,7 +50,7 @@
     "electron-builder": "^26.8.1",
     "got": "^14.6.6",
     "immer": "^11.1.4",
-    "jotai": "^2.18.1",
+    "jotai": "^2.19.0",
     "jotai-family": "^1.0.1",
     "lodash": "^4.17.23",
     "osc": "^2.4.5",
