@@ -7,7 +7,7 @@ function readJson(filePath) {
 }
 
 function normalizeExactVersion(label, value) {
-  const normalized = String(value).trim().replace(/^v/, "");
+  const normalized = String(value).trim().replace(/^[v^]/, "");
   if (!/^\d+\.\d+\.\d+$/.test(normalized)) {
     throw new Error(`Could not determine exact ${label} version from "${value}"`);
   }
@@ -36,8 +36,14 @@ const packageJson = readJson(path.join(rootDir, "package.json"));
 const workspaceUseNodeVersionExact = readWorkspaceUseNodeVersion(path.join(rootDir, "pnpm-workspace.yaml"));
 const engineExact = normalizeExactVersion("engines.node", packageJson.engines?.node);
 const runtimeExact = normalizeExactVersion("current Node runtime", process.version);
+const typesExact = normalizeExactVersion("@types/node", packageJson.devDependencies?.["@types/node"]);
 
-const typesNodeMajor = extractMajor("@types/node", packageJson.devDependencies?.["@types/node"]);
+console.log(`useNodeVersion: ${workspaceUseNodeVersionExact}`);
+console.log(`engines.node: ${engineExact}`);
+console.log(`current runtime: ${runtimeExact}`);
+console.log(`@types/node: ${typesExact}`);
+
+const typesNodeMajor = extractMajor("@types/node", typesExact);
 const expectedMajor = extractMajor("engines.node", engineExact);
 
 const mismatches = [
