@@ -23,10 +23,8 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
       - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v6
         with:
-          node-version-file: '.nvmrc'
-          cache: pnpm
+          standalone: true
       - name: Determine Version
         id: determine_version
         run: |
@@ -54,10 +52,8 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v6
       - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v6
         with:
-          node-version-file: '.nvmrc'
-          cache: pnpm
+          standalone: true
       - name: Build
         run: |
           pnpm install --frozen-lockfile --config.platform=win32
@@ -84,10 +80,8 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v6
       - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v6
         with:
-          node-version-file: '.nvmrc'
-          cache: pnpm
+          standalone: true
       - name: Install rpm build tools
         run: sudo apt-get update && sudo apt-get install -y rpm
       - name: Build
@@ -160,7 +154,7 @@ jobs:
           ssh-key: ${{ secrets.VERSION_DEPLOY_KEY }}
       - uses: actions/setup-node@v6
         with:
-          # Can't use .nvmrc because we don't clone the repo for this job
+          # Can't use pnpm because we don't clone the repo for this job
           node-version: 24
       - name: Update Version Manifest
         run: |
