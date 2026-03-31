@@ -14,6 +14,15 @@ function normalizeExactVersion(label, value) {
   return normalized;
 }
 
+function readWorkspaceUseNodeVersion(filePath) {
+  const contents = fs.readFileSync(filePath, "utf8");
+  const match = contents.match(/^\s*useNodeVersion:\s*("?)([^\r\n"]+)\1\s*$/m);
+  if (!match) {
+    throw new Error(`Could not determine exact useNodeVersion from "${filePath}"`);
+  }
+  return normalizeExactVersion("pnpm-workspace.yaml useNodeVersion", match[2]);
+}
+
 function extractMajor(label, value) {
   const match = String(value).trim().match(/\d+/);
   if (!match) {
@@ -25,6 +34,7 @@ function extractMajor(label, value) {
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const packageJson = readJson(path.join(rootDir, "package.json"));
 const nvmrcExact = normalizeExactVersion(".nvmrc", fs.readFileSync(path.join(rootDir, ".nvmrc"), "utf8"));
+const workspaceUseNodeVersionExact = readWorkspaceUseNodeVersion(path.join(rootDir, "pnpm-workspace.yaml"));
 const engineExact = normalizeExactVersion("engines.node", packageJson.engines?.node);
 const runtimeExact = normalizeExactVersion("current Node runtime", process.version);
 
@@ -33,6 +43,7 @@ const expectedMajor = extractMajor(".nvmrc", nvmrcExact);
 
 const mismatches = [
   runtimeExact === nvmrcExact ? null : `Node runtime ${runtimeExact} does not match .nvmrc ${nvmrcExact}`,
+  workspaceUseNodeVersionExact === nvmrcExact ? null : `pnpm-workspace.yaml useNodeVersion ${workspaceUseNodeVersionExact} does not match .nvmrc ${nvmrcExact}`,
   engineExact === nvmrcExact ? null : `package.json engines.node ${engineExact} does not match .nvmrc ${nvmrcExact}`,
   typesNodeMajor === expectedMajor ? null : `package.json @types/node ${typesNodeMajor} does not match .nvmrc major ${expectedMajor}`,
 ].filter(Boolean);

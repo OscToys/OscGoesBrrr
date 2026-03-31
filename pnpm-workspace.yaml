@@ -1,2 +1,5 @@
 onlyBuiltDependencies:
   - electron
+minimumReleaseAge: 10080
+useNodeVersion: 24.14.0
+engineStrict: true
