@@ -52,6 +52,12 @@ export default function Settings() {
         parseResult: parseSettingsStateResult,
         pollMs: 100,
     });
+
+    setInterval(() => {
+        performance.clearMarks();
+        performance.clearMeasures();
+    }, 500);
+
     const hasConfigData = useAtomValue(React.useMemo(() => selectAtom(configAtom, value => value !== undefined), [configAtom]));
     const hasSettingsStateData = useAtomValue(
         React.useMemo(() => selectAtom(settingsStateAtom, value => value !== undefined), [settingsStateAtom]),
