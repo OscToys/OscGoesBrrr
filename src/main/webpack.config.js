@@ -4,61 +4,65 @@ import {fileURLToPath} from "node:url";
 import typiaTransform from "typia/lib/transform";
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 
-const config = {
-    context: __dirname,
-    entry: './main',
-    output: {
-        path: path.resolve(__dirname, '../../app'),
-        filename: 'main.bundle.js',
-        publicPath: 'app/',
-        module: true,
-    },
-    target: 'electron-main',
-    devtool: 'source-map',
-    module: {
-        rules: [
-            {
-                test: /\.tsx?$/,
-                use: [{
-                    loader: 'ts-loader',
-                    options: {
-                        configFile: path.resolve(__dirname, './tsconfig.json'),
-                        onlyCompileBundledFiles: false,
-                        getCustomTransformers: (program) => ({
-                            before: [typiaTransform(program, undefined, { addDiagnostic: () => {} })]
-                        })
-                    }
-                }],
-                exclude: /node_modules/,
-            },
-            {
-                test: /\.(ico|txt|html)$/,
-                type: 'asset/resource',
-            },
-        ]
-    },
-    plugins: [
-        new webpack.ContextReplacementPlugin(/keyv/),
-        new webpack.DefinePlugin({
-            'process.env.WS_NO_BUFFER_UTIL': 1,
-            'process.env.WS_NO_UTF_8_VALIDATE': 1,
-        })
-    ],
-    externals: {
-        'bufferutil': 'commonjs2 doesnotexist',
-        'utf-8-validate': 'commonjs2 doesnotexist',
-        'native-reg': 'node-commonjs native-reg',
-    },
-    resolve: {
-        extensions: ['', '.ts', '.tsx', '.js', '.jsx'],
-    },
-    experiments: {
-        outputModule: true,
-    },
-    mode: 'development',
-    watchOptions: {
-        poll: 1000,
-    },
+const config = (_env, argv) => {
+    const mode = argv.mode ?? 'development';
+    const isDevelopment = mode === 'development';
+    return {
+        context: __dirname,
+        entry: './main',
+        output: {
+            path: path.resolve(__dirname, '../../app'),
+            filename: 'main.bundle.js',
+            publicPath: 'app/',
+            module: true,
+        },
+        target: 'electron-main',
+        devtool: isDevelopment ? 'source-map' : false,
+        module: {
+            rules: [
+                {
+                    test: /\.tsx?$/,
+                    use: [{
+                        loader: 'ts-loader',
+                        options: {
+                            configFile: path.resolve(__dirname, './tsconfig.json'),
+                            onlyCompileBundledFiles: false,
+                            getCustomTransformers: (program) => ({
+                                before: [typiaTransform(program, undefined, { addDiagnostic: () => {} })]
+                            })
+                        }
+                    }],
+                    exclude: /node_modules/,
+                },
+                {
+                    test: /\.(ico|txt|html)$/,
+                    type: 'asset/resource',
+                },
+            ]
+        },
+        plugins: [
+            new webpack.ContextReplacementPlugin(/keyv/),
+            new webpack.DefinePlugin({
+                'process.env.WS_NO_BUFFER_UTIL': 1,
+                'process.env.WS_NO_UTF_8_VALIDATE': 1,
+            })
+        ],
+        externals: {
+            'bufferutil': 'commonjs2 doesnotexist',
+            'utf-8-validate': 'commonjs2 doesnotexist',
+            'native-reg': 'node-commonjs native-reg',
+        },
+        resolve: {
+            extensions: ['', '.ts', '.tsx', '.js', '.jsx'],
+        },
+        experiments: {
+            outputModule: true,
+        },
+        mode,
+        watchOptions: {
+            poll: 1000,
+        },
+    };
 };
 
 // noinspection JSUnusedGlobalSymbols

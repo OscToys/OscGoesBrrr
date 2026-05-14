@@ -11,8 +11,8 @@
   "scripts": {
     "preinstall": "node scripts/check-node-version.js",
     "start": "electron .",
-    "watch": "webpack --watch --config src/main/webpack.config.js --config src/frontend/webpack.config.js",
-    "build": "webpack --config src/main/webpack.config.js --config src/frontend/webpack.config.js",
+    "watch": "webpack --mode development --watch --config src/main/webpack.config.js --config src/frontend/webpack.config.js",
+    "build": "webpack --mode production --config src/main/webpack.config.js --config src/frontend/webpack.config.js",
     "rebuild": "pnpm run build && pnpm run start",
     "typecheck": "pnpm exec tsc -p src/main/tsconfig.json --noEmit && pnpm exec tsc -p src/frontend/tsconfig.json --noEmit"
   },
