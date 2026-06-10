@@ -4,6 +4,7 @@ import chokidar, {type FSWatcher} from "chokidar";
 import {freeze, produce, type Draft} from "immer";
 import TypedEventEmitter from "../../common/TypedEventEmitter";
 import isFileMissingError from "../../common/isFileMissingError";
+import {FileHandle} from "node:fs/promises";
 
 type JsonStateEvents<TData> = {
     changed: (data: TData, loadError: string | undefined) => void;
@@ -283,8 +284,21 @@ export abstract class AbstractJsonStateService<TData> extends TypedEventEmitter<
         );
         this.lastWrittenAtMs = Date.now(); // This is set before the save on purpose since the watcher could activate any time
         await fs.mkdir(saveDir, {recursive: true});
-        await fs.writeFile(tempPath, serialized);
-        await fs.rename(tempPath, this.savePath);
+
+        let fd: FileHandle | undefined;
+        try {
+            fd = await fs.open(tempPath, 'w');
+            await fd.writeFile(serialized);
+            await fd.sync();
+            await fd.close();
+            fd = undefined;
+            await fs.rename(tempPath, this.savePath);
+        } catch(e) {
+            if (fd) try { await fd.close(); } catch {}
+            try { await fs.unlink(tempPath); } catch {}
+            throw e;
+        }
+
         this.lastKnownFileText = serialized;
         this.log(`Saved`);
     }
