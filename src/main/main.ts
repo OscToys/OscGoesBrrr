@@ -145,7 +145,9 @@ handleIpc('settings-state:request', async () => {
         return raw.replace(/(Users[\\/])([^\\/]+)/i, "$1***");
     };
 
-    // Add history first as disconnected.
+    const configuredOutputIds = new Set(configService.getCached().outputs.map(output => output.id));
+
+    // Add configured history first as disconnected.
     const getNaming = (feature: IntifaceDeviceFeatureSelection, id: string) => {
         return {
             deviceName: trimToUndefined(feature.device.DeviceDisplayName)
@@ -157,6 +159,7 @@ handleIpc('settings-state:request', async () => {
         }
     };
     for (const [id, item] of Object.entries(history)) {
+        if (!configuredOutputIds.has(id)) continue;
         result.set(id, {
             id,
             name: id,
