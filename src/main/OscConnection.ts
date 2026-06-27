@@ -18,6 +18,8 @@ type MyEvents = {
 @Service()
 export default class OscConnection extends TypedEventEmitter<MyEvents> {
     private static readonly STALE_MS = 15_000;
+    private static readonly OGB_ENABLED_PARAM = 'OGB_ENABLED';
+    private static readonly OGB_ENABLED_INTERVAL_MS = 5_000;
     private readonly _entries = new Map<string,OscValue>();
     private recentlyRcvdOscCmds = 0;
     private hasBulkSinceAvatarChange = false;
@@ -60,6 +62,10 @@ export default class OscConnection extends TypedEventEmitter<MyEvents> {
                 this.recentlyRcvdOscCmds = 0;
             }
         }, 15000);
+
+        setInterval(() => {
+            this.send(OscConnection.OGB_ENABLED_PARAM, 1);
+        }, OscConnection.OGB_ENABLED_INTERVAL_MS);
     }
 
     public static parsePort(inputObj: string | undefined, defAddress: string, defPort: number): [string,number] {
