@@ -10,7 +10,8 @@ declare module 'osc' {
         | { type: 'f'; value: number; }
         | { type: 's'; value: string; }
         | { type: 'i'; value: number; }
-        | { type: 'b'; value: unknown; };
+        | { type: 'T'; }
+        | { type: 'F'; };
 
     export class UDPPort {
         constructor(opts: {

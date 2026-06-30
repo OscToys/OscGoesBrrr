@@ -1,4 +1,4 @@
-import osc from 'osc';
+import osc, {OscArg} from 'osc';
 import {OscMessage, UDPPort} from 'osc';
 import dgram, {RemoteInfo} from 'dgram';
 import {Service} from "typedi";
@@ -64,7 +64,7 @@ export default class OscConnection extends TypedEventEmitter<MyEvents> {
         }, 15000);
 
         setInterval(() => {
-            this.send(OscConnection.OGB_ENABLED_PARAM, 1);
+            this.send(OscConnection.OGB_ENABLED_PARAM, true);
         }, OscConnection.OGB_ENABLED_INTERVAL_MS);
     }
 
@@ -279,18 +279,16 @@ export default class OscConnection extends TypedEventEmitter<MyEvents> {
         this.recomputeEntriesVisibility();
     }
 
-    send(paramName: string, value: number) {
+    send(paramName: string, value: number | boolean) {
         if (!this.oscSocket || !this.socketopen) return;
         const sendAddr = this.vrchatOscqueryService.getOscAddress();
         if (!sendAddr) return;
+        let arg: OscArg;
+        if (typeof(value) === 'boolean') arg = {type:value?'T':'F'};
+        else arg = {type:'f', value:value};
         this.oscSocket.send({
             address: "/avatar/parameters/" + paramName,
-            args: [
-                {
-                    type: "f",
-                    value: value
-                }
-            ]
+            args: [arg]
         }, sendAddr[0], sendAddr[1]);
     }
 
