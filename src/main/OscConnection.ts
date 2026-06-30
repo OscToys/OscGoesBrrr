@@ -210,7 +210,20 @@ export default class OscConnection extends TypedEventEmitter<MyEvents> {
             }
 
             const param = this.parseParamFromPath(path);
-            this.receivedParamValue(param, oscMsg.args?.[0]?.value, false);
+            const arg = oscMsg.args?.[0];
+            if (!arg) return;
+
+            switch (arg.type) {
+                case 'T':
+                    this.receivedParamValue(param, true, false);
+                    break;
+                case 'F':
+                    this.receivedParamValue(param, false, false);
+                    break;
+                default:
+                    this.receivedParamValue(param, arg.value, false);
+                    break;
+            }
         });
 
         // Open the socket.
