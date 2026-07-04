@@ -180,7 +180,12 @@ export class BridgeOutput {
                 const parameter = link.parameter.trim();
                 if (!parameter) return {value: 0, motionBased: false};
                 const valueUnknown = entries.get(parameter)?.get();
-                const raw = (typeof valueUnknown == 'number') ? valueUnknown : 0;
+                const raw =
+                    typeof valueUnknown === 'number'
+                        ? valueUnknown
+                        : typeof valueUnknown === 'boolean'
+                            ? (valueUnknown ? 1 : 0)
+                            : 0;
                 const transformed = this.applyMutators(raw, link.mutators);
                 return {
                     value: transformed,
