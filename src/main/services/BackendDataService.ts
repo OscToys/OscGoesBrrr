@@ -5,7 +5,7 @@ import typia from "typia";
 import {freeze} from "immer";
 import AbstractJsonStateService from "./AbstractJsonStateService";
 import {handleIpc} from "../ipc";
-import type {IntifaceDeviceFeatureSelection} from "../ButtplugSpec";
+import type {IntifaceDeviceFeatureSelection} from "../IntifaceProtocol";
 
 export interface DeviceHistoryItem {
     intiface: IntifaceDeviceFeatureSelection;

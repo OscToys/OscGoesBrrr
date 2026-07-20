@@ -5,7 +5,7 @@ import util from 'util';
 import Bridge from './bridge';
 import Updater from './updater';
 import OscConnection from "./OscConnection";
-import Buttplug from "./Buttplug";
+import Intiface from "./Intiface";
 import VrcConfigCheck from "./VrcConfigCheck";
 import {Container} from "typedi";
 import MainWindowService from "./services/MainWindowService";
@@ -22,7 +22,7 @@ import OscQueryHttpServerService from "./services/OscQueryHttpServerService";
 import OscQueryMdnsBroadcastService from "./services/OscQueryMdnsBroadcastService";
 import {handleIpc} from "./ipc";
 import {OscqueryStatus} from "../common/ipcContract";
-import type {ButtplugFeatureInformation, Device, IntifaceDeviceFeatureSelection} from "./ButtplugSpec";
+import type {IntifaceFeatureInformation, Device, IntifaceDeviceFeatureSelection} from "./IntifaceProtocol";
 import {configurePortableDataPaths} from "./portableData";
 
 app.enableSandbox();
@@ -59,7 +59,7 @@ container.get(OscQueryMdnsBroadcastService);
     console.error = (...args) => systemLogger.log("ERROR", util.format(...args));
 }
 
-const butt = container.get(Buttplug);
+const intiface = container.get(Intiface);
 const bridge = container.get(Bridge);
 
 handleIpc('avatarParams:get', async () => {
@@ -81,7 +81,7 @@ handleIpc('settings-state:request', async () => {
         return;
     }
 
-    const intifaceConnected = butt.wsReady();
+    const intifaceConnected = intiface.wsReady();
     const intifaceAddressOffSubnet = isFixedIntifaceAddressOffSubnet(
         configService.getCached().intifaceAddress,
         myAddressesService,
@@ -235,7 +235,7 @@ handleIpc('settings-state:request', async () => {
         data: {
             outputs: entries,
             intifaceConnected,
-            intifaceConnectedAddress: butt.getConnectedAddress(),
+            intifaceConnectedAddress: intiface.getConnectedAddress(),
             intifaceAddressOffSubnet,
             updateAvailable: updater.getAvailableUpdate(),
             vrchat: {

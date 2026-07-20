@@ -1,8 +1,8 @@
-import Buttplug from "./Buttplug";
+import Intiface from "./Intiface";
 import {OscValue} from "./OscConnection";
 import OscConnection from "./OscConnection";
 import GameDevice from "./GameDevice";
-import {DeviceFeature} from "./Buttplug";
+import {DeviceFeature} from "./Intiface";
 import ConfigService from "./services/ConfigService";
 import {getDefaultLinearActuatorConfig, getDefaultOutput, Output, OutputLinkMutator} from "../common/configTypes";
 import clamp from "../common/clamp";
@@ -17,15 +17,15 @@ export default class Bridge {
 
     constructor(
         private osc: OscConnection,
-        private buttConnection: Buttplug,
+        private intiface: Intiface,
         private configService: ConfigService
     ) {
         this.osc.on('add', this.onOscAddKey);
         this.osc.on('clear', this.onOscClear);
-        this.buttConnection.on('addFeature', f => {
+        this.intiface.on('addFeature', f => {
             this.outputs.add(new BridgeOutput(f,this.configService,this.osc));
         });
-        this.buttConnection.on('removeFeature', f => {
+        this.intiface.on('removeFeature', f => {
             for (const output of this.outputs) {
                 if (output.bioFeature == f) this.outputs.delete(output);
             }

@@ -1,5 +1,5 @@
 import React from "react";
-import {Alert, AlertColor, Checkbox, FormControlLabel, Stack, Typography} from "@mui/material";
+import {Alert, AlertColor, Box, Checkbox, FormControlLabel, Stack, Typography} from "@mui/material";
 import TextCommitInput from "../util/TextCommitInput";
 import MyAccordion from "../util/MyAccordion";
 import ConnectionBubble from "./ConnectionBubble";
@@ -36,7 +36,7 @@ function IntifaceSettingsSection({
     );
     const [intifaceAddress, setIntifaceAddress] = useAtom(intifaceAddressAtom);
     const [useIntifaceMdns, setUseIntifaceMdns] = useAtom(useIntifaceMdnsAtom);
-    const alerts: {severity: AlertColor; content: string}[] = [];
+    const alerts: {severity: AlertColor; content: React.ReactNode}[] = [];
     if (!intifaceConnected) {
         if (!useIntifaceMdns && intifaceAddress !== undefined && intifaceAddressOffSubnet) {
             alerts.push({
@@ -44,7 +44,17 @@ function IntifaceSettingsSection({
                 content: "The IP you entered is not on your local network. Make sure the device is on wifi, connected to the same router, and not using a VPN.",
             });
         } else {
-            alerts.push({severity: "error", content: "Intiface is not connected."});
+            alerts.push({
+                severity: "error",
+                content: useIntifaceMdns ? (
+                    <Stack spacing={0.5}>
+                        <div>Intiface is not connected.</div>
+                        <Box component="ul" sx={{m: 0, pl: 3}}>
+                            <Typography component="li" variant="body2">Intiface Mobile may require clicking 'Stop' and then 'Start' again in the app for mDNS to work</Typography>
+                        </Box>
+                    </Stack>
+                ) : "Intiface is not connected.",
+            });
         }
     } else if (!outputs.some((output) => output.connected)) {
         alerts.push({severity: "warning", content: "No devices are connected to Intiface"});

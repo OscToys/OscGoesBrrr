@@ -1,7 +1,7 @@
 import {Service} from "typedi";
 import {Output} from "../../../common/configTypes";
 import ConfigService from "../ConfigService";
-import type {ButtplugFeatureInformation, Device} from "../../ButtplugSpec";
+import type {IntifaceFeatureInformation, Device} from "../../IntifaceProtocol";
 import BackendDataService from "../BackendDataService";
 import LegacyTxtConfigImportService from "./LegacyTxtConfigImportService";
 
@@ -39,7 +39,7 @@ export default class ImportedOutputPromotionService {
     async promoteImportedOutputForDeviceFeature(
         device: Device,
         currentOutputId: string,
-        feature: ButtplugFeatureInformation,
+        feature: IntifaceFeatureInformation,
     ): Promise<void> {
         await this.cleanupExpiredImportedOutputs();
 
@@ -85,7 +85,7 @@ export default class ImportedOutputPromotionService {
 
     private getLegacyFeatureId(
         device: Device,
-        feature: ButtplugFeatureInformation,
+        feature: IntifaceFeatureInformation,
     ): number | undefined {
         if (!this.selectBestMotionType(feature)) return undefined;
         const featureIndex = feature.FeatureIndex;
@@ -122,7 +122,7 @@ export default class ImportedOutputPromotionService {
         }, undefined);
     }
 
-    private selectBestMotionType(rawFeature: ButtplugFeatureInformation): 'linear' | 'vibrate' | 'rotate' | undefined {
+    private selectBestMotionType(rawFeature: IntifaceFeatureInformation): 'linear' | 'vibrate' | 'rotate' | undefined {
         const outputMap = rawFeature.Output;
         if (!outputMap) return undefined;
         if (outputMap.Vibrate) return 'vibrate';

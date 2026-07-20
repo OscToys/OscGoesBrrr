@@ -10,10 +10,7 @@
     "noUnusedLocals": false,
     "noUnusedParameters": false,
     "exactOptionalPropertyTypes": false,
-    "lib": [
-      "es2022"
-    ],
-    "target": "es2022",
+    "target": "es2024",
     "module": "es2022",
     "moduleResolution": "bundler",
     "noImplicitOverride": true
