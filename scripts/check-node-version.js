@@ -34,22 +34,19 @@ function extractMajor(label, value) {
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const packageJson = readJson(path.join(rootDir, "package.json"));
 const workspaceUseNodeVersionExact = readWorkspaceUseNodeVersion(path.join(rootDir, "pnpm-workspace.yaml"));
-const engineExact = normalizeExactVersion("engines.node", packageJson.engines?.node);
 const runtimeExact = normalizeExactVersion("current Node runtime", process.version);
 const typesExact = normalizeExactVersion("@types/node", packageJson.devDependencies?.["@types/node"]);
 
 console.log(`useNodeVersion: ${workspaceUseNodeVersionExact}`);
-console.log(`engines.node: ${engineExact}`);
 console.log(`current runtime: ${runtimeExact}`);
 console.log(`@types/node: ${typesExact}`);
 
 const typesNodeMajor = extractMajor("@types/node", typesExact);
-const expectedMajor = extractMajor("engines.node", engineExact);
+const expectedMajor = extractMajor("useNodeVersion", workspaceUseNodeVersionExact);
 
 const mismatches = [
-  runtimeExact === engineExact ? null : `Node runtime ${runtimeExact} does not match engines.node ${engineExact}`,
-  workspaceUseNodeVersionExact === engineExact ? null : `pnpm-workspace.yaml useNodeVersion ${workspaceUseNodeVersionExact} does not match engines.node ${engineExact}`,
-  typesNodeMajor === expectedMajor ? null : `package.json @types/node ${typesNodeMajor} does not match engines.node major ${expectedMajor}`,
+  runtimeExact === workspaceUseNodeVersionExact ? null : `Node runtime ${runtimeExact} does not match useNodeVersion ${workspaceUseNodeVersionExact}`,
+  typesNodeMajor === expectedMajor ? null : `package.json @types/node ${typesNodeMajor} does not match useNodeVersion major ${expectedMajor}`,
 ].filter(Boolean);
 
 if (mismatches.length > 0) {

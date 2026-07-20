@@ -9,18 +9,15 @@
   },
   "main": "out/main/bootstrap.js",
   "scripts": {
-    "preinstall": "node scripts/check-node-version.js",
-    "start": "electron-vite dev",
-    "build": "electron-vite build",
+    "check-node-version": "node scripts/check-node-version.js",
+    "start": "pnpm run check-node-version && electron-vite dev",
+    "build": "pnpm run check-node-version && electron-vite build",
     "build:start": "electron .",
     "rebuild": "pnpm run build && pnpm run start",
     "typecheck": "pnpm exec tsc -p src/main/tsconfig.json --noEmit && pnpm exec tsc -p src/preload/tsconfig.json --noEmit && pnpm exec tsc -p src/frontend/tsconfig.json --noEmit"
   },
   "repository": "https://github.com/OscToys/OscGoesBrrr",
   "license": "CC BY-NC-SA 4.0",
-  "engines": {
-    "node": "26.5.0"
-  },
   "devDependencies": {
     "@emotion/cache": "^11.14.0",
     "@emotion/react": "^11.14.0",
