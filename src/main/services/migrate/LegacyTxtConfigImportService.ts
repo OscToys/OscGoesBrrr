@@ -28,6 +28,7 @@ export default class LegacyTxtConfigImportService {
         const newConfig: Config = {
             version: 3,
             useOscQuery: true,
+            useIntifaceMdns: false,
             oscProxy: [],
             outputs: []
         };

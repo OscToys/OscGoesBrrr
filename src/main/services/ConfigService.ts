@@ -15,6 +15,7 @@ export default class ConfigService extends AbstractJsonStateService<Config> {
     private static readonly CURRENT_CONFIG_VERSION = 3;
     private static readonly DEFAULT_CONFIG: Config = freeze({
         version: ConfigService.CURRENT_CONFIG_VERSION,
+        useIntifaceMdns: false,
         useOscQuery: true,
         oscProxy: [],
         outputs: [],

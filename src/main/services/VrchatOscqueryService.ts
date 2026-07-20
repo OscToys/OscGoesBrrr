@@ -2,12 +2,12 @@ import MyAddressesService from "./MyAddressesService";
 import LoggerService from "./LoggerService";
 import fsPlain from "fs";
 import * as readline from "node:readline/promises";
-import Bonjour from "bonjour-service";
 import {Service} from "typedi";
 import got from "got";
 import typia from "typia";
 import VrchatLogFinder from "./VrchatLogFinder";
 import {OscqueryStatus} from "../../common/ipcContract";
+import MdnsRegistryService from "./MdnsRegistryService";
 
 interface HostInfo {
     NAME: string;
@@ -29,23 +29,17 @@ export default class VrchatOscqueryService {
     private oscqPort?: number;
     private oscAddress?: string;
     private oscPort?: number;
-    private mdnsBrowser: InstanceType<typeof Bonjour.Browser>;
     private status: OscqueryStatus = 'searching';
     private logsFound = false;
 
     constructor(
         private myAddress: MyAddressesService,
         private logFinder: VrchatLogFinder,
+        private mdnsRegistryService: MdnsRegistryService,
         logger: LoggerService
     ) {
         this.logger = logger.get("vrcOscQuery");
         const serviceLogger = this.logger;
-
-        const mdns = new Bonjour();
-        this.mdnsBrowser = mdns.find({
-            type: "oscjson",
-            protocol: "tcp"
-        });
 
         (async () => {
             while(true) {
@@ -61,8 +55,6 @@ export default class VrchatOscqueryService {
     }
 
     async rescan() {
-        this.mdnsBrowser.update();
-
         if (this.oscqAddress && this.oscqPort) {
             let stillGood = false;
             try {
@@ -84,7 +76,7 @@ export default class VrchatOscqueryService {
         }
         let sawHttpFailure = false;
         let hadCandidate = false;
-        for (const entry of this.mdnsBrowser.services) {
+        for (const entry of this.mdnsRegistryService.getServices({type: "oscjson", protocol: "tcp"})) {
             if (entry.protocol != 'tcp') continue;
             const ip = entry.addresses?.[0];
             const port = entry.port;

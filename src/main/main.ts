@@ -235,6 +235,7 @@ handleIpc('settings-state:request', async () => {
         data: {
             outputs: entries,
             intifaceConnected,
+            intifaceConnectedAddress: butt.getConnectedAddress(),
             intifaceAddressOffSubnet,
             updateAvailable: updater.getAvailableUpdate(),
             vrchat: {

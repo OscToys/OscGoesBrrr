@@ -143,6 +143,7 @@ export function getDefaultOutput(): Omit<Output, 'id'> {
 export interface Config {
     version: number;
     intifaceAddress?: string;
+    useIntifaceMdns: boolean;
     useOscQuery: boolean;
     maxLevelParam?: string;
     oscProxy: string[];

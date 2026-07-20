@@ -10,10 +10,11 @@ interface Props {
     suggestions?: string[];
     startAdornment?: React.ReactNode;
     endAdornment?: React.ReactNode;
+    disabled?: boolean;
     onCommit: (next: string) => void;
 }
 
-export default function TextCommitInput({value, label, placeholder, helperText, liveNormalize, suggestions, startAdornment, endAdornment, onCommit}: Props) {
+export default function TextCommitInput({value, label, placeholder, helperText, liveNormalize, suggestions, startAdornment, endAdornment, disabled, onCommit}: Props) {
     const [draft, setDraft] = useState(value);
     const [focused, setFocused] = useState(false);
     const skipNextBlurCommitRef = useRef(false);
@@ -62,6 +63,7 @@ export default function TextCommitInput({value, label, placeholder, helperText, 
             <Autocomplete
                 freeSolo
                 disableClearable
+                disabled={disabled}
                 options={suggestionOptions}
                 inputValue={focused ? draft : value}
                 onInputChange={(_event, next) => {
@@ -120,6 +122,7 @@ export default function TextCommitInput({value, label, placeholder, helperText, 
             spellCheck={false}
             size="small"
             fullWidth
+            disabled={disabled}
             slotProps={{
                 inputLabel: {shrink: true},
                 ...(startAdornment !== undefined || endAdornment !== undefined

@@ -52,6 +52,7 @@ export interface SettingsStateVrchat {
 export interface SettingsStatePayload {
     outputs: OutputDeviceInfo[];
     intifaceConnected: boolean;
+    intifaceConnectedAddress?: string;
     intifaceAddressOffSubnet: boolean;
     updateAvailable?: {
         version?: string;
