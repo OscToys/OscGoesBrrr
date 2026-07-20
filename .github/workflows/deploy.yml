@@ -18,7 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
           fetch-tags: true
@@ -50,7 +50,7 @@ jobs:
       image: electronuserland/builder:wine
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
         with:
           standalone: true
@@ -78,7 +78,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
         with:
           standalone: true
@@ -148,11 +148,11 @@ jobs:
     environment: prod
     steps:
       - name: Checkout version manifest
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           repository: OSCToys/ogb-updater-manifest
           ssh-key: ${{ secrets.VERSION_DEPLOY_KEY }}
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           # Can't use pnpm because we don't clone the repo for this job
           node-version: 26
