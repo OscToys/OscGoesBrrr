@@ -1,9 +1,6 @@
 import * as ReactDOM from 'react-dom/client';
-
-// @ts-ignore
-import style1 from './bootstrap.css';
-// @ts-ignore
-import style2 from './styles.scss';
+import 'bootstrap/dist/css/bootstrap.css';
+import './styles.scss';
 import Main from "./components/Main";
 import React from "react";
 import createCache from "@emotion/cache";
@@ -11,12 +8,9 @@ import {CacheProvider} from "@emotion/react";
 import {createTheme, CssBaseline, ThemeProvider} from "@mui/material";
 import {Provider as JotaiProvider} from "jotai";
 
-window.addEventListener('DOMContentLoaded', async () => {
-  style1.use();
-  style2.use();
-  const div = document.createElement("div");
-  div.id = "maindiv";
-  document.body.appendChild(div);
+window.addEventListener('DOMContentLoaded', () => {
+  const div = document.querySelector<HTMLDivElement>('#maindiv');
+  if (!div) throw new Error('Missing renderer mount point');
   const cache = createCache({
     key: 'mui',
     container: document.head ?? document.body,

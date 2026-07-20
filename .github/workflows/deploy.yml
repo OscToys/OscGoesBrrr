@@ -22,7 +22,7 @@ jobs:
         with:
           fetch-depth: 0
           fetch-tags: true
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with:
           standalone: true
       - name: Determine Version
@@ -51,7 +51,7 @@ jobs:
     steps:
       - name: Checkout repo
         uses: actions/checkout@v6
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with:
           standalone: true
       - name: Build
@@ -66,7 +66,7 @@ jobs:
         env:
           HOME: /root
           VERSION: ${{ needs.version.outputs.version }}
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@v8
         with:
           name: windows
           path: |
@@ -79,7 +79,7 @@ jobs:
     steps:
       - name: Checkout repo
         uses: actions/checkout@v6
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with:
           standalone: true
       - name: Install rpm build tools
@@ -95,7 +95,7 @@ jobs:
             --config.rpm.artifactName="OscGoesBrrr-linux-${VERSION}.rpm"
         env:
           VERSION: ${{ needs.version.outputs.version }}
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@v8
         with:
           name: linux
           path: |
@@ -129,7 +129,7 @@ jobs:
           path: linux
       - name: Release
         id: release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ needs.version.outputs.tagName }}
           target_commitish: ${{ github.sha }}
@@ -155,7 +155,7 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           # Can't use pnpm because we don't clone the repo for this job
-          node-version: 24
+          node-version: 26
       - name: Update Version Manifest
         run: |
           jq \

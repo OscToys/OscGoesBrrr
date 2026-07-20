@@ -14,7 +14,7 @@ import {
     Stack,
     Typography,
 } from "@mui/material";
-import CloseIcon from "@mui/icons-material/Close";
+import {Close as CloseIcon} from "@mui/icons-material";
 import {invokeIpc} from "../../ipc";
 import {SettingsStatePayload} from "../../../common/ipcContract";
 import {Result} from "../../../common/result";
@@ -110,7 +110,7 @@ export default function Settings() {
         <Box sx={{p: 2, overflowY: 'auto', height: '100%', bgcolor: 'background.default'}}>
             <Stack spacing={2}>
                 {devToolsUnlocked && (
-                    <Stack direction={{xs: 'column', sm: 'row'}} spacing={1.25} alignItems="flex-start">
+                    <Stack direction={{xs: 'column', sm: 'row'}} spacing={1.25} sx={{alignItems: 'flex-start'}}>
                         <Stack spacing={1}>
                             <Button variant="outlined" onClick={openConfigFile}>
                                 Open config
@@ -137,7 +137,7 @@ export default function Settings() {
                     <Alert
                         severity={updateAvailable.status === 'error' ? 'error' : 'warning'}
                         action={(
-                            <Stack direction="row" spacing={1} alignItems="center">
+                            <Stack direction="row" spacing={1} sx={{alignItems: 'center'}}>
                                 {canShowUpdateAction && (
                                     <Button
                                         color="inherit"

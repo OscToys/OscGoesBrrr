@@ -1,11 +1,8 @@
-import {app, BrowserWindow, shell} from "electron";
+import {app, BrowserWindow, nativeImage, shell} from "electron";
 import path from "path";
 import {Service} from "typedi";
 import {IpcEventArgs, IpcEventChannel} from "../../common/ipcContract";
-// @ts-ignore
-import iconPath from '../../icons/ogb-logo.ico';
-// @ts-ignore
-import indexHtmlPath from '../index.html';
+import iconDataUrl from '../../icons/ogb-logo.png?inline';
 
 @Service()
 export default class MainWindowService {
@@ -42,13 +39,18 @@ export default class MainWindowService {
             width: 1024,
             height: 768,
             webPreferences: {
-                preload: path.join(app.getAppPath(), 'app/preload.js')
+                preload: path.join(app.getAppPath(), 'out/preload/index.cjs'),
             },
-            icon: path.join(app.getAppPath(), iconPath),
+            icon: nativeImage.createFromDataURL(iconDataUrl),
             title: 'OscGoesBrrr v' + app.getVersion()
         });
         created.setMenuBarVisibility(false);
-        created.loadFile(indexHtmlPath);
+        const rendererUrl = process.env['ELECTRON_RENDERER_URL'];
+        if (rendererUrl) {
+            created.loadURL(rendererUrl);
+        } else {
+            created.loadFile(path.join(app.getAppPath(), 'out/renderer/index.html'));
+        }
         created.on('closed', () => this.mainWindow = undefined);
         created.on('page-title-updated', e => e.preventDefault());
         created.webContents.setWindowOpenHandler(details => {

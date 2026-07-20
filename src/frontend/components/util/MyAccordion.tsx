@@ -1,7 +1,7 @@
 import React from "react";
 import {Accordion, AccordionDetails, AccordionSummary} from "@mui/material";
 import type {AccordionProps} from "@mui/material";
-import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+import {ExpandMore as ExpandMoreIcon} from "@mui/icons-material";
 
 interface Props extends Omit<AccordionProps, 'children' | 'expanded' | 'onChange'> {
     expanded: boolean;

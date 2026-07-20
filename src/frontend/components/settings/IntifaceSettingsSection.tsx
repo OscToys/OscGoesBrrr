@@ -49,7 +49,7 @@ function IntifaceSettingsSection({
             expanded={expanded}
             onChange={onChange}
             summary={
-                <Stack direction="row" spacing={1} alignItems="center">
+                <Stack direction="row" spacing={1} sx={{alignItems: 'center'}}>
                     <ConnectionBubble color={getConnectionBubbleColor(alerts)} />
                     <Typography variant="h6">Initiface</Typography>
                 </Stack>

@@ -3,7 +3,7 @@ import {produce} from 'immer';
 import {OutputLink, OutputLinkKind} from '../../../common/configTypes';
 import {Menu, MenuItem, Stack, Typography} from '@mui/material';
 import {pushItem} from "../../../common/arrayDraft";
-import AddIcon from "@mui/icons-material/Add";
+import {Add as AddIcon} from "@mui/icons-material";
 import OutputLinkEditor from "./OutputLinkEditor";
 import MyAccordion from "../util/MyAccordion";
 import {type Atom, type PrimitiveAtom, useAtomValue, useSetAtom} from "jotai";
@@ -80,7 +80,7 @@ function OutputLinks({linksAtom, linkLevelsAtom}: Props) {
                     bgcolor: 'action.hover',
                 }}
                 summary={
-                    <Stack direction="row" spacing={1} alignItems="center">
+                    <Stack direction="row" spacing={1} sx={{alignItems: 'center'}}>
                         <AddIcon fontSize="small" sx={{color: 'success.main'}} />
                         <Typography variant="subtitle2">Link To...</Typography>
                     </Stack>

@@ -1,6 +1,6 @@
 import React, {ReactNode} from "react";
 import {Alert, AlertColor, Box, Button, FormControl, FormControlLabel, FormHelperText, IconButton, InputAdornment, Stack, Switch, TextField, Typography} from "@mui/material";
-import CloseIcon from "@mui/icons-material/Close";
+import {Close as CloseIcon} from "@mui/icons-material";
 import {pushItem, removeAt, replaceAt} from "../../../common/arrayDraft";
 import {produce} from "immer";
 import TextCommitInput from "../util/TextCommitInput";
@@ -47,7 +47,7 @@ function VrchatSettingsSection({
                 <>
                     Your current avatar contains no SPS zones. If this is unexpected, make sure you've added SPS sockets or an
                     SPS-compatible prefab to the avatar in unity. If your avatar has old DPS, you can upgrade it to SPS using the{" "}
-                    <a href="https://osc.toys/avatar" target="_blank" rel="noreferrer">VRCFury Haptic Upgrade tool</a>.
+                    <a href="https://vrcfury.com/sps/upgrade" target="_blank" rel="noreferrer">VRCFury "Upgrade DPS to SPS" utility</a>.
                 </>
             ),
         });
@@ -181,7 +181,7 @@ function VrchatSettingsSection({
             expanded={expanded}
             onChange={onChange}
             summary={
-                <Stack direction="row" spacing={1} alignItems="center">
+                <Stack direction="row" spacing={1} sx={{alignItems: 'center'}}>
                     <ConnectionBubble color={connectionColor} />
                     <Typography variant="h6">VRChat</Typography>
                 </Stack>

@@ -1,9 +1,7 @@
 import React from "react";
 import {produce} from "immer";
 import {Button, IconButton, InputAdornment, Stack, TextField, Typography} from "@mui/material";
-import AddIcon from "@mui/icons-material/Add";
-import RemoveIcon from "@mui/icons-material/Remove";
-import CloseIcon from "@mui/icons-material/Close";
+import {Add as AddIcon, Close as CloseIcon, Remove as RemoveIcon} from "@mui/icons-material";
 import TextCommitInput from "./util/TextCommitInput";
 import {OutputLinkFilter} from "../../common/configTypes";
 import {pushItem, removeAt, replaceAt} from "../../common/arrayDraft";
@@ -105,7 +103,7 @@ export default function Filter({filter, itemLabel, suggestions, onChange}: Props
                         }
                     />
                 ))}
-                <Stack direction="row" justifyContent="space-between" alignItems="center">
+                <Stack direction="row" sx={{justifyContent: 'space-between', alignItems: 'center'}}>
                     <Stack direction="row" spacing={0.75}>
                         <Button
                             type="button"

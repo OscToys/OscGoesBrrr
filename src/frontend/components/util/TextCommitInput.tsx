@@ -75,7 +75,6 @@ export default function TextCommitInput({value, label, placeholder, helperText, 
                 }}
                 renderInput={(params) => (
                     <TextField
-                        {...params}
                         inputRef={inputRef}
                         spellCheck={false}
                         size="small"
@@ -83,21 +82,27 @@ export default function TextCommitInput({value, label, placeholder, helperText, 
                         label={label}
                         placeholder={placeholder}
                         helperText={helperText}
-                        InputLabelProps={{shrink: true}}
-                        InputProps={{
-                            ...params.InputProps,
-                            startAdornment: (
-                                <>
-                                    {startAdornment}
-                                    {params.InputProps.startAdornment}
-                                </>
-                            ),
-                            endAdornment: (
-                                <>
-                                    {params.InputProps.endAdornment}
-                                    {endAdornment}
-                                </>
-                            ),
+                        slotProps={{
+                            inputLabel: {
+                                ...params.slotProps.inputLabel,
+                                shrink: true,
+                            },
+                            input: {
+                                ...params.slotProps.input,
+                                startAdornment: (
+                                    <>
+                                        {startAdornment}
+                                        {params.slotProps.input.startAdornment}
+                                    </>
+                                ),
+                                endAdornment: (
+                                    <>
+                                        {params.slotProps.input.endAdornment}
+                                        {endAdornment}
+                                    </>
+                                ),
+                            },
+                            htmlInput: params.slotProps.htmlInput,
                         }}
                         onFocus={() => setFocused(true)}
                         onBlur={onBlur}

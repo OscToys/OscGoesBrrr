@@ -1,7 +1,6 @@
 import React from "react";
 import {Button, Stack, Typography} from "@mui/material";
-import WavesIcon from "@mui/icons-material/Waves";
-import LabelIcon from "@mui/icons-material/Label";
+import {Label as LabelIcon, Waves as WavesIcon} from "@mui/icons-material";
 import {OutputDeviceInfo} from "../../../common/ipcContract";
 import MyAccordion from "../util/MyAccordion";
 import ConnectionBubble from "./ConnectionBubble";
@@ -22,19 +21,19 @@ function UnconfiguredOutputRow({outputAtom, linkOutputAtom}: Props) {
             expanded={false}
             onChange={() => {}}
             summary={
-                <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{width: '100%'}}>
-                    <Stack direction="row" spacing={1} alignItems="center">
+                <Stack direction="row" sx={{width: '100%', alignItems: 'center', justifyContent: 'space-between'}}>
+                    <Stack direction="row" spacing={1} sx={{alignItems: 'center'}}>
                         <ConnectionBubble color="success.main" />
                         <Typography variant="h6">{output.name || output.id}</Typography>
                     </Stack>
-                    <Stack direction="row" spacing={1} alignItems="center">
+                    <Stack direction="row" spacing={1} sx={{alignItems: 'center'}}>
                         {outputPercent > 0 && (
-                            <Stack direction="row" spacing={0.25} alignItems="center">
+                            <Stack direction="row" spacing={0.25} sx={{alignItems: 'center'}}>
                                 <WavesIcon sx={{fontSize: 14, color: 'text.secondary'}} />
                                 <Typography variant="body2" color="text.secondary">{outputPercent}%</Typography>
                             </Stack>
                         )}
-                        <Stack direction="row" spacing={0.25} alignItems="center">
+                        <Stack direction="row" spacing={0.25} sx={{alignItems: 'center'}}>
                             <LabelIcon sx={{fontSize: 14, color: 'text.secondary'}} />
                             <Typography variant="body2" color="text.secondary">{output.id}</Typography>
                         </Stack>

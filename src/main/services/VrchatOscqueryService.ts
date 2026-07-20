@@ -2,9 +2,8 @@ import MyAddressesService from "./MyAddressesService";
 import LoggerService from "./LoggerService";
 import fsPlain from "fs";
 import * as readline from "node:readline/promises";
-import Bonjour, {type Browser} from "bonjour-service";
+import Bonjour from "bonjour-service";
 import {Service} from "typedi";
-import type {Service as BounjourService} from "bonjour-service";
 import got from "got";
 import typia from "typia";
 import VrchatLogFinder from "./VrchatLogFinder";
@@ -30,7 +29,7 @@ export default class VrchatOscqueryService {
     private oscqPort?: number;
     private oscAddress?: string;
     private oscPort?: number;
-    private mdnsBrowser: Browser;
+    private mdnsBrowser: InstanceType<typeof Bonjour.Browser>;
     private status: OscqueryStatus = 'searching';
     private logsFound = false;
 
@@ -85,7 +84,7 @@ export default class VrchatOscqueryService {
         }
         let sawHttpFailure = false;
         let hadCandidate = false;
-        for (const entry of (this.mdnsBrowser.services as BounjourService[])) {
+        for (const entry of this.mdnsBrowser.services) {
             if (entry.protocol != 'tcp') continue;
             const ip = entry.addresses?.[0];
             const port = entry.port;
@@ -133,8 +132,7 @@ export default class VrchatOscqueryService {
     }
 
     async getHostInfo(ip: string, port: number): Promise<HostInfo | undefined> {
-        const json = await got({
-            url: `http://${ip}:${port}/?HOST_INFO`,
+        const json = await got(`http://${ip}:${port}/?HOST_INFO`, {
             timeout: { request: 5000 }
         }).json();
         if (!typia.is<HostInfo>(json)) {
@@ -193,8 +191,7 @@ export default class VrchatOscqueryService {
 
     async getBulk() {
         if (!this.oscqAddress || !this.oscqPort) return null;
-        const json = await got({
-            url: `http://${this.oscqAddress}:${this.oscqPort}/`,
+        const json = await got(`http://${this.oscqAddress}:${this.oscqPort}/`, {
             timeout: { request: 5000 }
         }).json();
         const values: Record<string,unknown> = {};

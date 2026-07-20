@@ -2,9 +2,7 @@ import React, {useMemo, useState} from "react";
 import {Output} from "../../../common/configTypes";
 import {OutputDeviceInfo} from "../../../common/ipcContract";
 import {Alert, AlertColor, IconButton, Stack, Typography} from "@mui/material";
-import CloseIcon from "@mui/icons-material/Close";
-import WavesIcon from "@mui/icons-material/Waves";
-import LabelIcon from "@mui/icons-material/Label";
+import {Close as CloseIcon, Label as LabelIcon, Waves as WavesIcon} from "@mui/icons-material";
 import TextCommitInput from "../util/TextCommitInput";
 import MyAccordion from "../util/MyAccordion";
 import CountdownText, {formatDuration} from "../util/CountdownText";
@@ -130,19 +128,19 @@ function ConfiguredOutputRow({outputAtom, infoAtom, onDelete}: Props) {
             expanded={expanded}
             onChange={setExpanded}
             summary={
-                <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{width: '100%'}}>
-                    <Stack direction="row" spacing={1} alignItems="center">
+                <Stack direction="row" sx={{width: '100%', alignItems: 'center', justifyContent: 'space-between'}}>
+                    <Stack direction="row" spacing={1} sx={{alignItems: 'center'}}>
                         <ConnectionBubble color={getConnectionBubbleColor(alerts)} />
                         <Typography variant="h6">{displayName}</Typography>
                     </Stack>
-                    <Stack direction="row" spacing={1} alignItems="center">
+                    <Stack direction="row" spacing={1} sx={{alignItems: 'center'}}>
                         {outputPercent > 0 && (
-                            <Stack direction="row" spacing={0.25} alignItems="center">
+                            <Stack direction="row" spacing={0.25} sx={{alignItems: 'center'}}>
                                 <WavesIcon sx={{fontSize: 14, color: 'text.secondary'}} />
                                 <Typography variant="body2" color="text.secondary">{outputPercent}%</Typography>
                             </Stack>
                         )}
-                        <Stack direction="row" spacing={0.25} alignItems="center">
+                        <Stack direction="row" spacing={0.25} sx={{alignItems: 'center'}}>
                             <LabelIcon sx={{fontSize: 14, color: 'text.secondary'}} />
                             <Typography variant="body2" color="text.secondary">{outputId}</Typography>
                         </Stack>

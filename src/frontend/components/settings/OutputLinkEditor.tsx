@@ -23,9 +23,7 @@ import {
 } from "../../../common/configTypes";
 import TextCommitInput from "../util/TextCommitInput";
 import Filter from "../Filter";
-import ArrowDropDownIcon from "@mui/icons-material/ArrowDropDown";
-import CloseIcon from "@mui/icons-material/Close";
-import WavesIcon from "@mui/icons-material/Waves";
+import {ArrowDropDown as ArrowDropDownIcon, Close as CloseIcon, Waves as WavesIcon} from "@mui/icons-material";
 import MyAccordion from "../util/MyAccordion";
 import {pushItem, removeAt} from "../../../common/arrayDraft";
 import {type PrimitiveAtom, useAtom, useAtomValue} from "jotai";
@@ -219,12 +217,12 @@ function OutputLinkEditor({linkAtom, activeLevel, labelMap, removeLink}: Props) 
                 bgcolor: 'action.hover'
             }}
             summary={
-                <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{width: '100%'}}>
-                    <Stack direction="row" spacing={1} alignItems="center" sx={{minWidth: 0, flex: 1}}>
+                <Stack direction="row" sx={{width: '100%', alignItems: 'center', justifyContent: 'space-between'}}>
+                    <Stack direction="row" spacing={1} sx={{minWidth: 0, flex: 1, alignItems: 'center'}}>
                         <Typography variant="subtitle2">{label}</Typography>
                     </Stack>
                     {activePercent > 0 && (
-                        <Stack direction="row" spacing={0.25} alignItems="center">
+                        <Stack direction="row" spacing={0.25} sx={{alignItems: 'center'}}>
                             <WavesIcon sx={{fontSize: 14, color: 'text.secondary'}} />
                             <Typography variant="body2" color="text.secondary">{activePercent}%</Typography>
                         </Stack>
@@ -345,7 +343,7 @@ function OutputLinkEditor({linkAtom, activeLevel, labelMap, removeLink}: Props) 
                             };
                             return <Box key={`${mutator.kind}-${index}`} sx={{p: 1, border: 1, borderColor: 'divider', borderRadius: 1}}>
                                 <Stack spacing={1}>
-                                    <Stack direction="row" justifyContent="space-between" alignItems="center">
+                                    <Stack direction="row" sx={{justifyContent: 'space-between', alignItems: 'center'}}>
                                         <Typography variant="body2">
                                             {mutator.kind === 'scale' ? `Scale (${formatPercent(mutator.scale)}%)`
                                                 : mutator.kind === 'deadZone' ? `Dead Zone (${formatPercent(mutator.level)}%)`

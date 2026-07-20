@@ -1,5 +1,13 @@
-onlyBuiltDependencies:
-  - electron
 minimumReleaseAge: 10080
-useNodeVersion: 24.14.0
+minimumReleaseAgeExclude:
+  - '@ttsc/*'
+  - ttsc
+useNodeVersion: 26.5.0
 engineStrict: true
+allowBuilds:
+  '@parcel/watcher': false
+  '@serialport/bindings-cpp': false
+  '@swc/core': false
+  electron-winstaller: false
+  esbuild: false
+  native-reg: false

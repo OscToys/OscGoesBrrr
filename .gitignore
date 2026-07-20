@@ -1,7 +1,9 @@
 node_modules
+/.pnpm-store/
 /.idea/
 /config.txt
 /dist/
 /app/
+/out/
 /native/steamvr_overlay/build/
 /ref/
