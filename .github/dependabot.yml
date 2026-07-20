@@ -5,7 +5,7 @@ updates:
     schedule:
       interval: "weekly"
     groups:
-      all-dependencies:
+      github-actions:
         patterns:
           - "*"
   - package-ecosystem: "npm"
@@ -13,6 +13,6 @@ updates:
     schedule:
       interval: "weekly"
     groups:
-      all-dependencies:
+      pnpm:
         patterns:
           - "*"
