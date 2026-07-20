@@ -2,7 +2,6 @@ minimumReleaseAge: 10080
 minimumReleaseAgeExclude:
   - '@ttsc/*'
   - ttsc
-useNodeVersion: 26.5.0
 allowBuilds:
   '@parcel/watcher': false
   '@serialport/bindings-cpp': false

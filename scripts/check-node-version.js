@@ -14,15 +14,6 @@ function normalizeExactVersion(label, value) {
   return normalized;
 }
 
-function readWorkspaceUseNodeVersion(filePath) {
-  const contents = fs.readFileSync(filePath, "utf8");
-  const match = contents.match(/^\s*useNodeVersion:\s*("?)([^\r\n"]+)\1\s*$/m);
-  if (!match) {
-    throw new Error(`Could not determine exact useNodeVersion from "${filePath}"`);
-  }
-  return normalizeExactVersion("pnpm-workspace.yaml useNodeVersion", match[2]);
-}
-
 function extractMajor(label, value) {
   const match = String(value).trim().match(/\d+/);
   if (!match) {
@@ -33,25 +24,26 @@ function extractMajor(label, value) {
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const packageJson = readJson(path.join(rootDir, "package.json"));
-const workspaceUseNodeVersionExact = readWorkspaceUseNodeVersion(path.join(rootDir, "pnpm-workspace.yaml"));
+const configuredRuntimeExact = normalizeExactVersion("devEngines.runtime.version", packageJson.devEngines?.runtime?.version);
 const runtimeExact = normalizeExactVersion("current Node runtime", process.version);
 const typesExact = normalizeExactVersion("@types/node", packageJson.devDependencies?.["@types/node"]);
 
-console.log(`useNodeVersion: ${workspaceUseNodeVersionExact}`);
+console.log(`devEngines.runtime: ${configuredRuntimeExact}`);
 console.log(`current runtime: ${runtimeExact}`);
 console.log(`@types/node: ${typesExact}`);
 
 const typesNodeMajor = extractMajor("@types/node", typesExact);
-const expectedMajor = extractMajor("useNodeVersion", workspaceUseNodeVersionExact);
+const expectedMajor = extractMajor("devEngines.runtime", configuredRuntimeExact);
 
 const mismatches = [
-  runtimeExact === workspaceUseNodeVersionExact ? null : `Node runtime ${runtimeExact} does not match useNodeVersion ${workspaceUseNodeVersionExact}`,
-  typesNodeMajor === expectedMajor ? null : `package.json @types/node ${typesNodeMajor} does not match useNodeVersion major ${expectedMajor}`,
+  runtimeExact === configuredRuntimeExact ? null : `Node runtime ${runtimeExact} does not match devEngines.runtime ${configuredRuntimeExact}`,
+  typesNodeMajor === expectedMajor ? null : `package.json @types/node ${typesNodeMajor} does not match devEngines.runtime major ${expectedMajor}`,
 ].filter(Boolean);
 
 if (mismatches.length > 0) {
   for (const mismatch of mismatches) {
     console.error(mismatch);
   }
+  console.error("Make sure you are using pnpm, and that your pnpm is up to date.");
   process.exit(1);
 }

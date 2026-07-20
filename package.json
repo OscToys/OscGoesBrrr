@@ -18,6 +18,18 @@
   },
   "repository": "https://github.com/OscToys/OscGoesBrrr",
   "license": "CC BY-NC-SA 4.0",
+  "devEngines": {
+    "packageManager": {
+      "name": "pnpm",
+      "version": "11.15.1",
+      "onFail": "download"
+    },
+    "runtime": {
+      "name": "node",
+      "version": "26.5.0",
+      "onFail": "download"
+    }
+  },
   "devDependencies": {
     "@emotion/cache": "^11.14.0",
     "@emotion/react": "^11.14.0",
@@ -76,6 +88,9 @@
     "vite": "^7.3.6",
     "ws": "^8.21.0"
   },
+  "optionalDependencies": {
+    "native-reg": "^1.1.1"
+  },
   "build": {
     "appId": "toys.osc.oscgoesbrrr",
     "productName": "OscGoesBrrr",
@@ -101,9 +116,5 @@
     "files": [
       "out/**/*"
     ]
-  },
-  "optionalDependencies": {
-    "native-reg": "^1.1.1"
-  },
-  "packageManager": "pnpm@11.15.1"
+  }
 }
