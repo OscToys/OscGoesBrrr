@@ -49,9 +49,6 @@ function IntifaceSettingsSection({
                 content: useIntifaceMdns ? (
                     <Stack spacing={0.5}>
                         <div>Intiface is not connected.</div>
-                        <Box component="ul" sx={{m: 0, pl: 3}}>
-                            <Typography component="li" variant="body2">Intiface Mobile may require clicking 'Stop' and then 'Start' again in the app for mDNS to work</Typography>
-                        </Box>
                     </Stack>
                 ) : "Intiface is not connected.",
             });
@@ -86,7 +83,7 @@ function IntifaceSettingsSection({
                         <Stack spacing={0}>
                             <Typography>Use mDNS</Typography>
                             <Typography variant="caption">
-                                You must enable "Broadcast Service Info via mDNS" in Intiface "App Modes" tab.
+                                In the Intiface App's "App Modes" tab, you must enable "Show Advanced/Experimental Settings" and "Broadcast Service Info via mDNS"
                             </Typography>
                         </Stack>
                     }
