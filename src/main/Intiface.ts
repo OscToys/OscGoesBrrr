@@ -88,13 +88,8 @@ export default class Intiface extends TypedEventEmitter<MyEvents> {
         const config = await this.configService.get();
         if (signal.aborted) return;
         const uris = config.useIntifaceMdns
-            ? this.getMdnsUris()
+            ? [...this.getMdnsUris(), 'ws://127.0.0.1:12345']
             : [this.normalizeUri(config.intifaceAddress ?? 'ws://127.0.0.1:12345')];
-        if (uris.length === 0) {
-            this.logger.log('No Intiface mDNS services found');
-            if (!signal.aborted) this.requestReconnect();
-            return;
-        }
 
         for (const uri of uris) {
             if (signal.aborted) return;
