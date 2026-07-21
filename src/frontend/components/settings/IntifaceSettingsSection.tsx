@@ -64,7 +64,7 @@ function IntifaceSettingsSection({
             summary={
                 <Stack direction="row" spacing={1} sx={{alignItems: 'center'}}>
                     <ConnectionBubble color={getConnectionBubbleColor(alerts)} />
-                    <Typography variant="h6">Initiface</Typography>
+                    <Typography variant="h6">Intiface</Typography>
                 </Stack>
             }
         >
