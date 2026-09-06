@@ -19,7 +19,7 @@ import IntifaceSession from "./IntifaceSession";
 type DeviceMotionType = 'linear' | 'vibrate' | 'rotate';
 
 const getDeviceMotionTypeFromOutputType = (outputType: IntifaceOutputType): DeviceMotionType => {
-    if (outputType === 'Position' || outputType === 'HwPositionWithDuration') return 'linear';
+    if (outputType === 'HwPositionWithDuration') return 'linear';
     if (outputType === 'Rotate') return 'rotate';
     return 'vibrate';
 };

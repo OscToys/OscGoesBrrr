@@ -164,7 +164,7 @@ handleIpc('settings-state:request', async () => {
             id,
             name: id,
             connected: false,
-            showLinearActuatorOptions: item.intiface.selectedOutput === 'Position' || item.intiface.selectedOutput === 'HwPositionWithDuration',
+            showLinearActuatorOptions: item.intiface.selectedOutput === 'HwPositionWithDuration',
             currentLevel: 0,
             lastLinkValues: [],
         });
