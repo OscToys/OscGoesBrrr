@@ -26,6 +26,18 @@ type allowedGetBools =
     | 'PenOthersClose'
     ;
 
+export interface GameDeviceSource {
+    id: string;
+    level: number;
+    /**
+     * Set when this source's level is a fraction of a penetrator's length (0 = not inserted,
+     * 1 = inserted all the way up to its base). lengthMeters is the measured length of that
+     * penetrator, when we know it. Sources without this flag aren't depths at all (touches,
+     * frottage) and are left alone by the absoluteDepth mutator.
+     */
+    penetration?: {lengthMeters?: number};
+}
+
 export default class GameDevice {
     readonly type; // probably 'Orf' or 'Pen'
     readonly id;
@@ -60,7 +72,12 @@ export default class GameDevice {
         }
     }
 
-    getNewPenAmount(self: boolean) {
+    /**
+     * How far a penetrator has been inserted, as a fraction of that penetrator's own length
+     * (0 = not inserted, 1 = inserted all the way up to its base), plus the length of that
+     * penetrator in meters if we have measured it.
+     */
+    getNewPen(self: boolean): {level: number, lengthMeters?: number} | undefined {
         const rootProx = this.get(self ? 'PenSelfNewRoot' : 'PenOthersNewRoot')?.get();
         const tipProx = this.get(self ? 'PenSelfNewTip' : 'PenOthersNewTip')?.get();
         if (typeof rootProx == 'number' && typeof tipProx == 'number' && (rootProx > 0 || tipProx > 0)) {
@@ -69,9 +86,9 @@ export default class GameDevice {
             if (len && tipProx > 0.99) {
                 const exposedLength = 1 - rootProx;
                 const exposedRatio = exposedLength / len;
-                return 1 - exposedRatio;
+                return {level: 1 - exposedRatio, lengthMeters: len};
             }
-            return 0;
+            return {level: 0, lengthMeters: len};
         }
 
         return undefined;
@@ -93,35 +110,43 @@ export default class GameDevice {
         return undefined;
     }
 
-    getSources(link: Extract<OutputLink, {kind: 'vrchat.sps.plug' | 'vrchat.sps.socket' | 'vrchat.sps.touch'}>): Array<{id: string, level: number}> {
+    getSources(link: Extract<OutputLink, {kind: 'vrchat.sps.plug' | 'vrchat.sps.socket' | 'vrchat.sps.touch'}>): GameDeviceSource[] {
         const includeSet = new Set(link.filter.include.map(value => value.trim()).filter(Boolean));
         const excludeSet = new Set(link.filter.exclude.map(value => value.trim()).filter(Boolean));
         if (excludeSet.has(this.id)) return [];
         if (includeSet.size > 0 && !includeSet.has(this.id)) return [];
 
-        const out: Array<{id: string, level: number}> = [];
-        const pushIfEnabled = (enabled: boolean, sourceKey: string, level: number) => {
+        const out: GameDeviceSource[] = [];
+        const pushIfEnabled = (
+            enabled: boolean,
+            sourceKey: string,
+            level: number,
+            penetration?: {lengthMeters?: number},
+        ) => {
             if (!enabled) return;
-            out.push({id: `${this.id}/${sourceKey}`, level});
+            out.push({id: `${this.id}/${sourceKey}`, level, penetration});
         };
+        // Marks a source whose level is a fraction of the penetrator's length, so the absoluteDepth
+        // mutator (see bridge.ts) knows it can convert it into a real depth.
+        const penSource = (lengthMeters?: number) => ({lengthMeters});
 
         if (!this.isTps) {
             if (this.type === 'Orf' && link.kind === 'vrchat.sps.socket') {
                 const touchSelf = this.getBool('TouchSelfClose') ? this.getNumber('TouchSelf') ?? 0 : 0;
                 const touchOthers = this.getBool('TouchOthersClose') ? this.getNumber('TouchOthers') ?? 0 : 0;
                 const penSelfLegacy = this.getNumber('PenSelf');
-                const penSelfNew = this.getNewPenAmount(true);
-                const penSelf = penSelfNew ?? penSelfLegacy ?? 0;
+                const penSelfNew = this.getNewPen(true);
+                const penSelf = penSelfNew?.level ?? penSelfLegacy ?? 0;
                 const penOthersLegacyClose = this.getBool('PenOthersClose') || this.get('PenOthersClose') == undefined;
                 const penOthersLegacy = penOthersLegacyClose ? this.getNumber('PenOthers') : undefined;
-                const penOthersNew = this.getNewPenAmount(false);
-                const penOthers = penOthersNew ?? penOthersLegacy ?? 0;
+                const penOthersNew = this.getNewPen(false);
+                const penOthers = penOthersNew?.level ?? penOthersLegacy ?? 0;
                 const frotOthers = this.getNumber('FrotOthers') ?? 0;
 
                 pushIfEnabled(link.ownHands, 'touchSelf', touchSelf);
                 pushIfEnabled(link.otherHands, 'touchOthers', touchOthers);
-                pushIfEnabled(link.myPlugs, 'penSelf', penSelf);
-                pushIfEnabled(link.otherPlugs, 'penOthers', penOthers);
+                pushIfEnabled(link.myPlugs, 'penSelf', penSelf, penSource(penSelfNew?.lengthMeters));
+                pushIfEnabled(link.otherPlugs, 'penOthers', penOthers, penSource(penOthersNew?.lengthMeters));
                 pushIfEnabled(link.otherSockets, 'frotOthers', frotOthers);
             }
             if (this.type === 'Pen' && link.kind === 'vrchat.sps.plug') {
@@ -133,8 +158,11 @@ export default class GameDevice {
 
                 pushIfEnabled(link.ownHands, 'touchSelf', touchSelf);
                 pushIfEnabled(link.otherHands, 'touchOthers', touchOthers);
-                pushIfEnabled(link.mySockets, 'penSelf', penSelf);
-                pushIfEnabled(link.otherSockets, 'penOthers', penOthers);
+                // These come from SPS receivers whose radius is the plug's own length, so the length
+                // is baked into the value and isn't recoverable here. The mutator falls back to its
+                // assumed length unless SPS gave us root/tip proximity for our own plug.
+                pushIfEnabled(link.mySockets, 'penSelf', penSelf, penSource(this.recordedSelfLength.getLength()));
+                pushIfEnabled(link.otherSockets, 'penOthers', penOthers, penSource(this.recordedOthersLength.getLength()));
                 pushIfEnabled(link.otherPlugs, 'frotOthers', frotOthers);
             }
             if (this.type === 'Touch' && link.kind === 'vrchat.sps.touch') {
@@ -142,11 +170,12 @@ export default class GameDevice {
                 pushIfEnabled(link.otherHands, 'touchOthers', this.getNumber('Others') ?? 0);
             }
         } else {
+            // Legacy TPS has no length data, so these fall back to the mutator's assumed length
             if (this.type === 'Orf' && link.kind === 'vrchat.sps.socket') {
-                pushIfEnabled(link.otherPlugs, 'penOthers', this.getNumber('Depth_In') ?? 0);
+                pushIfEnabled(link.otherPlugs, 'penOthers', this.getNumber('Depth_In') ?? 0, penSource());
             }
             if (this.type === 'Pen' && link.kind === 'vrchat.sps.plug') {
-                pushIfEnabled(link.otherSockets, 'penOthers', this.getNumber('RootRoot') ?? 0);
+                pushIfEnabled(link.otherSockets, 'penOthers', this.getNumber('RootRoot') ?? 0, penSource());
             }
         }
 

@@ -13,6 +13,7 @@ import {
     Typography,
 } from '@mui/material';
 import {
+    getDefaultAbsoluteDepthMutator,
     OutputLink,
     OutputLinkKind,
     OutputLinkMutator,
@@ -77,6 +78,7 @@ function OutputLinkEditor({linkAtom, activeLevel, labelMap, removeLink}: Props) 
     const touchZoneIdSuggestions = useAtomValue(touchZoneIdSuggestionsAtom);
     const label = labelMap.get(link.kind)?.label ?? link.kind;
     const formatPercent = (fraction: number) => Math.round(fraction * 100000) / 1000;
+    const formatMillimeters = (meters: number) => Math.round(meters * 1000);
     const updateSpsFeature = (feature: SpsFeature, enabled: boolean) => {
         if (!isSpsLink(link)) return;
         setLink({...link, [feature]: enabled} as SpsLink);
@@ -126,15 +128,20 @@ function OutputLinkEditor({linkAtom, activeLevel, labelMap, removeLink}: Props) 
             }
         });
     };
+    // Only penetrators have a length, so only the links which can see them get the depth mutator
+    const supportsAbsoluteDepth = link.kind === 'vrchat.sps.plug' || link.kind === 'vrchat.sps.socket';
+    const commonMutatorOptions: {kind: OutputLinkMutatorKind, label: string}[] = supportsCommonMutators(link)
+        ? [
+            {kind: 'scale', label: 'Scale'},
+            {kind: 'deadZone', label: 'Dead Zone'},
+            {kind: 'motionBased', label: 'Motion-Based'},
+        ]
+        : [];
     const mutatorOptions: {kind: OutputLinkMutatorKind, label: string}[] = supportsAudioMutators(link)
         ? [{kind: 'scale', label: 'Scale'}]
-        : supportsCommonMutators(link)
-            ? [
-                {kind: 'scale', label: 'Scale'},
-                {kind: 'deadZone', label: 'Dead Zone'},
-                {kind: 'motionBased', label: 'Motion-Based'},
-            ]
-            : [];
+        : supportsAbsoluteDepth
+            ? [...commonMutatorOptions, {kind: 'absoluteDepth', label: 'Absolute Depth'}]
+            : commonMutatorOptions;
     const availableMutatorOptions = mutatorOptions.filter(option => !getMutators().some(mutator => mutator.kind === option.kind));
 
     const buildMutator = (kind: OutputLinkMutatorKind): OutputLinkMutator => {
@@ -145,6 +152,8 @@ function OutputLinkEditor({linkAtom, activeLevel, labelMap, removeLink}: Props) 
                 return {kind: 'deadZone', level: 0};
             case 'motionBased':
                 return {kind: 'motionBased'};
+            case 'absoluteDepth':
+                return getDefaultAbsoluteDepthMutator();
         }
     };
 
@@ -347,7 +356,8 @@ function OutputLinkEditor({linkAtom, activeLevel, labelMap, removeLink}: Props) 
                                         <Typography variant="body2">
                                             {mutator.kind === 'scale' ? `Scale (${formatPercent(mutator.scale)}%)`
                                                 : mutator.kind === 'deadZone' ? `Dead Zone (${formatPercent(mutator.level)}%)`
-                                                    : 'Motion-Based'}
+                                                    : mutator.kind === 'absoluteDepth' ? `Absolute Depth (Full at ${formatPercent(mutator.fullPowerDepthFraction)}% of eye height)`
+                                                        : 'Motion-Based'}
                                         </Typography>
                                         <IconButton size="small" color="error" onClick={removeThisMutator}>
                                             <CloseIcon fontSize="small" />
@@ -401,6 +411,51 @@ function OutputLinkEditor({linkAtom, activeLevel, labelMap, removeLink}: Props) 
                                         <Typography variant="body2" color="text.secondary">
                                             Intensity will be based on motion, rather than depth.
                                         </Typography>
+                                    )}
+                                    {mutator.kind === 'absoluteDepth' && (
+                                        <Box>
+                                            <Typography variant="body2" color="text.secondary">
+                                                Intensity is based on how deep the penetrator is, rather than what percentage
+                                                of the penetrator was inserted. This makes penetrators of different sizes feel
+                                                the same at the same depth, and makes that depth count relative to your own size.
+                                            </Typography>
+                                            <Typography variant="body2" color="text.secondary" sx={{mt: 1}}>
+                                                {`Full intensity at (${formatPercent(mutator.fullPowerDepthFraction)}% of your eye height)`}
+                                            </Typography>
+                                            <Slider
+                                                value={formatPercent(mutator.fullPowerDepthFraction)}
+                                                min={1}
+                                                max={40}
+                                                step={0.5}
+                                                valueLabelDisplay="auto"
+                                                valueLabelFormat={(value) => `${value}% of eye height`}
+                                                onChange={(_e, value) => {
+                                                    if (typeof value !== 'number') return;
+                                                    commitThisMutator((draft) => {
+                                                        if (draft.kind !== 'absoluteDepth') return;
+                                                        draft.fullPowerDepthFraction = value / 100;
+                                                    });
+                                                }}
+                                            />
+                                            <Typography variant="body2" color="text.secondary">
+                                                {`Length assumed for penetrators we can't measure (${formatMillimeters(mutator.assumedLengthMeters)}mm)`}
+                                            </Typography>
+                                            <Slider
+                                                value={formatMillimeters(mutator.assumedLengthMeters)}
+                                                min={20}
+                                                max={400}
+                                                step={5}
+                                                valueLabelDisplay="auto"
+                                                valueLabelFormat={(value) => `${value}mm`}
+                                                onChange={(_e, value) => {
+                                                    if (typeof value !== 'number') return;
+                                                    commitThisMutator((draft) => {
+                                                        if (draft.kind !== 'absoluteDepth') return;
+                                                        draft.assumedLengthMeters = value / 1000;
+                                                    });
+                                                }}
+                                            />
+                                        </Box>
                                     )}
                                 </Stack>
                             </Box>;

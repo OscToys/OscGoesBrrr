@@ -121,10 +121,38 @@ export interface OutputLinkDeadZoneMutator {
 export interface OutputLinkMotionBasedMutator {
     kind: 'motionBased';
 }
+
+export interface OutputLinkAbsoluteDepthMutator {
+    kind: 'absoluteDepth';
+
+    /**
+     * Insertion depth which gives this link full intensity, as a fraction of the player's eye
+     * height (0.06 = 6%, which is about 10cm for someone 1.6m tall). Because it's relative to the
+     * player, it follows them when they change size and needs no calibration per avatar.
+     */
+    fullPowerDepthFraction: number;
+
+    /**
+     * The penetrator length to assume when the real length can't be detected, in meters.
+     * Used while OGB has not measured the length of the penetrator yet, and for penetration
+     * sources which never carry length data (such as plug-side links).
+     */
+    assumedLengthMeters: number;
+}
+
+export function getDefaultAbsoluteDepthMutator(): OutputLinkAbsoluteDepthMutator {
+    return {
+        kind: 'absoluteDepth',
+        fullPowerDepthFraction: 0.06,
+        assumedLengthMeters: 0.15,
+    };
+}
+
 export type OutputLinkMutator =
     | OutputLinkScaleMutator
     | OutputLinkDeadZoneMutator
-    | OutputLinkMotionBasedMutator;
+    | OutputLinkMotionBasedMutator
+    | OutputLinkAbsoluteDepthMutator;
 export type OutputLinkMutatorKind = OutputLinkMutator['kind'];
 
 export interface Output {

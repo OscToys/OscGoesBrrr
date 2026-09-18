@@ -4,9 +4,21 @@ import OscConnection from "./OscConnection";
 import GameDevice from "./GameDevice";
 import {DeviceFeature} from "./Intiface";
 import ConfigService from "./services/ConfigService";
-import {getDefaultLinearActuatorConfig, getDefaultOutput, Output, OutputLinkMutator} from "../common/configTypes";
+import {
+    getDefaultLinearActuatorConfig,
+    getDefaultOutput,
+    Output,
+    OutputLinkAbsoluteDepthMutator,
+    OutputLinkMutator,
+} from "../common/configTypes";
 import clamp from "../common/clamp";
 import {Service} from "typedi";
+
+/** VRChat always provides this parameter, holding the player's current eye height in meters. */
+const EYE_HEIGHT_PARAMETER = 'EyeHeightAsMeters';
+
+/** Only used if the parameter hasn't arrived yet, so we degrade to an average sized player. */
+const FALLBACK_EYE_HEIGHT_METERS = 1.6;
 
 @Service()
 export default class Bridge {
@@ -109,6 +121,48 @@ interface LinkOutput {
     backward: boolean;
 }
 
+function getAbsoluteDepthMutator(mutators: OutputLinkMutator[]) {
+    return mutators.find(
+        (mutator): mutator is OutputLinkAbsoluteDepthMutator => mutator.kind === 'absoluteDepth',
+    );
+}
+
+/**
+ * Converts a "fraction of the penetrator inserted" level into "inserted depth relative to the
+ * depth which should give full intensity". This is what makes a long penetrator feel the same
+ * as a short one: without it, the level is a fraction of the penetrator's own length, so larger
+ * penetrators need proportionally more movement to reach the same intensity.
+ *
+ * Applying this before the other mutators also means the motion-based mutator measures real
+ * speed (as a fraction of eye height per second) rather than speed as a fraction of the
+ * penetrator's length.
+ *
+ * eyeHeightMeters is how big the player currently is, and the depth which gives full intensity is
+ * a fraction of it. So the same depth counts for more with a small player and for less with a
+ * giant, and a player who changes size keeps the same feel.
+ */
+function toAbsoluteDepth(
+    level: number,
+    lengthMeters: number | undefined,
+    mutator: OutputLinkAbsoluteDepthMutator,
+    eyeHeightMeters: number,
+): number {
+    const length = lengthMeters ?? mutator.assumedLengthMeters;
+    const fullPowerDepth = mutator.fullPowerDepthFraction * eyeHeightMeters;
+    if (!(length > 0) || !(fullPowerDepth > 0)) return level;
+    return level * length / fullPowerDepth;
+}
+
+/**
+ * The player's current eye height in meters, which is what the depth threshold is relative to.
+ * Falls back to an average player if the parameter hasn't arrived from VRChat yet.
+ */
+function getEyeHeight(entries: Map<string, OscValue>): number {
+    const value = entries.get(EYE_HEIGHT_PARAMETER)?.get();
+    if (typeof value != 'number' || !(value > 0)) return FALLBACK_EYE_HEIGHT_METERS;
+    return value;
+}
+
 export class BridgeOutput {
     private lastLinkValues: number[] = [];
     private lastSourceValues = new Map<string, number>();
@@ -139,6 +193,8 @@ export class BridgeOutput {
         velocity: number,
         mutators: OutputLinkMutator[],
     ): LinkOutput {
+        // Note: 'absoluteDepth' is deliberately not handled here. It converts the source value
+        // itself (see getLinkOutputs), before the velocity used below is measured.
         let backward = false;
         if (this.bioFeature.type !== 'linear' && mutators.some(mutator => mutator.kind === 'motionBased')) {
             value = Math.abs(velocity) / 5;
@@ -201,9 +257,14 @@ export class BridgeOutput {
             }
             let best: LinkOutput = {output: 0, backward: false};
             if (link.kind === 'vrchat.sps.plug' || link.kind === 'vrchat.sps.socket' || link.kind === 'vrchat.sps.touch') {
+                const absoluteDepth = getAbsoluteDepthMutator(link.mutators);
+                const eyeHeight = absoluteDepth ? getEyeHeight(entries) : 1;
                 for (const gameDevice of gameDevices) {
                     for (const source of gameDevice.getSources(link)) {
-                        const candidate = applyMutators(`${linkId}/${source.id}`, source.level, link.mutators);
+                        const level = absoluteDepth && source.penetration
+                            ? toAbsoluteDepth(source.level, source.penetration.lengthMeters, absoluteDepth, eyeHeight)
+                            : source.level;
+                        const candidate = applyMutators(`${linkId}/${source.id}`, level, link.mutators);
                         if (candidate.output > best.output) {
                             best = candidate;
                         }
