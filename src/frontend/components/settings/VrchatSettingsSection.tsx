@@ -67,13 +67,13 @@ function VrchatSettingsSection({
     if (vrchat.diagnostics.selfInteract) {
         alerts.push({
             severity: "error",
-            content: "Self-Interaction is disabled in the in-game VRChat settings. This setting must be enabled. Enable it in the quick menu: Settings > Avatar Interactions > Self Interact.",
+            content: "Self-Interaction is disabled in the in-game VRChat settings. This setting must be enabled. Enable it in the quick menu: Settings > Users Allowed to Interact > Self Interact.",
         });
     }
     if (vrchat.diagnostics.everyoneInteract) {
         alerts.push({
             severity: "warning",
-            content: "Interaction is not set to 'Everyone' in the in-game VRChat settings. You will not be able to interact with most players. Enable it in the quick menu: Settings > Avatar Interactions > Everyone.",
+            content: "Interaction is not set to 'Everyone' in the in-game VRChat settings. You will not be able to interact with most players. Enable it in the quick menu: Settings > Users Allowed to Interact > Everyone.",
         });
     }
     if (!vrchat.diagnostics.loggingFull) {
