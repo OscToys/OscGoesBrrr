@@ -40,7 +40,13 @@ function VrchatSettingsSection({
     const vrchat = useAtomValue(vrchatAtom);
     const alerts: {severity: AlertColor; content: ReactNode}[] = [];
 
-    if (vrchat.connected && !vrchat.diagnostics.hasSpsZones) {
+    if (vrchat.diagnostics.hapticsDisabled) {
+        alerts.push({
+            severity: "warning",
+            content: "Haptics were disabled when this avatar was built. Enable haptics in VRCFury and rebuild the avatar.",
+        });
+    }
+    if (vrchat.connected && !vrchat.diagnostics.hasSpsZones && !vrchat.diagnostics.hapticsDisabled) {
         alerts.push({
             severity: "warning",
             content: (

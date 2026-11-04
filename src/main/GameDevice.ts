@@ -1,5 +1,15 @@
-import {OscValue} from "./OscConnection";
-import {OutputLink} from "../common/configTypes";
+import type {OscValue} from "./OscConnection";
+import type {OutputLink} from "../common/configTypes";
+
+export interface GameSource {
+    id: string;
+    level: number;
+    // Sender speed is already motion-based; don't differentiate it again.
+    disableMotionBased?: boolean;
+}
+
+type ContactName = 'TouchSelf' | 'TouchOthers' | 'FrotOthers' | 'Self' | 'Others';
+type DepthContact = 'DepthSelf' | 'DepthOthers';
 
 // These are just here so don't accidentally typo one of the OGB standard contact key names
 
@@ -18,6 +28,10 @@ type allowedGetValues =
     | 'PenOthersClose'
     | 'Self'
     | 'Others'
+    | DepthContact
+    | 'LengthMult1' | 'LengthMult2' | 'DepthRadius'
+    | `${DepthContact}_PointSeparation`
+    | `${DepthContact}_SenderLossyScaleZ`
     ;
 type allowedGetBools =
     'TouchSelfClose'
@@ -27,15 +41,18 @@ type allowedGetBools =
     ;
 
 export default class GameDevice {
-    readonly type; // probably 'Orf' or 'Pen'
+    readonly type; // Canonical names shared by the old and new OSC formats.
     readonly id;
     readonly isTps;
     private readonly _values = new Map<string, OscValue>();
+    private readonly advancedDepth: boolean;
+    private readonly legacyLengths = new Map<DepthContact, number>();
     private recordedSelfLength = new GameDeviceLengthDetector();
     private recordedOthersLength = new GameDeviceLengthDetector();
 
     constructor(type: string, id: string, isTps: boolean) {
-        this.type = type;
+        this.type = type === 'Plug' ? 'Pen' : type === 'Socket' ? 'Orf' : type;
+        this.advancedDepth = type === 'Plug' || type === 'Socket';
         this.id = id;
         this.isTps = isTps;
     }
@@ -43,9 +60,18 @@ export default class GameDevice {
     addKey(key: string, value: OscValue) {
         this._values.set(key, value);
         value.on('change', () => this.onKeyChange(key));
+        this.onKeyChange(key);
     }
 
     onKeyChange(key: string) {
+        if (this.advancedDepth && this.type === 'Orf') {
+            for (const contact of ['DepthSelf', 'DepthOthers'] as const) {
+                if (key === 'DepthRadius' || key === contact || key === `${contact}_PointSeparation`
+                    || key.startsWith(`${contact}_CollisionTag_`)) {
+                    this.getSocketPlugLength(contact);
+                }
+            }
+        }
         if (key == 'PenSelfNewRoot' || key == 'PenSelfNewTip') {
             this.recordedSelfLength.update(
                 this.get('PenSelfNewRoot'),
@@ -89,34 +115,101 @@ export default class GameDevice {
 
     getNumber(key: allowedGetValues): number | undefined {
         const val = this.get(key)?.get();
-        if (typeof val == 'number') return val;
+        if (typeof val == 'number' && Number.isFinite(val)) return val;
         return undefined;
     }
 
-    getSources(link: Extract<OutputLink, {kind: 'vrchat.sps.plug' | 'vrchat.sps.socket' | 'vrchat.sps.touch'}>): Array<{id: string, level: number}> {
+    private isNativePlug(contact: DepthContact): boolean {
+        // Legacy sender scale has no encoding guarantee. Classify by collision tags.
+        const prefix = contact + '_CollisionTag_SPS/Plug/';
+        for (const [key, value] of this._values) {
+            const flag = value.get();
+            if (key.startsWith(prefix) && (flag === true || typeof flag === 'number' && flag > 0)) return true;
+        }
+        return false;
+    }
+
+    private getSocketPlugLength(contact: DepthContact): number | undefined {
+        const proximity = this.getNumber(contact);
+        const separation = this.getNumber(`${contact}_PointSeparation`);
+        if (!(proximity !== undefined && proximity > 0 && separation !== undefined && separation >= 0)) {
+            this.legacyLengths.delete(contact);
+            return undefined;
+        }
+        if (this.isNativePlug(contact)) {
+            this.legacyLengths.delete(contact);
+            const length = this.getNumber(`${contact}_SenderLossyScaleZ`);
+            return length !== undefined && length > 0 ? length : undefined;
+        }
+        const cached = this.legacyLengths.get(contact);
+        if (proximity >= 1 && cached !== undefined) return cached;
+        const receiverRadius = this.getNumber('DepthRadius');
+        if (receiverRadius === undefined || receiverRadius <= 0) return cached;
+        // Legacy length spheres encode length geometrically. Saturated first contact
+        // gives a lower bound, retained until an unsaturated sample improves it.
+        const estimate = separation - receiverRadius * (1 - proximity);
+        if (estimate > 0 && estimate <= 3) {
+            this.legacyLengths.set(contact, estimate);
+            return estimate;
+        }
+        this.legacyLengths.delete(contact);
+        return undefined;
+    }
+
+    private getAdvancedDepth(self: boolean): number {
+        const contact = self ? 'DepthSelf' : 'DepthOthers';
+        const proximity = this.getNumber(contact);
+        const separation = this.getNumber(`${contact}_PointSeparation`);
+        if (!(proximity !== undefined && proximity > 0 && separation !== undefined && separation >= 0)) return 0;
+        const length = this.type === 'Pen'
+            ? (this.getNumber('LengthMult1') ?? 0) * (this.getNumber('LengthMult2') ?? 0)
+            : this.getSocketPlugLength(contact);
+        if (length === undefined || !Number.isFinite(length) || length <= 0) return 0;
+        return Math.max(0, Math.min(1, 1 - separation / length));
+    }
+
+    private getTouchSource(contact: ContactName, requireClose = false): Pick<GameSource, 'level' | 'disableMotionBased'> {
+        const proximity = this.getNumber(contact) ?? 0;
+        const magnitude = this._values.get(contact + '_SenderVelocityMagnitude');
+        if (magnitude !== undefined) {
+            const speed = magnitude.get();
+            // One meter/second is full intensity before scale/dead-zone controls.
+            // Presence guards stale SDK velocity. Zero speed never falls back to proximity.
+            return {
+                level: proximity > 0 && typeof speed === 'number' && Number.isFinite(speed) ? Math.max(0, speed) : 0,
+                disableMotionBased: true,
+            };
+        }
+        return {level: !requireClose || this.getBool(`${contact}Close` as allowedGetBools) ? proximity : 0};
+    }
+
+    getSources(link: Extract<OutputLink, {kind: 'vrchat.sps.plug' | 'vrchat.sps.socket' | 'vrchat.sps.touch'}>): GameSource[] {
         const includeSet = new Set(link.filter.include.map(value => value.trim()).filter(Boolean));
         const excludeSet = new Set(link.filter.exclude.map(value => value.trim()).filter(Boolean));
         if (excludeSet.has(this.id)) return [];
         if (includeSet.size > 0 && !includeSet.has(this.id)) return [];
 
-        const out: Array<{id: string, level: number}> = [];
-        const pushIfEnabled = (enabled: boolean, sourceKey: string, level: number) => {
+        const out: GameSource[] = [];
+        const pushIfEnabled = (enabled: boolean, sourceKey: string, source: number | Pick<GameSource, 'level' | 'disableMotionBased'>) => {
             if (!enabled) return;
-            out.push({id: `${this.id}/${sourceKey}`, level});
+            out.push({
+                id: `${this.isTps ? 'TPS' : 'OGB'}/${this.advancedDepth ? 'advanced' : 'legacy'}/${this.type}/${this.id}/${sourceKey}`,
+                ...(typeof source === 'number' ? {level: source} : source),
+            });
         };
 
         if (!this.isTps) {
             if (this.type === 'Orf' && link.kind === 'vrchat.sps.socket') {
-                const touchSelf = this.getBool('TouchSelfClose') ? this.getNumber('TouchSelf') ?? 0 : 0;
-                const touchOthers = this.getBool('TouchOthersClose') ? this.getNumber('TouchOthers') ?? 0 : 0;
+                const touchSelf = this.getTouchSource('TouchSelf', !this.advancedDepth);
+                const touchOthers = this.getTouchSource('TouchOthers', !this.advancedDepth);
                 const penSelfLegacy = this.getNumber('PenSelf');
                 const penSelfNew = this.getNewPenAmount(true);
-                const penSelf = penSelfNew ?? penSelfLegacy ?? 0;
+                const penSelf = this.advancedDepth ? this.getAdvancedDepth(true) : penSelfNew ?? penSelfLegacy ?? 0;
                 const penOthersLegacyClose = this.getBool('PenOthersClose') || this.get('PenOthersClose') == undefined;
                 const penOthersLegacy = penOthersLegacyClose ? this.getNumber('PenOthers') : undefined;
                 const penOthersNew = this.getNewPenAmount(false);
-                const penOthers = penOthersNew ?? penOthersLegacy ?? 0;
-                const frotOthers = this.getNumber('FrotOthers') ?? 0;
+                const penOthers = this.advancedDepth ? this.getAdvancedDepth(false) : penOthersNew ?? penOthersLegacy ?? 0;
+                const frotOthers = this.getTouchSource('FrotOthers');
 
                 pushIfEnabled(link.ownHands, 'touchSelf', touchSelf);
                 pushIfEnabled(link.otherHands, 'touchOthers', touchOthers);
@@ -125,11 +218,11 @@ export default class GameDevice {
                 pushIfEnabled(link.otherSockets, 'frotOthers', frotOthers);
             }
             if (this.type === 'Pen' && link.kind === 'vrchat.sps.plug') {
-                const touchSelf = this.getBool('TouchSelfClose') ? this.getNumber('TouchSelf') ?? 0 : 0;
-                const touchOthers = this.getBool('TouchOthersClose') ? this.getNumber('TouchOthers') ?? 0 : 0;
-                const penSelf = this.getNumber('PenSelf') ?? 0;
-                const penOthers = this.getNumber('PenOthers') ?? 0;
-                const frotOthers = this.getBool('FrotOthersClose') ? this.getNumber('FrotOthers') ?? 0 : 0;
+                const touchSelf = this.getTouchSource('TouchSelf', !this.advancedDepth);
+                const touchOthers = this.getTouchSource('TouchOthers', !this.advancedDepth);
+                const penSelf = this.advancedDepth ? this.getAdvancedDepth(true) : this.getNumber('PenSelf') ?? 0;
+                const penOthers = this.advancedDepth ? this.getAdvancedDepth(false) : this.getNumber('PenOthers') ?? 0;
+                const frotOthers = this.getTouchSource('FrotOthers', !this.advancedDepth);
 
                 pushIfEnabled(link.ownHands, 'touchSelf', touchSelf);
                 pushIfEnabled(link.otherHands, 'touchOthers', touchOthers);
@@ -138,8 +231,8 @@ export default class GameDevice {
                 pushIfEnabled(link.otherPlugs, 'frotOthers', frotOthers);
             }
             if (this.type === 'Touch' && link.kind === 'vrchat.sps.touch') {
-                pushIfEnabled(link.ownHands, 'touchSelf', this.getNumber('Self') ?? 0);
-                pushIfEnabled(link.otherHands, 'touchOthers', this.getNumber('Others') ?? 0);
+                pushIfEnabled(link.ownHands, 'touchSelf', this.getTouchSource('Self'));
+                pushIfEnabled(link.otherHands, 'touchOthers', this.getTouchSource('Others'));
             }
         } else {
             if (this.type === 'Orf' && link.kind === 'vrchat.sps.socket') {

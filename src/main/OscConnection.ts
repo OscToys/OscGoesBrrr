@@ -18,7 +18,7 @@ type MyEvents = {
 @Service()
 export default class OscConnection extends TypedEventEmitter<MyEvents> {
     private static readonly STALE_MS = 15_000;
-    private static readonly OGB_ENABLED_PARAM = 'OGB_ENABLED';
+    private static readonly OGB_ENABLED_PARAMS = ['OGB/Enabled', 'OGB_ENABLED'];
     private static readonly OGB_ENABLED_INTERVAL_MS = 5_000;
     private readonly _entries = new Map<string,OscValue>();
     private recentlyRcvdOscCmds = 0;
@@ -64,7 +64,10 @@ export default class OscConnection extends TypedEventEmitter<MyEvents> {
         }, 15000);
 
         setInterval(() => {
-            this.send(OscConnection.OGB_ENABLED_PARAM, true);
+            const entries = this.entries();
+            for (const parameter of OscConnection.OGB_ENABLED_PARAMS) {
+                if (entries.has(parameter)) this.send(parameter, true);
+            }
         }, OscConnection.OGB_ENABLED_INTERVAL_MS);
     }
 

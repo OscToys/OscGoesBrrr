@@ -27,6 +27,7 @@ export interface SettingsStateVrchat {
     connected: boolean;
     diagnostics: {
         hasSpsZones: boolean;
+        hapticsDisabled: boolean;
         outdatedAvatarDetected: boolean;
         oscEnabled: boolean;
         selfInteract: boolean;

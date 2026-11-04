@@ -106,10 +106,12 @@ handleIpc('settings-state:request', async () => {
     const vrcOscPort = vrchatOscqueryService.getOscAddress()?.[1];
     const vrcOscqueryPort = vrchatOscqueryService.getOscqueryAddress()?.[1];
 
+    const hapticsDisabled = bridge.hasHapticsDisabled();
     const hasVrcfHaptics = gameDevices.some(device => device.type == 'Pen' || device.type == 'Orf');
     let isVrcfHapticsUpToDate = false;
     for (const [key] of oscConnection.entries()) {
-        if (key == "VFH/Version/9"
+        if (key == "OGB/Version/11"
+                || key == "VFH/Version/9"
                 || key == "VFH/Version/10"
                 || (key.startsWith("OGB/Pen/") && key.endsWith("/Version/8"))
                 || (key.startsWith("OGB/Orf/") && key.endsWith("/Version/9"))
@@ -242,6 +244,7 @@ handleIpc('settings-state:request', async () => {
                 connected: vrchatConnected,
                 diagnostics: {
                     hasSpsZones,
+                    hapticsDisabled,
                     outdatedAvatarDetected,
                     oscEnabled: vrcConfigCheck.oscEnabled === false,
                     selfInteract: vrcConfigCheck.selfInteractEnabled === false,

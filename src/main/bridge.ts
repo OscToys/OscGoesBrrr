@@ -43,7 +43,7 @@ export default class Bridge {
             const type = split[1];
             const id = split[2];
             const contactType = split.slice(3).join('/');
-            if (!type || !id || !contactType) return;
+            if (!type || !id || !contactType || !['Plug', 'Socket', 'Pen', 'Orf', 'Touch'].includes(type)) return;
             const key = isTps + '__' + type + '__' + id;
             let gameDevice = this.gameDevices.get(key);
             if (!gameDevice) {
@@ -69,6 +69,11 @@ export default class Bridge {
 
     onOscClear = () => {
         this.gameDevices.clear();
+    }
+
+    hasHapticsDisabled(): boolean {
+        const disabled = this.osc.entries().get('OGB/HapticsDisabled')?.get();
+        return disabled === true || disabled === 1;
     }
 
     getGameDevices() {
@@ -138,9 +143,10 @@ export class BridgeOutput {
         value: number,
         velocity: number,
         mutators: OutputLinkMutator[],
+        disableMotionBased = false,
     ): LinkOutput {
         let backward = false;
-        if (this.bioFeature.type !== 'linear' && mutators.some(mutator => mutator.kind === 'motionBased')) {
+        if (!disableMotionBased && this.bioFeature.type !== 'linear' && mutators.some(mutator => mutator.kind === 'motionBased')) {
             value = Math.abs(velocity) / 5;
             backward = velocity < 0;
         }
@@ -166,11 +172,11 @@ export class BridgeOutput {
         const links = config.links;
         const entries = this.osc.entries();
         const nextLastSources = new Map<string, number>();
-        const applyMutators = (sourceId: string, value: number, mutators: OutputLinkMutator[]) => {
+        const applyMutators = (sourceId: string, value: number, mutators: OutputLinkMutator[], disableMotionBased = false) => {
             const lastValue = this.lastSourceValues.get(sourceId) ?? value;
             nextLastSources.set(sourceId, value);
             const velocity = timeDelta === 0 ? 0 : (value - lastValue) / timeDelta * 1000;
-            return this.applyMutators(value, velocity, mutators);
+            return this.applyMutators(value, velocity, mutators, disableMotionBased);
         };
 
         const linkOutputs = links.map((link, linkIndex) => {
@@ -203,7 +209,7 @@ export class BridgeOutput {
             if (link.kind === 'vrchat.sps.plug' || link.kind === 'vrchat.sps.socket' || link.kind === 'vrchat.sps.touch') {
                 for (const gameDevice of gameDevices) {
                     for (const source of gameDevice.getSources(link)) {
-                        const candidate = applyMutators(`${linkId}/${source.id}`, source.level, link.mutators);
+                        const candidate = applyMutators(`${linkId}/${source.id}`, source.level, link.mutators, source.disableMotionBased);
                         if (candidate.output > best.output) {
                             best = candidate;
                         }
