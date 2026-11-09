@@ -213,6 +213,37 @@ function outputFor() {
         {entries: () => new Map()} as unknown as OscConnection);
 }
 
+for (const type of ['Plug', 'Socket', 'Pen', 'Orf', 'Touch']) {
+    for (const velocity of [false, true]) {
+        test(`linear outputs ignore ${type} touch and frot (${velocity ? 'velocity' : 'proximity'}) but retain penetration`, () => {
+            const initial: Record<string, unknown> = {};
+            for (const contact of ['TouchSelf', 'TouchOthers', 'FrotOthers', 'Self', 'Others']) {
+                initial[contact] = 1;
+                initial[contact + 'Close'] = true;
+                if (velocity) initial[contact + '_SenderVelocityMagnitude'] = 1;
+            }
+            const zone = device(type, initial);
+            const selection = link(type === 'Touch' ? 'vrchat.sps.touch'
+                : zone.output.type === 'Pen' ? 'vrchat.sps.plug' : 'vrchat.sps.socket');
+            const config: Output = {id: 'Test', links: [selection]};
+            const linear = new BridgeOutput({id: 'Test', type: 'linear'} as DeviceFeature, {} as ConfigService,
+                {entries: () => new Map()} as unknown as OscConnection);
+            const read = () => linear.getLinkOutputs([zone.output], undefined, config, 100)[0]!.output;
+            assert.equal(read(), 0);
+            assert.equal(outputFor().getLinkOutputs([zone.output], undefined, config, 100)[0]!.output, 1);
+            if (type === 'Touch') return;
+            zone.set('PenOthers', 0.4);
+            zone.set('LengthMult1', 1);
+            zone.set('LengthMult2', 1);
+            zone.set('DepthOthers', 1);
+            zone.set('DepthOthers_PointSeparation', 0.6);
+            zone.set('DepthOthers_SenderLossyScaleZ', 1);
+            zone.set('DepthOthers_CollisionTag_SPS/Plug/test', 1);
+            near(read(), 0.4);
+        });
+    }
+}
+
 test('velocity-based sources bypass only motion mutation while preserving scale and dead zone', () => {
     const plug = device('Plug', {TouchOthers: 1, TouchOthers_SenderVelocityMagnitude: 0.4});
     const selection = link('vrchat.sps.plug');

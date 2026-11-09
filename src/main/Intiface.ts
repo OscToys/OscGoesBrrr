@@ -5,6 +5,7 @@ import {
     Device,
     IntifaceFeatureInformation,
     IntifaceDeviceFeatureSelection,
+    selectIntifaceOutput,
 } from "./IntifaceProtocol";
 import LoggerService, {SubLogger} from "./services/LoggerService";
 import ConfigService from "./services/ConfigService";
@@ -51,6 +52,9 @@ export default class Intiface extends TypedEventEmitter<MyEvents> {
         this.lastIntifaceAddress = this.configService.getCached().intifaceAddress;
         this.lastUseIntifaceMdns = this.configService.getCached().useIntifaceMdns;
         this.configService.on('changed', (nextConfig) => {
+            for (const feature of this.features) {
+                feature.setPreferLinear(this.configService.getOutput(feature.id)?.preferLinear ?? false);
+            }
             const nextIntifaceAddress = nextConfig.intifaceAddress;
             const nextUseIntifaceMdns = nextConfig.useIntifaceMdns;
             if (this.lastIntifaceAddress !== nextIntifaceAddress || this.lastUseIntifaceMdns !== nextUseIntifaceMdns) {
@@ -178,22 +182,10 @@ export default class Intiface extends TypedEventEmitter<MyEvents> {
             .sort((a, b) => a.FeatureIndex - b.FeatureIndex);
         for (const rawFeature of features) {
             const featureIndex = rawFeature.FeatureIndex;
-            const outputMap = rawFeature.Output;
-            if (!outputMap) continue;
-            const pick = (key: IntifaceOutputType): IntifaceOutputType | undefined => {
-                if (!outputMap[key]) return undefined;
-                return key;
-            };
-            const selected =
-                pick('Vibrate')
-                ?? pick('Oscillate')
-                ?? pick('Constrict')
-                ?? pick('Rotate')
-                ?? pick('HwPositionWithDuration')
-                ?? pick('Position');
+            const configOutputId = `intiface.${d.DeviceIndex}.${featureIndex}`;
+            const selected = selectIntifaceOutput(rawFeature, this.configService.getOutput(configOutputId)?.preferLinear);
             if (!selected) continue;
 
-            const configOutputId = `intiface.${d.DeviceIndex}.${featureIndex}`;
             void this.importedOutputPromotionService.promoteImportedOutputForDeviceFeature(
                 d,
                 configOutputId,
@@ -228,10 +220,11 @@ export default class Intiface extends TypedEventEmitter<MyEvents> {
 
 export class DeviceFeature {
     readonly id;
-    readonly type: DeviceMotionType;
+    get type(): DeviceMotionType { return getDeviceMotionTypeFromOutputType(this.intiface.selectedOutput); }
     private readonly parent;
-    private readonly range;
-    readonly intiface;
+    private get range() { return this.intiface.feature.Output?.[this.intiface.selectedOutput]?.Value; }
+    private selection: IntifaceDeviceFeatureSelection;
+    get intiface() { return this.selection; }
     lastLevel = 0;
 
     constructor(
@@ -240,10 +233,18 @@ export class DeviceFeature {
         intiface: IntifaceDeviceFeatureSelection,
     ) {
         this.id = fullFeatureId;
-        this.type = getDeviceMotionTypeFromOutputType(intiface.selectedOutput);
         this.parent = parent;
-        this.intiface = intiface;
-        this.range = intiface.feature.Output?.[intiface.selectedOutput]?.Value;
+        this.selection = intiface;
+    }
+
+    setPreferLinear(preferLinear: boolean) {
+        const selected = selectIntifaceOutput(this.intiface.feature, preferLinear);
+        if (!selected || selected === this.intiface.selectedOutput) return;
+        // Stop the old oscillation before handing control to position mode.
+        if (this.type !== 'linear') this.setLevel(0);
+        // Device history freezes its snapshots, so replace rather than mutate the selection.
+        this.selection = {...this.selection, selectedOutput: selected};
+        this.lastLevel = 0;
     }
 
     private toValueRange(normalized: number): number {

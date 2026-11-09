@@ -22,7 +22,7 @@ import OscQueryHttpServerService from "./services/OscQueryHttpServerService";
 import OscQueryMdnsBroadcastService from "./services/OscQueryMdnsBroadcastService";
 import {handleIpc} from "./ipc";
 import {OscqueryStatus} from "../common/ipcContract";
-import type {IntifaceFeatureInformation, Device, IntifaceDeviceFeatureSelection} from "./IntifaceProtocol";
+import {selectIntifaceOutput, supportsLinearPreference, type IntifaceFeatureInformation, type Device, type IntifaceDeviceFeatureSelection} from "./IntifaceProtocol";
 import {configurePortableDataPaths} from "./portableData";
 
 app.enableSandbox();
@@ -127,6 +127,7 @@ handleIpc('settings-state:request', async () => {
         name: string,
         connected: boolean,
         showLinearActuatorOptions: boolean,
+        supportsLinearPreference: boolean,
         currentLevel: number,
         lastLinkValues: number[],
     }>();
@@ -166,7 +167,9 @@ handleIpc('settings-state:request', async () => {
             id,
             name: id,
             connected: false,
-            showLinearActuatorOptions: item.intiface.selectedOutput === 'Position' || item.intiface.selectedOutput === 'HwPositionWithDuration',
+            showLinearActuatorOptions: ['Position', 'HwPositionWithDuration'].includes(
+                selectIntifaceOutput(item.intiface.feature, configService.getOutput(id)?.preferLinear) ?? ''),
+            supportsLinearPreference: supportsLinearPreference(item.intiface.feature),
             currentLevel: 0,
             lastLinkValues: [],
         });
@@ -179,6 +182,7 @@ handleIpc('settings-state:request', async () => {
             name: id,
             connected: true,
             showLinearActuatorOptions: outputDevice.bioFeature.type === 'linear',
+            supportsLinearPreference: supportsLinearPreference(outputDevice.bioFeature.intiface.feature),
             currentLevel: outputDevice.getCurrentLevel(),
             lastLinkValues: outputDevice.getLastLinkValues(),
         });

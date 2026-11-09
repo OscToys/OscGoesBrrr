@@ -17,6 +17,19 @@ export interface IntifaceFeatureInformation {
     [key: string]: unknown;
 }
 
+export function supportsLinearPreference(feature: IntifaceFeatureInformation): boolean {
+    return Boolean(feature.Output?.Oscillate && (feature.Output.HwPositionWithDuration || feature.Output.Position));
+}
+
+export function selectIntifaceOutput(feature: IntifaceFeatureInformation, preferLinear = false): IntifaceOutputType | undefined {
+    const outputs = feature.Output;
+    if (supportsLinearPreference(feature)) {
+        return preferLinear ? (outputs?.HwPositionWithDuration ? 'HwPositionWithDuration' : 'Position') : 'Oscillate';
+    }
+    return (['Vibrate', 'Oscillate', 'Constrict', 'Rotate', 'HwPositionWithDuration', 'Position'] as const)
+        .find(type => outputs?.[type]);
+}
+
 export interface Device {
     DeviceIndex: IntifaceUInt32;
     DeviceName: string;

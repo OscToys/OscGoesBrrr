@@ -122,12 +122,14 @@ export class BridgeOutput {
     private linearTarget = 0;
     private linearVelocity = 0;
     private lastLinearSuck = 0;
+    private lastMotionType: DeviceFeature['type'];
 
     constructor(
         public readonly bioFeature: DeviceFeature,
         private readonly configService: ConfigService,
         private readonly osc: OscConnection
     ) {
+        this.lastMotionType = bioFeature.type;
         //console.log("New b.io feature loaded into BridgeOutput: " + this.bioFeature.id);
     }
 
@@ -208,7 +210,8 @@ export class BridgeOutput {
             let best: LinkOutput = {output: 0, backward: false};
             if (link.kind === 'vrchat.sps.plug' || link.kind === 'vrchat.sps.socket' || link.kind === 'vrchat.sps.touch') {
                 for (const gameDevice of gameDevices) {
-                    for (const source of gameDevice.getSources(link)) {
+                    // Linear position targets only use penetration, never touch or frot intensity.
+                    for (const source of gameDevice.getSources(link, this.bioFeature.type !== 'linear')) {
                         const candidate = applyMutators(`${linkId}/${source.id}`, source.level, link.mutators, source.disableMotionBased);
                         if (candidate.output > best.output) {
                             best = candidate;
@@ -224,6 +227,12 @@ export class BridgeOutput {
     }
 
     pushToBio(gameDevices: GameDevice[], audioLevel: number | undefined) {
+        const modeChanged = this.lastMotionType !== this.bioFeature.type;
+        if (modeChanged) {
+            this.linearVelocity = 0;
+            this.lastSourceValues.clear();
+            this.lastMotionType = this.bioFeature.type;
+        }
         const now = Date.now();
         const timeDeltaReal = now - this.lastPushTime;
         const config = this.getConfig();
@@ -308,7 +317,7 @@ export class BridgeOutput {
                 newVelocity = 0;
             }
             //newPosition = level;
-            if (this.bioFeature.lastLevel != newPosition) {
+            if (modeChanged || this.bioFeature.lastLevel != newPosition) {
                 this.bioFeature.setLevel(newPosition, Math.round(timeDelta * durationMult));
             }
 

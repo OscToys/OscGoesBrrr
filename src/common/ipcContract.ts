@@ -6,6 +6,7 @@ export interface OutputDeviceInfo {
     name: string;
     connected: boolean;
     showLinearActuatorOptions: boolean;
+    supportsLinearPreference: boolean;
     currentLevel: number;
     lastLinkValues: number[];
 }

@@ -132,6 +132,7 @@ export interface Output {
     links: OutputLink[];
     updatesPerSecond?: number; // Now unused
     linear?: Partial<OutputLinearActuatorConfig>;
+    preferLinear?: boolean;
 }
 
 export function getDefaultOutput(): Omit<Output, 'id'> {

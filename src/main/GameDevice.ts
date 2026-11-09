@@ -183,7 +183,7 @@ export default class GameDevice {
         return {level: !requireClose || this.getBool(`${contact}Close` as allowedGetBools) ? proximity : 0};
     }
 
-    getSources(link: Extract<OutputLink, {kind: 'vrchat.sps.plug' | 'vrchat.sps.socket' | 'vrchat.sps.touch'}>): GameSource[] {
+    getSources(link: Extract<OutputLink, {kind: 'vrchat.sps.plug' | 'vrchat.sps.socket' | 'vrchat.sps.touch'}>, includeTouch = true): GameSource[] {
         const includeSet = new Set(link.filter.include.map(value => value.trim()).filter(Boolean));
         const excludeSet = new Set(link.filter.exclude.map(value => value.trim()).filter(Boolean));
         if (excludeSet.has(this.id)) return [];
@@ -211,11 +211,11 @@ export default class GameDevice {
                 const penOthers = this.advancedDepth ? this.getAdvancedDepth(false) : penOthersNew ?? penOthersLegacy ?? 0;
                 const frotOthers = this.getTouchSource('FrotOthers');
 
-                pushIfEnabled(link.ownHands, 'touchSelf', touchSelf);
-                pushIfEnabled(link.otherHands, 'touchOthers', touchOthers);
+                pushIfEnabled(includeTouch && link.ownHands, 'touchSelf', touchSelf);
+                pushIfEnabled(includeTouch && link.otherHands, 'touchOthers', touchOthers);
                 pushIfEnabled(link.myPlugs, 'penSelf', penSelf);
                 pushIfEnabled(link.otherPlugs, 'penOthers', penOthers);
-                pushIfEnabled(link.otherSockets, 'frotOthers', frotOthers);
+                pushIfEnabled(includeTouch && link.otherSockets, 'frotOthers', frotOthers);
             }
             if (this.type === 'Pen' && link.kind === 'vrchat.sps.plug') {
                 const touchSelf = this.getTouchSource('TouchSelf', !this.advancedDepth);
@@ -224,13 +224,13 @@ export default class GameDevice {
                 const penOthers = this.advancedDepth ? this.getAdvancedDepth(false) : this.getNumber('PenOthers') ?? 0;
                 const frotOthers = this.getTouchSource('FrotOthers', !this.advancedDepth);
 
-                pushIfEnabled(link.ownHands, 'touchSelf', touchSelf);
-                pushIfEnabled(link.otherHands, 'touchOthers', touchOthers);
+                pushIfEnabled(includeTouch && link.ownHands, 'touchSelf', touchSelf);
+                pushIfEnabled(includeTouch && link.otherHands, 'touchOthers', touchOthers);
                 pushIfEnabled(link.mySockets, 'penSelf', penSelf);
                 pushIfEnabled(link.otherSockets, 'penOthers', penOthers);
-                pushIfEnabled(link.otherPlugs, 'frotOthers', frotOthers);
+                pushIfEnabled(includeTouch && link.otherPlugs, 'frotOthers', frotOthers);
             }
-            if (this.type === 'Touch' && link.kind === 'vrchat.sps.touch') {
+            if (includeTouch && this.type === 'Touch' && link.kind === 'vrchat.sps.touch') {
                 pushIfEnabled(link.ownHands, 'touchSelf', this.getTouchSource('Self'));
                 pushIfEnabled(link.otherHands, 'touchOthers', this.getTouchSource('Others'));
             }

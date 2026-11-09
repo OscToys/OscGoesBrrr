@@ -1,7 +1,7 @@
 import React, {useMemo, useState} from "react";
 import {Output} from "../../../common/configTypes";
 import {OutputDeviceInfo} from "../../../common/ipcContract";
-import {Alert, AlertColor, IconButton, Stack, Typography} from "@mui/material";
+import {Alert, AlertColor, IconButton, Stack, Switch, Typography} from "@mui/material";
 import {Close as CloseIcon, Label as LabelIcon, Waves as WavesIcon} from "@mui/icons-material";
 import TextCommitInput from "../util/TextCommitInput";
 import MyAccordion from "../util/MyAccordion";
@@ -53,6 +53,8 @@ function ConfiguredOutputRow({outputAtom, infoAtom, onDelete}: Props) {
     const [expanded, setExpanded] = useState(false);
     const [advancedExpanded, setAdvancedExpanded] = useState(false);
     const outputLinksAtom = useMemo(() => focusKeyAtom(outputAtom, 'links'), [outputAtom]);
+    const preferLinearAtom = useMemo(() => focusKeyAtom(outputAtom, 'preferLinear'), [outputAtom]);
+    const [preferLinear, setPreferLinear] = useAtom(preferLinearAtom);
     const linearAtom = useMemo(() => focusKeyAtom(outputAtom, 'linear'), [outputAtom]);
     const linearMaxvAtom = useMemo(() => focusOptionalKeyAtom(linearAtom, 'maxv'), [linearAtom]);
     const linearMaxaAtom = useMemo(() => focusOptionalKeyAtom(linearAtom, 'maxa'), [linearAtom]);
@@ -168,8 +170,29 @@ function ConfiguredOutputRow({outputAtom, infoAtom, onDelete}: Props) {
                     linksAtom={outputLinksAtom}
                     linkLevelsAtom={linkLevelsAtom}
                 />
-                {showLinearActuatorOptions && (
+                {(info?.supportsLinearPreference || showLinearActuatorOptions) && (
                     <Stack spacing={0}>
+                        {info?.supportsLinearPreference && (
+                        <MyAccordion
+                            expanded={false}
+                            onChange={() => {}}
+                            sx={{bgcolor: 'action.hover'}}
+                            summary={
+                                <Stack direction="row" spacing={1} sx={{alignItems: 'center'}}>
+                                    <Typography variant="subtitle2">Oscillation</Typography>
+                                    <Switch
+                                        size="small"
+                                        sx={{my: '-4px'}}
+                                        checked={preferLinear ?? false}
+                                        onChange={(_e, checked) => setPreferLinear(checked)}
+                                        slotProps={{input: {'aria-label': 'Prefer absolute position over oscillation'}}}
+                                    />
+                                    <Typography variant="subtitle2">Absolute Position</Typography>
+                                </Stack>
+                            }
+                        />
+                        )}
+                        {showLinearActuatorOptions && (
                         <MyAccordion
                             expanded={advancedExpanded}
                             onChange={setAdvancedExpanded}
@@ -191,6 +214,7 @@ function ConfiguredOutputRow({outputAtom, infoAtom, onDelete}: Props) {
                                 </Stack>
                             </Stack>
                         </MyAccordion>
+                        )}
                     </Stack>
                 )}
             </Stack>
