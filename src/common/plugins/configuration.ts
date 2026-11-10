@@ -28,6 +28,8 @@ export function upgradeConfig(raw: unknown): unknown {
     const version = config.version;
     if (!version || version < 1) throw new Error(`Unknown config version during upgrade: ${version}`);
     if (version > CONFIG_VERSION) throw new Error(`Unsupported config version: ${version}`);
+    // Missing-file and reset loads reuse the frozen defaults, which need no upgrade.
+    if (version === CONFIG_VERSION) return config;
     vrchat.upgradeConfig(config, version);
     intiface.upgradeConfig(config, version);
     config.version = CONFIG_VERSION;

@@ -1,12 +1,19 @@
 import assert from 'node:assert/strict';
 import {test} from 'node:test';
-import {produce} from 'immer';
-import {getDefaultConfig, getDefaultLinks} from './configuration';
+import {freeze, produce} from 'immer';
+import {getDefaultConfig, getDefaultLinks, upgradeConfig} from './configuration';
 import {normalizeConfigDraft} from '../../main/services/configNormalization';
 import {importLegacyLinks as vrchatLinks} from '../../plugins/vrchat/main/legacyLinks';
 import {importLegacyLinks as audioLinks} from '../../plugins/audio/main/legacyLinks';
 import {importLegacyLinks as constantLinks} from '../../plugins/constant/main/legacyLinks';
 import type {LegacyLinkOptions} from '../../main/plugins/LegacyLinkOptions';
+
+test('current config versions accept frozen defaults without assigning to them', () => {
+    const defaults = freeze(getDefaultConfig(), true);
+    assert.equal(upgradeConfig(defaults), defaults);
+    assert.deepEqual(defaults, getDefaultConfig());
+    assert.throws(() => upgradeConfig({...getDefaultConfig(), version: 999}), /Unsupported config version/);
+});
 
 test('plugin config composition preserves startup defaults and independent default links', () => {
     assert.deepEqual(getDefaultConfig(), {
