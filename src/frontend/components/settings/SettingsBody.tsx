@@ -1,6 +1,6 @@
 import React, {useCallback, useMemo, useState} from 'react';
 import {produce} from 'immer';
-import {Config, getDefaultLinks, getDefaultOutput, type Output} from '../../../common/configTypes';
+import {Config, getDefaultLinks, getDefaultOutput, type OutputConfig} from '../../../common/configTypes';
 import {pushItem, removeAt} from "../../../common/arrayDraft";
 import {
     Button,
@@ -14,12 +14,12 @@ import {
 import {SettingsStatePayload} from "../../../common/ipcContract";
 import ConfiguredOutputRow from "./ConfiguredOutputRow";
 import UnconfiguredOutputRow from "./UnconfiguredOutputRow";
-import IntifaceSettingsSection from "./IntifaceSettingsSection";
-import VrchatSettingsSection from "./VrchatSettingsSection";
 import {atom, type PrimitiveAtom, useAtomValue, useSetAtom} from "jotai";
 import {selectAtom, splitAtom} from "jotai/utils";
 import {atomFamily} from "jotai-family";
 import {focusKeyAtom} from "../../utils/atomUtils";
+
+import {PluginSettings} from '../../plugins/PluginComponents';
 
 interface Props {
     configAtom: PrimitiveAtom<Config>;
@@ -30,15 +30,7 @@ function SettingsBody({
     configAtom,
     settingsStateAtom,
 }: Props) {
-    const [intifaceExpanded, setIntifaceExpanded] = useState(false);
-    const [vrchatExpanded, setVrchatExpanded] = useState(false);
     const [pendingDeleteOutputId, setPendingDeleteOutputId] = useState<string | null>(null);
-    const intifaceAddressAtom = useMemo(() => focusKeyAtom(configAtom, 'intifaceAddress'), [configAtom]);
-    const useIntifaceMdnsAtom = useMemo(() => focusKeyAtom(configAtom, 'useIntifaceMdns'), [configAtom]);
-    const useOscQueryAtom = useMemo(() => focusKeyAtom(configAtom, 'useOscQuery'), [configAtom]);
-    const maxLevelParamAtom = useMemo(() => focusKeyAtom(configAtom, 'maxLevelParam'), [configAtom]);
-    const vrcConfigDirAtom = useMemo(() => focusKeyAtom(configAtom, 'vrcConfigDir'), [configAtom]);
-    const oscProxyAtom = useMemo(() => focusKeyAtom(configAtom, 'oscProxy'), [configAtom]);
     const configuredOutputsAtom = useMemo(() => focusKeyAtom(configAtom, 'outputs'), [configAtom]);
     const outputInfosAtom = useMemo(() => selectAtom(settingsStateAtom, (state) => state.outputs), [settingsStateAtom]);
     const configuredOutputIdSetAtom = useMemo(
@@ -47,7 +39,7 @@ function SettingsBody({
     );
     const configuredOutputAtomsAtom = useMemo(() => splitAtom(configuredOutputsAtom), [configuredOutputsAtom]);
     const configuredSortedOutputsAtom = useMemo(
-        () => atom<PrimitiveAtom<Output>[]>((get) => {
+        () => atom<PrimitiveAtom<OutputConfig>[]>((get) => {
             const outputAtoms = get(configuredOutputAtomsAtom);
             const outputInfos = get(outputInfosAtom);
             const connectedById = new Map(outputInfos.map(info => [info.id, info.connected]));
@@ -76,7 +68,7 @@ function SettingsBody({
         [outputInfosAtom],
     );
     const configuredOutputInfoAtomFamily = useMemo(
-        () => atomFamily((outputAtom: PrimitiveAtom<Output>) => atom((get) => {
+        () => atomFamily((outputAtom: PrimitiveAtom<OutputConfig>) => atom((get) => {
             const outputId = get(outputAtom).id;
             return get(outputInfosAtom).find(info => info.id === outputId);
         })),
@@ -115,21 +107,7 @@ function SettingsBody({
 
     return (
         <Stack spacing={0}>
-            <IntifaceSettingsSection
-                expanded={intifaceExpanded}
-                onChange={setIntifaceExpanded}
-                intifaceAddressAtom={intifaceAddressAtom}
-                useIntifaceMdnsAtom={useIntifaceMdnsAtom}
-            />
-
-            <VrchatSettingsSection
-                expanded={vrchatExpanded}
-                onChange={setVrchatExpanded}
-                useOscQueryAtom={useOscQueryAtom}
-                maxLevelParamAtom={maxLevelParamAtom}
-                vrcConfigDirAtom={vrcConfigDirAtom}
-                oscProxyAtom={oscProxyAtom}
-            />
+            <PluginSettings configAtom={configAtom} />
 
             {configuredSortedOutputs.map((outputAtom) => {
                 return (

@@ -1,5 +1,9 @@
 {
   "extends": "../tsconfig.base.json",
+  "include": [
+    "./**/*",
+    "../plugins/*/shared/**/*"
+  ],
   "compilerOptions": {
     "types": [
       "node"

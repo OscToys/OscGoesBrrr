@@ -1,5 +1,10 @@
 {
   "extends": "../tsconfig.base.json",
+  "include": [
+    "./**/*",
+    "../plugins/*/main/**/*",
+    "../plugins/*/shared/**/*"
+  ],
   "exclude": [
     "webpack.config.js"
   ]

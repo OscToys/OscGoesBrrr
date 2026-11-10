@@ -3,6 +3,11 @@
   "compilerOptions": {
     "jsx": "react"
   },
+  "include": [
+    "./**/*",
+    "../plugins/*/frontend/**/*",
+    "../plugins/*/shared/**/*"
+  ],
   "exclude": [
     "webpack.config.js"
   ]

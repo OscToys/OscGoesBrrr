@@ -1,314 +1,82 @@
 import 'reflect-metadata';
+import './plugins/registerPlugins';
 import 'source-map-support/register';
 import {app} from 'electron';
 import util from 'util';
+import typia from 'typia';
+import {Container} from 'typedi';
 import Bridge from './bridge';
 import Updater from './updater';
-import OscConnection from "./OscConnection";
-import Intiface from "./Intiface";
-import VrcConfigCheck from "./VrcConfigCheck";
-import {Container} from "typedi";
-import MainWindowService from "./services/MainWindowService";
-import ConfigService from "./services/ConfigService";
-import LoggerService from "./services/LoggerService";
-import VrchatOscqueryService from "./services/VrchatOscqueryService";
-import VrchatLogScanner from "./services/VrchatLogScanner";
-import VrchatLogFinder from "./services/VrchatLogFinder";
-import BackendDataService from "./services/BackendDataService";
-import ImportedOutputPromotionService from "./services/migrate/ImportedOutputPromotionService";
-import MyAddressesService from "./services/MyAddressesService";
-import OscQueryPortService from "./services/OscQueryPortService";
-import OscQueryHttpServerService from "./services/OscQueryHttpServerService";
-import OscQueryMdnsBroadcastService from "./services/OscQueryMdnsBroadcastService";
-import {handleIpc} from "./ipc";
-import {OscqueryStatus} from "../common/ipcContract";
-import {selectIntifaceOutput, supportsLinearPreference, type IntifaceFeatureInformation, type Device, type IntifaceDeviceFeatureSelection} from "./IntifaceProtocol";
-import {configurePortableDataPaths} from "./portableData";
+import {Plugin} from './plugins/Plugin';
+import {collectPluginSettings} from './plugins/settingsState';
+import PluginRuntime from './plugins/PluginRuntime';
+import ConfigService from './services/ConfigService';
+import BackendDataService from './services/BackendDataService';
+import MainWindowService from './services/MainWindowService';
+import LoggerService from './services/LoggerService';
+import {handleIpc} from './ipc';
+import type {SettingsStatePayload} from '../common/ipcContract';
+import {configurePortableDataPaths} from './portableData';
 
 app.enableSandbox();
 
-const gotTheLock = app.requestSingleInstanceLock();
-if (!gotTheLock) {
+if (!app.requestSingleInstanceLock()) {
     app.exit();
     process.exit(0);
 }
 configurePortableDataPaths(app);
 
-const container = Container;
-const updater = container.get(Updater);
-const configService = container.get(ConfigService);
-const backendDataService = container.get(BackendDataService);
-const importedOutputPromotionService = container.get(ImportedOutputPromotionService);
+const updater = Container.get(Updater);
+const configService = Container.get(ConfigService);
+const backendDataService = Container.get(BackendDataService);
+const mainWindowService = Container.get(MainWindowService);
+const logger = Container.get(LoggerService);
+const systemLogger = logger.get('system');
+console.log = (...args) => systemLogger.log('LOG', util.format(...args));
+console.warn = (...args) => systemLogger.log('WARN', util.format(...args));
+console.error = (...args) => systemLogger.log('ERROR', util.format(...args));
 
-const vrcConfigCheck = container.get(VrcConfigCheck);
-const mainWindowService = container.get(MainWindowService);
-const logger = container.get(LoggerService);
-const oscConnection = container.get(OscConnection);
-const vrchatOscqueryService = container.get(VrchatOscqueryService);
-const logScanner = container.get(VrchatLogScanner);
-const vrchatLogFinder = container.get(VrchatLogFinder);
-const myAddressesService = container.get(MyAddressesService);
-const oscQueryPortService = container.get(OscQueryPortService);
-container.get(OscQueryHttpServerService);
-container.get(OscQueryMdnsBroadcastService);
-
-{
-    const systemLogger = logger.get('system');
-    console.log = (...args) => systemLogger.log("LOG", util.format(...args));
-    console.warn = (...args) => systemLogger.log("WARN", util.format(...args));
-    console.error = (...args) => systemLogger.log("ERROR", util.format(...args));
-}
-
-const intiface = container.get(Intiface);
-const bridge = container.get(Bridge);
-
-handleIpc('avatarParams:get', async () => {
-    const map = new Map<string, unknown>();
-    if (oscConnection) {
-        for (const [key, value] of oscConnection.entries()) {
-            map.set(key, value.get());
-        }
-    }
-    return map;
+const bridge = Container.get(Bridge);
+const plugins = Container.getMany(Plugin.token);
+const runtime = new PluginRuntime(plugins, {
+    getConfig: () => configService.getCached(),
+    getOutputs: () => Array.from(bridge.getOutputs(), ({output}) => ({
+        id: output.id,
+        config: configService.getOutput(output.id),
+    })),
+    handleIpc,
+    send: (channel, ...args) => mainWindowService.send(channel, ...args),
 });
+const pluginsReady = runtime.start().then(started => {
+    if (started) bridge.start();
+});
+app.once('before-quit', () => {
+    bridge.stop();
+    try { runtime.stop(); } catch (error) { console.error('Plugin cleanup failed', error); }
+});
+void pluginsReady.catch(error => console.error('Plugin startup failed', error));
 
 handleIpc('settings-state:request', async () => {
-    await backendDataService.get();
-
-    const error = backendDataService.getLoadError();
-    if (error) {
-        mainWindowService.send('settings-state:changed', {ok: false, error});
-        return;
-    }
-
-    const intifaceConnected = intiface.wsReady();
-    const intifaceAddressOffSubnet = isFixedIntifaceAddressOffSubnet(
-        configService.getCached().intifaceAddress,
-        myAddressesService,
-    );
-    const vrchatConnected = oscConnection.isGameOpenAndActive();
-    const detectedVrcConfigDirs = await vrchatLogFinder.getDetectedVrcConfigDir();
-    const connectedOutputDevices = Array.from(bridge.getOutputs());
-    const gameDevices = Array.from(bridge.getGameDevices());
-    const hasSpsZones = gameDevices.some(device => device.type === 'Pen' || device.type === 'Orf' || device.type === 'Touch');
-    const detectedSpsPlugIds = Array.from(new Set(gameDevices.filter(device => device.type === 'Pen').map(device => device.id))).sort();
-    const detectedSpsSocketIds = Array.from(new Set(gameDevices.filter(device => device.type === 'Orf').map(device => device.id))).sort();
-    const detectedSpsTouchZoneIds = Array.from(new Set(gameDevices.filter(device => device.type === 'Touch').map(device => device.id))).sort();
-    const history = await backendDataService.getAllDeviceHistory();
-    await importedOutputPromotionService.cleanupExpiredImportedOutputs();
-    const importedDeletesAt = await importedOutputPromotionService.getImportedDeletesAt();
-    const oscStatusSnapshot = oscConnection.getStatusSnapshot();
-    const oscqueryStatus = vrchatOscqueryService.getStatus();
-    const useOscQuery = configService.getCached().useOscQuery;
-    const oscQueryPort = useOscQuery ? await oscQueryPortService.get() : undefined;
-    const ogbOscPort = oscConnection.socketopen ? (useOscQuery ? oscQueryPort : 9001) : undefined;
-    const ogbOscqueryPort = oscQueryPort;
-    const vrcOscPort = vrchatOscqueryService.getOscAddress()?.[1];
-    const vrcOscqueryPort = vrchatOscqueryService.getOscqueryAddress()?.[1];
-
-    const hapticsDisabled = bridge.hasHapticsDisabled();
-    const hasVrcfHaptics = gameDevices.some(device => device.type == 'Pen' || device.type == 'Orf');
-    let isVrcfHapticsUpToDate = false;
-    for (const [key] of oscConnection.entries()) {
-        if (key == "OGB/Version/11"
-                || key == "VFH/Version/9"
-                || key == "VFH/Version/10"
-                || (key.startsWith("OGB/Pen/") && key.endsWith("/Version/8"))
-                || (key.startsWith("OGB/Orf/") && key.endsWith("/Version/9"))
-        ) {
-            isVrcfHapticsUpToDate = true;
-            break;
-        }
-    }
-    const outdatedAvatarDetected = hasVrcfHaptics && !isVrcfHapticsUpToDate;
-
-    const result = new Map<string, {
-        id: string,
-        name: string,
-        connected: boolean,
-        showLinearActuatorOptions: boolean,
-        supportsLinearPreference: boolean,
-        currentLevel: number,
-        lastLinkValues: number[],
-    }>();
-    const naming = new Map<string, {
-        deviceName: string,
-        deviceIndex: number,
-        featureDescriptor?: string,
-        featureIndex: number,
-    }>();
-
-    const trimToUndefined = (raw: string | undefined): string | undefined => {
-        if (!raw) return undefined;
-        const trimmed = raw.trim();
-        return trimmed.length > 0 ? trimmed : undefined;
-    };
-    const maskUserInPath = (raw: string | undefined): string | undefined => {
-        if (!raw) return undefined;
-        return raw.replace(/(Users[\\/])([^\\/]+)/i, "$1***");
-    };
-
-    const configuredOutputIds = new Set(configService.getCached().outputs.map(output => output.id));
-
-    // Add configured history first as disconnected.
-    const getNaming = (feature: IntifaceDeviceFeatureSelection, id: string) => {
-        return {
-            deviceName: trimToUndefined(feature.device.DeviceDisplayName)
-                ?? trimToUndefined(feature.device.DeviceName)
-                ?? id,
-            deviceIndex: feature.device.DeviceIndex,
-            featureDescriptor: trimToUndefined(feature.feature.FeatureDescription),
-            featureIndex: feature.feature.FeatureIndex,
-        }
-    };
-    for (const [id, item] of Object.entries(history)) {
-        if (!configuredOutputIds.has(id)) continue;
-        result.set(id, {
-            id,
-            name: id,
-            connected: false,
-            showLinearActuatorOptions: ['Position', 'HwPositionWithDuration'].includes(
-                selectIntifaceOutput(item.intiface.feature, configService.getOutput(id)?.preferLinear) ?? ''),
-            supportsLinearPreference: supportsLinearPreference(item.intiface.feature),
-            currentLevel: 0,
-            lastLinkValues: [],
-        });
-        naming.set(id, getNaming(item.intiface, id));
-    }
-    for (const outputDevice of connectedOutputDevices) {
-        const id = outputDevice.bioFeature.id;
-        result.set(id, {
-            id,
-            name: id,
-            connected: true,
-            showLinearActuatorOptions: outputDevice.bioFeature.type === 'linear',
-            supportsLinearPreference: supportsLinearPreference(outputDevice.bioFeature.intiface.feature),
-            currentLevel: outputDevice.getCurrentLevel(),
-            lastLinkValues: outputDevice.getLastLinkValues(),
-        });
-        naming.set(id, getNaming(outputDevice.bioFeature.intiface, id));
-    }
-
-    const entries = Array.from(result.values());
-    const deviceNameToDeviceKeys = new Map<string, Set<string>>();
-    const featuresPerDevice = new Map<string, number>();
-    const descriptorCountsPerDevice = new Map<string, Map<string, number>>();
-    const deviceKey = (deviceName: string, deviceIndex?: number) => `${deviceName}::${deviceIndex ?? 'unknown'}`;
-
-    for (const entry of entries) {
-        const nameParts = naming.get(entry.id);
-        if (!nameParts) continue;
-        const key = deviceKey(nameParts.deviceName, nameParts.deviceIndex);
-        let deviceKeys = deviceNameToDeviceKeys.get(nameParts.deviceName);
-        if (!deviceKeys) {
-            deviceKeys = new Set<string>();
-            deviceNameToDeviceKeys.set(nameParts.deviceName, deviceKeys);
-        }
-        deviceKeys.add(key);
-        featuresPerDevice.set(key, (featuresPerDevice.get(key) ?? 0) + 1);
-        const descriptorKey = nameParts.featureDescriptor ?? '';
-        let descriptorCounts = descriptorCountsPerDevice.get(key);
-        if (!descriptorCounts) {
-            descriptorCounts = new Map<string, number>();
-            descriptorCountsPerDevice.set(key, descriptorCounts);
-        }
-        descriptorCounts.set(descriptorKey, (descriptorCounts.get(descriptorKey) ?? 0) + 1);
-    }
-
-    for (const entry of entries) {
-        const nameParts = naming.get(entry.id);
-        if (!nameParts) continue;
-        const key = deviceKey(nameParts.deviceName, nameParts.deviceIndex);
-        const duplicateDeviceName = (deviceNameToDeviceKeys.get(nameParts.deviceName)?.size ?? 0) > 1;
-        const hasMultipleFeaturesOnDevice = (featuresPerDevice.get(key) ?? 0) > 1;
-
-        let composed = nameParts.deviceName;
-        if (duplicateDeviceName && nameParts.deviceIndex !== undefined) {
-            composed += ` [${nameParts.deviceIndex}]`;
-        }
-        if (hasMultipleFeaturesOnDevice) {
-            if (nameParts.featureDescriptor) {
-                composed += ` - ${nameParts.featureDescriptor}`;
-            } else {
-                composed += ` - Output ${nameParts.featureIndex}`;
-            }
-        }
-        entry.name = composed;
-    }
-
-    mainWindowService.send('settings-state:changed', {
-        ok: true,
-        data: {
-            outputs: entries,
-            intifaceConnected,
-            intifaceConnectedAddress: intiface.getConnectedAddress(),
-            intifaceAddressOffSubnet,
+    try {
+        await pluginsReady;
+        await backendDataService.get();
+        const loadError = backendDataService.getLoadError();
+        if (loadError) throw new Error(loadError);
+        const outputs = Array.from(bridge.getOutputs());
+        const state = {
+            ...await collectPluginSettings(plugins, outputs),
             updateAvailable: updater.getAvailableUpdate(),
-            vrchat: {
-                connected: vrchatConnected,
-                diagnostics: {
-                    hasSpsZones,
-                    hapticsDisabled,
-                    outdatedAvatarDetected,
-                    oscEnabled: vrcConfigCheck.oscEnabled === false,
-                    selfInteract: vrcConfigCheck.selfInteractEnabled === false,
-                    everyoneInteract: vrcConfigCheck.everyoneInteractEnabled === false,
-                    loggingFull: vrcConfigCheck.loggingFull !== false,
-                    oscStartup: Boolean(logScanner.failure),
-                    oscStartupText: logScanner.failure,
-                    ogbOscPort,
-                    ogbOscqueryPort,
-                    vrcOscPort,
-                    vrcOscqueryPort,
-                    oscStatus: oscStatusSnapshot.status,
-                    oscqueryStatus,
-                    oscqueryWaitingForBulk: oscStatusSnapshot.oscqueryWaitingForBulk,
-                    logsFound: vrchatOscqueryService.getLogsFound(),
-                    detectedVrcConfigDirs: detectedVrcConfigDirs.map(path => maskUserInPath(path) ?? path),
-                },
-                detectedSpsPlugIds,
-                detectedSpsSocketIds,
-                detectedSpsTouchZoneIds,
-            },
-            importedDeletesAt,
-        },
-    });
-
+        };
+        mainWindowService.send('settings-state:changed', {
+            ok: true,
+            data: typia.assert<SettingsStatePayload>(state),
+        });
+    } catch (error) {
+        mainWindowService.send('settings-state:changed', {ok: false, error: String(error)});
+    }
 });
 
-function isFixedIntifaceAddressOffSubnet(
-    intifaceAddress: string | undefined,
-    myAddressesService: MyAddressesService,
-): boolean {
-    if (!intifaceAddress) return false;
-    try {
-        const parsed = new URL(intifaceAddress);
-        const hostname = parsed.hostname.trim();
-        if (!hostname) return false;
-        const normalized = hostname.toLowerCase();
-        if (normalized === 'localhost' || normalized === '127.0.0.1' || normalized === '::1') {
-            return false;
-        }
-        return !myAddressesService.sharesSubnet(hostname);
-    } catch {
-        return false;
-    }
-}
-
-handleIpc('fft:status', (level) => {
-    if (level < 0 || level > 1 || isNaN(level)) return;
-    bridge.receivedFft(level);
-})
-
-setInterval(() => {
-    const hasSystemAudioLinks = Array.from(bridge.getOutputs()).some(outputDevice => {
-        const outputConfig = configService.getOutput(outputDevice.bioFeature.id);
-        return outputConfig?.links.some(link => link.kind === 'systemAudio') ?? false;
-    });
-    mainWindowService.send(hasSystemAudioLinks ? 'fft:start' : 'fft:stop');
-}, 1000);
-
-configService.startExternalWatch().catch((e) => {
-    console.error("Failed to start external config watch", e);
+configService.startExternalWatch().catch(error => {
+    console.error('Failed to start external config watch', error);
 });
 

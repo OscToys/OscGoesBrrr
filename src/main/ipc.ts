@@ -8,4 +8,5 @@ export function handleIpc<C extends IpcInvokeChannel>(
     ipcMain.handle(channel, async (_event, ...args: unknown[]) => {
         return await handler(...(args as IpcInvokeArgs<C>));
     });
+    return () => ipcMain.removeHandler(channel);
 }

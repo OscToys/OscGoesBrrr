@@ -1,0 +1,438 @@
+import osc, {OscArg} from 'osc';
+import {OscMessage, UDPPort} from 'osc';
+import dgram, {RemoteInfo} from 'dgram';
+import {Service} from "typedi";
+import MyAddressesService from "../../../main/services/MyAddressesService";
+import ConfigService from "../../../main/services/ConfigService";
+import LoggerService from "../../../main/services/LoggerService";
+import VrchatOscqueryService from "./VrchatOscqueryService";
+import TypedEventEmitter from "../../../common/TypedEventEmitter";
+import {OscStatus} from "../../../common/ipcContract";
+import OscQueryPortService from "./OscQueryPortService";
+import type {PluginContext} from '../../../main/plugins/PluginContext';
+import {setTimeout as delay} from 'node:timers/promises';
+
+type MyEvents = {
+    add: (key: string, value: OscValue) => void,
+    clear: () => void
+}
+
+@Service()
+export default class OscConnection extends TypedEventEmitter<MyEvents> {
+    private static readonly STALE_MS = 15_000;
+    private static readonly OGB_ENABLED_PARAMS = ['OGB/Enabled', 'OGB_ENABLED'];
+    private static readonly OGB_ENABLED_INTERVAL_MS = 5_000;
+    private readonly _entries = new Map<string,OscValue>();
+    private recentlyRcvdOscCmds = 0;
+    private hasBulkSinceAvatarChange = false;
+    private isStale = true;
+    private entriesVisible = false;
+    private staleTimer?: NodeJS.Timeout;
+    private readonly udpClient;
+    private readonly logger;
+    private oscSocket?: UDPPort;
+    socketopen = false;
+    private shutdown: (()=>void)[] = [];
+    private hasReceivedPacketSinceOpen = false;
+    private socketUsesOscQuery = false;
+    private signal?: AbortSignal;
+
+    constructor(
+        private myAddresses: MyAddressesService,
+        private configService: ConfigService,
+        private vrchatOscqueryService: VrchatOscqueryService,
+        private oscQueryPortService: OscQueryPortService,
+        logger: LoggerService
+    ) {
+        super();
+
+        this.logger = logger.get('oscLog');
+        this.udpClient = dgram.createSocket('udp4');
+        this.udpClient.on('error', (error) => {
+            this.logger.log('UDP proxy socket error', error);
+        });
+    }
+
+    start(context: PluginContext): void {
+        this.signal = context.signal;
+        void this.openSocket();
+        const onConfigChanged = (config: ReturnType<PluginContext['getConfig']>) => {
+            if (config.useOscQuery === this.socketUsesOscQuery) return;
+            void this.openSocket();
+        };
+        this.configService.on('changed', onConfigChanged);
+
+        const logTimer = setInterval(() => {
+            if (!this.socketopen) return;
+            if (this.recentlyRcvdOscCmds > 0) {
+                this.logger.log("Received " + this.recentlyRcvdOscCmds + " OSC updates in the past 15 seconds");
+                this.recentlyRcvdOscCmds = 0;
+            }
+        }, 15000);
+
+        const enabledTimer = setInterval(() => {
+            const entries = this.entries();
+            for (const parameter of OscConnection.OGB_ENABLED_PARAMS) {
+                if (entries.has(parameter)) this.send(parameter, true);
+            }
+        }, OscConnection.OGB_ENABLED_INTERVAL_MS);
+        context.onCleanup(() => {
+            this.configService.off('changed', onConfigChanged);
+            clearInterval(logTimer);
+            clearInterval(enabledTimer);
+            this.clearStaleTimer();
+            this.updateBulkAttempt = undefined;
+            for (const stop of this.shutdown.splice(0)) stop();
+            try {
+                this.udpClient.close();
+            } catch (error) {
+                // The proxy socket stays unbound when no proxy packets were sent.
+                if ((error as NodeJS.ErrnoException).code !== 'ERR_SOCKET_DGRAM_NOT_RUNNING') throw error;
+            }
+            this.clearValues();
+        });
+    }
+
+    public static parsePort(inputObj: string | undefined, defAddress: string, defPort: number): [string,number] {
+        let input = (inputObj ?? '').trim();
+        let outAddress = defAddress;
+        let outPort = defPort;
+
+        let stringPort = "";
+        if (input.startsWith('[')) {
+            const end = input.indexOf(']');
+            if (end > 0) {
+                outAddress = input.slice(1, end);
+                const rest = input.slice(end + 1);
+                if (rest.startsWith(':')) stringPort = rest.slice(1);
+            } else if (input) {
+                outAddress = input;
+            }
+        } else if (input.includes(':')) {
+            const first = input.indexOf(':');
+            const last = input.lastIndexOf(':');
+            if (first === last) {
+                outAddress = input.slice(0, first) || defAddress;
+                stringPort = input.slice(first + 1);
+            } else if (input) {
+                // likely an unbracketed IPv6 host without explicit port
+                outAddress = input;
+            }
+        } else if (input.match(/^\d+$/)) {
+            stringPort = input;
+        } else if (input) {
+            outAddress = input;
+        }
+
+        const parsedPort = /^\d+$/.test(stringPort) ? parseInt(stringPort, 10) : NaN;
+        if (!isNaN(parsedPort) && parsedPort > 0) outPort = parsedPort;
+
+        return [outAddress, outPort];
+    }
+
+    private error(e: unknown) {
+        this.logger.log('<-', 'ERROR', e);
+    }
+
+    private async openSocket() {
+        try {
+            await this.openSocketUnsafe();
+        } catch (e) {
+            this.error(e);
+        }
+    }
+
+    private async openSocketUnsafe() {
+        if (this.signal?.aborted) return;
+        // Shutdown old service
+        this.updateBulkAttempt = undefined;
+        this.waitingForBulk = false;
+        this.hasBulkSinceAvatarChange = false;
+        this.isStale = true;
+        this.hasReceivedPacketSinceOpen = false;
+        this.socketUsesOscQuery = false;
+        this.clearStaleTimer();
+        this.clearValues();
+        for(const s of this.shutdown) { s(); }
+        this.shutdown.length = 0;
+        this.recomputeEntriesVisibility();
+
+        const useOscQuery = this.configService.getCached().useOscQuery;
+        let port = 9001;
+        if (useOscQuery) {
+            port = await this.oscQueryPortService.get();
+        }
+        if (this.signal?.aborted) return;
+        this.socketUsesOscQuery = useOscQuery;
+        this.logger.log(`Selected port: ${port}`);
+
+        let receivedOne = false;
+
+        this.logger.log(`Starting OSC server...`);
+        const oscSocket = this.oscSocket = new osc.UDPPort({
+            localAddress: '0.0.0.0',
+            localPort: port,
+            metadata: true
+        });
+        this.shutdown.push(() => oscSocket.close());
+        oscSocket.on('ready', () => {
+            this.socketopen = true;
+            this.recentlyRcvdOscCmds = 0;
+            this.logger.log('<-', 'OPEN');
+            this.logger.log("Waiting for first message from OSC ...");
+            this.recomputeEntriesVisibility();
+        });
+        this.shutdown.push(() => {
+            this.socketopen = false;
+            this.hasBulkSinceAvatarChange = false;
+            this.isStale = true;
+            this.clearStaleTimer();
+            this.recomputeEntriesVisibility();
+        });
+        oscSocket.on('error', (e: unknown) => {
+            // node osc throws errors for all sorts of invalid packets and things we often receive
+            // that otherwise shouldn't be fatal to the socket. Just ignore them.
+        });
+        oscSocket.on('data', (msg: Buffer) => {
+            const proxyTargets = this.configService.getCached().oscProxy;
+            for (const target of proxyTargets) {
+                const [address, port] = OscConnection.parsePort(target, '127.0.0.1', 0);
+                if (port <= 0) continue;
+                this.udpClient.send(msg, port, address, (error) => {
+                    if (error) {
+                        this.logger.log(`Failed to proxy OSC packet to ${address}:${port}`, error);
+                    }
+                });
+            }
+        });
+        oscSocket.on('message', (oscMsg: OscMessage, timeTag: unknown, rinfo: RemoteInfo) => {
+            const from = rinfo.address;
+            if (!this.myAddresses.has(from)) {
+                this.logger.log(`Received OSC packet from unknown address: ${from}`);
+                return;
+            }
+
+            //this.log(`Received OSC packet from: ${from}`);
+            if (!receivedOne) {
+                receivedOne = true;
+                this.hasReceivedPacketSinceOpen = true;
+                this.logger.log(`Received first OSC packet from ${from}:${rinfo.port}. We are probably connected.`);
+                this.updateBulk();
+            }
+            this.isStale = false;
+            this.scheduleStaleTimer();
+            this.recentlyRcvdOscCmds++;
+            this.recomputeEntriesVisibility();
+
+            const path = oscMsg.address;
+            if (!path) return;
+
+            if (path === '/avatar/change') {
+                this.logger.log('<-', 'Avatar change');
+                this.clearValues();
+                this.hasBulkSinceAvatarChange = false;
+                this.recomputeEntriesVisibility();
+                this.updateBulk();
+                return;
+            }
+
+            const param = this.parseParamFromPath(path);
+            const arg = oscMsg.args?.[0];
+            if (!arg) return;
+
+            switch (arg.type) {
+                case 'T':
+                    this.receivedParamValue(param, true, false);
+                    break;
+                case 'F':
+                    this.receivedParamValue(param, false, false);
+                    break;
+                default:
+                    this.receivedParamValue(param, arg.value, false);
+                    break;
+            }
+        });
+
+        // Open the socket.
+        oscSocket.open();
+    }
+
+    private clearValues() {
+        this._entries.clear();
+        this.emit('clear');
+    }
+
+    private receivedParamValue(param: string | undefined, rawValue: unknown, onlyUseIfNew: boolean) {
+        if (param === undefined) return;
+        if (rawValue === undefined) return;
+        let value = this._entries.get(param);
+        let isNew = false;
+        if (!value) {
+            value = new OscValue();
+            this._entries.set(param, value);
+            isNew = true;
+        } else if (onlyUseIfNew) {
+            return;
+        }
+        value.receivedUpdate(rawValue);
+        if (isNew && this.entriesVisible) this.emit('add', param, value);
+    }
+
+    private parseParamFromPath(path: string) {
+        if (path.startsWith('/avatar/parameters/')) {
+            return path.substring('/avatar/parameters/'.length);
+        }
+        return undefined;
+    }
+
+    public waitingForBulk = false;
+    private updateBulkAttempt: unknown;
+    private async updateBulk() {
+        this.waitingForBulk = true;
+        const myAttempt = this.updateBulkAttempt = {};
+        const isStillValid = () => !this.signal?.aborted && this.updateBulkAttempt == myAttempt;
+        while(true) {
+            try {
+                await this._updateBulk(isStillValid);
+            } catch(e) {
+                if (!isStillValid()) break;
+                this.logger.log("Error fetching bulk info: " + e);
+                await delay(100, undefined, {signal: this.signal}).catch(() => {});
+                if (isStillValid()) continue;
+            }
+            this.waitingForBulk = false;
+            break;
+        }
+    }
+    private async _updateBulk(isRequestStillValid: ()=>boolean) {
+        const nodes = await this.vrchatOscqueryService.getBulk();
+        if (!nodes) {
+            throw new Error("VRChat OscQuery not discovered yet");
+        }
+
+        if (!isRequestStillValid()) return;
+        for (const [key,value] of Object.entries(nodes)) {
+            const param = this.parseParamFromPath(key);
+            this.receivedParamValue(param, value, true);
+        }
+        console.log("OSCQ RECEIVED");
+        this.hasBulkSinceAvatarChange = true;
+        this.recomputeEntriesVisibility();
+    }
+
+    send(paramName: string, value: number | boolean) {
+        if (!this.oscSocket || !this.socketopen) return;
+        const sendAddr = this.vrchatOscqueryService.getOscAddress();
+        if (!sendAddr) return;
+        let arg: OscArg;
+        if (typeof(value) === 'boolean') arg = {type:value?'T':'F'};
+        else arg = {type:'f', value:value};
+        this.oscSocket.send({
+            address: "/avatar/parameters/" + paramName,
+            args: [arg]
+        }, sendAddr[0], sendAddr[1]);
+    }
+
+    clearDeltas() {
+        for (const entry of this._entries.values()) {
+            entry.clearDelta();
+        }
+    }
+
+    entries() {
+        if (!this.entriesVisible) return new Map<string, OscValue>();
+        return this._entries;
+    }
+
+    isGameOpenAndActive() {
+        return this.entriesVisible;
+    }
+
+    private clearStaleTimer() {
+        if (this.staleTimer) clearTimeout(this.staleTimer);
+        this.staleTimer = undefined;
+    }
+
+    private scheduleStaleTimer() {
+        this.clearStaleTimer();
+        this.staleTimer = setTimeout(() => {
+            this.staleTimer = undefined;
+            this.isStale = true;
+            this.recomputeEntriesVisibility();
+        }, OscConnection.STALE_MS);
+    }
+
+    private recomputeEntriesVisibility() {
+        const nextVisible = Boolean(
+            this.socketopen
+            && !this.isStale
+            && this.hasBulkSinceAvatarChange
+        );
+        if (nextVisible === this.entriesVisible) return;
+        this.entriesVisible = nextVisible;
+        this.emit('clear');
+        if (!nextVisible) return;
+        for (const [key, value] of this._entries.entries()) {
+            this.emit('add', key, value);
+        }
+    }
+
+    getStatusSnapshot(): {
+        status: OscStatus;
+        oscqueryWaitingForBulk: boolean;
+    } {
+        const oscqueryWaitingForBulk = this.waitingForBulk || !this.hasBulkSinceAvatarChange;
+        if (!this.socketopen) {
+            return {
+                status: 'socketStarting',
+                oscqueryWaitingForBulk,
+            };
+        }
+        if (!this.hasReceivedPacketSinceOpen) {
+            return {
+                status: 'waitingForFirstPacket',
+                oscqueryWaitingForBulk,
+            };
+        }
+        if (this.isStale) {
+            return {
+                status: 'stale',
+                oscqueryWaitingForBulk,
+            };
+        }
+        return {
+            status: 'connected',
+            oscqueryWaitingForBulk,
+        };
+    }
+}
+
+type ValueEvents = {
+    change: (oldValue: unknown, newValue: unknown) => void,
+}
+
+export class OscValue extends TypedEventEmitter<ValueEvents> {
+    private value: unknown = undefined;
+    private delta = 0;
+
+    clearDelta() {
+        this.delta = 0;
+    }
+
+    receivedUpdate(newValue: unknown) {
+        const oldValue = this.value;
+        if (typeof oldValue == 'number' && typeof newValue == 'number') {
+            this.delta += Math.abs(newValue - oldValue);
+        }
+        this.value = newValue;
+        this.emit('change', oldValue, newValue);
+    }
+
+    get() {
+        return this.value;
+    }
+
+    getDelta() {
+        return this.delta;
+    }
+}

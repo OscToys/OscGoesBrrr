@@ -6,6 +6,7 @@
   "include": [
     "./common/**/*",
     "./frontend/**/*",
-    "./main/**/*"
+    "./main/**/*",
+    "./plugins/**/*"
   ]
 }

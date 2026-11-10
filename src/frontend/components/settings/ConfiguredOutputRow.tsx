@@ -1,30 +1,22 @@
 import React, {useMemo, useState} from "react";
-import {Output} from "../../../common/configTypes";
+import {OutputConfig} from "../../../common/configTypes";
 import {OutputDeviceInfo} from "../../../common/ipcContract";
-import {Alert, AlertColor, IconButton, Stack, Switch, Typography} from "@mui/material";
+import {Alert, IconButton, Stack, Switch, Typography} from "@mui/material";
 import {Close as CloseIcon, Label as LabelIcon, Waves as WavesIcon} from "@mui/icons-material";
 import TextCommitInput from "../util/TextCommitInput";
 import MyAccordion from "../util/MyAccordion";
-import CountdownText, {formatDuration} from "../util/CountdownText";
 import OutputLinks from "./OutputLinks";
 import ConnectionBubble from "./ConnectionBubble";
-import {type Atom, type PrimitiveAtom, useAtom, useAtomValue, type WritableAtom} from "jotai";
+import {atom, type Atom, type PrimitiveAtom, useAtom, useAtomValue, type WritableAtom} from "jotai";
 import {selectAtom} from "jotai/utils";
 import {focusKeyAtom, focusOptionalKeyAtom} from "../../utils/atomUtils";
 import {getConnectionBubbleColor} from "../../utils/connectionBubbleColor";
 import {useSettingsStateAtom} from "./SettingsStateAtomContext";
 
-const LEGACY_ALL_OUTPUT_ID = "intiface.imported.all";
-const LEGACY_OUTPUT_ID_PREFIX = "intiface.imported.";
-
-function getLegacyDisplayName(id: string): string | undefined {
-    if (!id.startsWith(LEGACY_OUTPUT_ID_PREFIX)) return undefined;
-    const name = id.substring(LEGACY_OUTPUT_ID_PREFIX.length);
-    return `Imported Device: ${name}`;
-}
+import {plugins} from '../../plugins/plugins';
 
 interface Props {
-    outputAtom: PrimitiveAtom<Output>;
+    outputAtom: PrimitiveAtom<OutputConfig>;
     infoAtom: Atom<OutputDeviceInfo | undefined>;
     onDelete: (outputId: string) => void;
 }
@@ -75,56 +67,23 @@ function ConfiguredOutputRow({outputAtom, infoAtom, onDelete}: Props) {
     const outputId = useAtomValue(outputIdAtom);
     const info = useAtomValue(infoAtom);
     const settingsStateAtom = useSettingsStateAtom();
-    const intifaceConnected = useAtomValue(
-        useMemo(() => selectAtom(settingsStateAtom, (state) => state.intifaceConnected), [settingsStateAtom]),
-    );
-    const importedDeletesAt = useAtomValue(
-        useMemo(() => selectAtom(settingsStateAtom, (state) => state.importedDeletesAt), [settingsStateAtom]),
-    );
-    const displayName = getLegacyDisplayName(outputId) ?? info?.name ?? outputId;
+    const presentationAtom = useMemo(() => {
+        const contributions = plugins.flatMap(plugin => plugin.outputPresentation
+            ? [plugin.outputPresentation({outputId: outputIdAtom, info: infoAtom, settings: settingsStateAtom})]
+            : []);
+        return atom(get => {
+            const presentations = contributions.map(contribution => get(contribution));
+            return {
+                name: presentations.find(presentation => presentation?.name)?.name,
+                alerts: presentations.flatMap(presentation => presentation?.alerts ?? []),
+            };
+        });
+    }, [outputIdAtom, infoAtom, settingsStateAtom]);
+    const presentation = useAtomValue(presentationAtom);
+    const displayName = presentation.name ?? info?.name ?? outputId;
+    const alerts = presentation.alerts;
     const outputPercent = info && info.currentLevel > 0 ? Math.round(info.currentLevel * 100) : 0;
     const showLinearActuatorOptions = Boolean(info?.showLinearActuatorOptions);
-    const isLegacyDevice = outputId.startsWith(LEGACY_OUTPUT_ID_PREFIX);
-    const isLegacyAllDevice = outputId === LEGACY_ALL_OUTPUT_ID;
-    const warningText = (() => {
-        if (isLegacyAllDevice) return "This 'all' config was imported from an old version of OGB, and will be used for all newly-connected devices.";
-        if (isLegacyDevice) return "This device config was imported from an old version of OGB, and will be reused next time a matching device is connected.";
-        return undefined;
-    })();
-    const importedExpiryWarning = (() => {
-        if (!isLegacyDevice) return undefined;
-        if (importedDeletesAt === undefined) return undefined;
-        return (
-            <CountdownText targetTime={importedDeletesAt}>
-                {(remaining) => {
-                    if (remaining <= 0) return "This imported config has expired and will be deleted shortly.";
-                    return `This imported config will expire and be deleted in ${formatDuration(remaining)}.`;
-                }}
-            </CountdownText>
-        );
-    })();
-    const alerts: {severity: AlertColor; content: React.ReactNode}[] = [];
-    if (warningText != null) {
-        alerts.push({severity: "warning", content: warningText});
-    }
-    if (info?.name?.toLowerCase().includes("lovense connect")) {
-        alerts.push({
-            severity: "warning",
-            content: "Lovense Connect support in Intiface is deprecated and likely doesn't work at all. Please consider removing Lovense Connect from your phone, remove Intiface from your desktop, and install the Intiface app from the app store on your phone. The intiface mobile app works in place of Lovense Connect.",
-        });
-    }
-    if (importedExpiryWarning != null) {
-        alerts.push({severity: "warning", content: importedExpiryWarning});
-    }
-    if (!info?.connected) {
-        alerts.push({
-            severity: "error",
-            content: intifaceConnected
-                ? "This device is not connected to Intiface."
-                : "This device is unavailable because Intiface is not connected.",
-        });
-    }
-
     return (
         <MyAccordion
             expanded={expanded}

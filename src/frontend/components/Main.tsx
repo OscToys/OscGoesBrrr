@@ -1,5 +1,6 @@
-import React, {useEffect, useState} from "react";
-import ToggleableAudioHandler from "./AudioHandler";
+import React, {useState} from "react";
+import {PluginRuntimes} from '../plugins/PluginComponents';
+import {pluginPages, pluginNavigation} from '../plugins/plugins';
 // @ts-ignore
 import logoPath from '../../icons/ogb-logo.png';
 import Settings from "./settings/Settings";
@@ -8,8 +9,7 @@ import DebugLog from "./DebugLog";
 import {FontAwesomeIcon} from "@fortawesome/react-fontawesome";
 import { faDiscord } from "@fortawesome/free-brands-svg-icons";
 import {IconDefinition} from "@fortawesome/fontawesome-common-types";
-import {faBarsStaggered, faCircleNodes, faHome, faTerminal} from "@fortawesome/free-solid-svg-icons";
-import AvatarParams from "./AvatarParams";
+import {faHome, faTerminal} from "@fortawesome/free-solid-svg-icons";
 import PageErrorBoundary from "./PageErrorBoundary";
 
 export default function Main() {
@@ -30,21 +30,24 @@ export default function Main() {
     } else if (page == "logs") {
         pageName = "Debug Logs";
         pageContent = <DebugLog/>;
-    } else if (page == "avatarParams") {
-        pageName = "Avatar Debugger";
-        pageContent = <AvatarParams/>;
+    } else {
+        const pluginPage = pluginPages.find(candidate => candidate.id === page);
+        if (pluginPage) {
+            pageName = pluginPage.label;
+            pageContent = <pluginPage.Component />;
+        }
     }
 
     return <div style={{display: 'flex', flexDirection: 'row', height: '100%'}}>
-        <ToggleableAudioHandler/>
+        <PluginRuntimes />
 
         <div className="leftColumn">
             <img src={logoPath}/>
             {SelectButton("home", "Home", faHome)}
             {SelectButton("logs", "Debug Logs", faTerminal)}
-            {SelectButton("avatarParams", "Avatar Debugger", faBarsStaggered)}
+            {pluginPages.map(page => <React.Fragment key={page.id}>{SelectButton(page.id, page.label, page.icon)}</React.Fragment>)}
             {SelectButton("discord", "Support Discord", faDiscord, () => window.open("https://osc.toys/discord", "_blank"))}
-            {SelectButton("vrcgroup", "VRChat Group", faCircleNodes, () => window.open("https://vrchat.com/home/group/grp_b64197f9-2d97-499a-93d3-1e3a37c944ae", "_blank"))}
+            {pluginNavigation.map(item => <React.Fragment key={item.id}>{SelectButton(item.id, item.label, item.icon, () => window.open(item.href, "_blank"))}</React.Fragment>)}
         </div>
 
         <div className="rightColumn">

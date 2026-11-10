@@ -1,5 +1,7 @@
 import {Config} from "./configTypes";
 import {Result} from "./result";
+import type {PluginIpcEventMap, PluginIpcInvokeMap, PluginSettingsState} from './plugins/contracts';
+export type * from './plugins/contracts';
 
 export interface OutputDeviceInfo {
     id: string;
@@ -11,63 +13,16 @@ export interface OutputDeviceInfo {
     lastLinkValues: number[];
 }
 
-export type OscqueryStatus =
-    | 'success'
-    | 'searching'
-    | 'failedToConnectHttpServer'
-    | 'vrchatOscqueryBroadcastNotFound'
-    | 'unknownError';
-
-export type OscStatus =
-    | 'connected'
-    | 'socketStarting'
-    | 'waitingForFirstPacket'
-    | 'stale';
-
-export interface SettingsStateVrchat {
-    connected: boolean;
-    diagnostics: {
-        hasSpsZones: boolean;
-        hapticsDisabled: boolean;
-        outdatedAvatarDetected: boolean;
-        oscEnabled: boolean;
-        selfInteract: boolean;
-        everyoneInteract: boolean;
-        loggingFull: boolean;
-        oscStartup: boolean;
-        oscStartupText?: string;
-        ogbOscPort?: number;
-        ogbOscqueryPort?: number;
-        vrcOscPort?: number;
-        vrcOscqueryPort?: number;
-        oscStatus: OscStatus;
-        oscqueryStatus: OscqueryStatus;
-        oscqueryWaitingForBulk: boolean;
-        logsFound: boolean;
-        detectedVrcConfigDirs: string[];
-    };
-    detectedSpsPlugIds: string[];
-    detectedSpsSocketIds: string[];
-    detectedSpsTouchZoneIds: string[];
-}
-
-export interface SettingsStatePayload {
+export interface SettingsStatePayload extends PluginSettingsState {
     outputs: OutputDeviceInfo[];
-    intifaceConnected: boolean;
-    intifaceConnectedAddress?: string;
-    intifaceAddressOffSubnet: boolean;
     updateAvailable?: {
         version?: string;
         downloadUrl?: string;
         status: 'downloading' | 'installIpc' | 'download' | 'error';
     };
-    vrchat: SettingsStateVrchat;
-    importedDeletesAt?: number;
 }
 
-export interface IpcInvokeMap {
-    'oscStatus:get': {args: []; result: string};
-    'avatarParams:get': {args: []; result: Map<string, unknown>};
+export interface IpcInvokeMap extends PluginIpcInvokeMap {
     'updater:install': {args: []; result: void};
     'config:request': {args: []; result: void};
     'config:reset': {args: []; result: void};
@@ -76,13 +31,10 @@ export interface IpcInvokeMap {
     'backendData:open': {args: []; result: string};
     'settings-state:request': {args: []; result: void};
     'config:set': {args: [Config]; result: void};
-    'fft:status': {args: [number]; result: void};
     'log:history': {args: []; result: string[]};
 }
 
-export interface IpcEventMap {
-    'fft:start': [];
-    'fft:stop': [];
+export interface IpcEventMap extends PluginIpcEventMap {
     'log:line': [string];
     'config:changed': [Result<Config>];
     'settings-state:changed': [Result<SettingsStatePayload>];

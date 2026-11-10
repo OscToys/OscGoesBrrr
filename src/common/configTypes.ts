@@ -1,90 +1,15 @@
+import type {PluginConfig, PluginLink} from './plugins/contracts';
+export type * from './plugins/contracts';
+export {getDefaultLinks} from './plugins/configuration';
+
+export type OutputLink = PluginLink;
+
 export interface OutputLinkFilter {
     include: string[];
     exclude: string[];
 }
 
-export interface OutputLinkVrchatSpsPlug {
-    kind: 'vrchat.sps.plug';
-    filter: OutputLinkFilter;
-    ownHands: boolean;
-    otherHands: boolean;
-    mySockets: boolean;
-    otherSockets: boolean;
-    otherPlugs: boolean;
-    mutators: OutputLinkMutator[];
-}
-export interface OutputLinkVrchatSpsSocket {
-    kind: 'vrchat.sps.socket';
-    filter: OutputLinkFilter;
-    ownHands: boolean;
-    otherHands: boolean;
-    myPlugs: boolean;
-    otherPlugs: boolean;
-    otherSockets: boolean;
-    mutators: OutputLinkMutator[];
-}
-export interface OutputLinkVrchatTouch {
-    kind: 'vrchat.sps.touch';
-    filter: OutputLinkFilter;
-    ownHands: boolean;
-    otherHands: boolean;
-    mutators: OutputLinkMutator[];
-}
-export interface OutputLinkVrchatAvatarParameter {
-    kind: 'vrchat.avatarParameter';
-    parameter: string;
-    mutators: OutputLinkMutator[];
-}
-export interface OutputLinkSystemAudio {
-    kind: 'systemAudio';
-    mutators: OutputLinkScaleMutator[];
-}
-export interface OutputLinkConstant {
-    kind: 'constant';
-    level: number;
-}
-
-export type OutputLink =
-    | OutputLinkVrchatSpsPlug
-    | OutputLinkVrchatSpsSocket
-    | OutputLinkVrchatTouch
-    | OutputLinkVrchatAvatarParameter
-    | OutputLinkSystemAudio
-    | OutputLinkConstant;
-
 export type OutputLinkKind = OutputLink["kind"];
-
-export function getDefaultLinks(): OutputLink[] {
-    return [
-        {
-            kind: 'vrchat.sps.plug',
-            filter: {include: [], exclude: []},
-            ownHands: false,
-            otherHands: true,
-            mySockets: false,
-            otherSockets: true,
-            otherPlugs: true,
-            mutators: [],
-        },
-        {
-            kind: 'vrchat.sps.socket',
-            filter: {include: [], exclude: []},
-            ownHands: false,
-            otherHands: true,
-            myPlugs: false,
-            otherPlugs: true,
-            otherSockets: true,
-            mutators: [],
-        },
-        {
-            kind: 'vrchat.sps.touch',
-            filter: {include: [], exclude: []},
-            ownHands: false,
-            otherHands: true,
-            mutators: [],
-        },
-    ];
-}
 
 export interface OutputLinearActuatorConfig {
     maxv: number;
@@ -108,26 +33,26 @@ export function getDefaultLinearActuatorConfig(): OutputLinearActuatorConfig {
     };
 }
 
-export interface OutputLinkScaleMutator {
+export interface InputScaleModifier {
     kind: 'scale';
     scale: number;
 }
 
-export interface OutputLinkDeadZoneMutator {
+export interface InputDeadZoneModifier {
     kind: 'deadZone';
     level: number;
 }
 
-export interface OutputLinkMotionBasedMutator {
+export interface InputMotionBasedModifier {
     kind: 'motionBased';
 }
-export type OutputLinkMutator =
-    | OutputLinkScaleMutator
-    | OutputLinkDeadZoneMutator
-    | OutputLinkMotionBasedMutator;
-export type OutputLinkMutatorKind = OutputLinkMutator['kind'];
+export type InputModifier =
+    | InputScaleModifier
+    | InputDeadZoneModifier
+    | InputMotionBasedModifier;
+export type InputModifierKind = InputModifier['kind'];
 
-export interface Output {
+export interface OutputConfig {
     id: string;
     links: OutputLink[];
     updatesPerSecond?: number; // Now unused
@@ -135,19 +60,13 @@ export interface Output {
     preferLinear?: boolean;
 }
 
-export function getDefaultOutput(): Omit<Output, 'id'> {
+export function getDefaultOutput(): Omit<OutputConfig, 'id'> {
     return {
         links: [],
     };
 }
 
-export interface Config {
+export interface Config extends PluginConfig {
     version: number;
-    intifaceAddress?: string;
-    useIntifaceMdns: boolean;
-    useOscQuery: boolean;
-    maxLevelParam?: string;
-    oscProxy: string[];
-    vrcConfigDir?: string;
-    outputs: Output[];
+    outputs: OutputConfig[];
 }

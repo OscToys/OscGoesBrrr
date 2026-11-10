@@ -3,24 +3,10 @@ import path from 'path';
 import {app, shell} from 'electron';
 import typia from "typia";
 import {freeze} from "immer";
-import AbstractJsonStateService from "./AbstractJsonStateService";
-import {handleIpc} from "../ipc";
-import type {IntifaceDeviceFeatureSelection} from "../IntifaceProtocol";
-
-export interface DeviceHistoryItem {
-    intiface: IntifaceDeviceFeatureSelection;
-    firstSeen: number;
-    lastSeen: number;
-}
-
-export interface DeviceHistory {
-    [id: string]: DeviceHistoryItem;
-}
-
-export interface BackendData {
-    version: number;
-    deviceHistory: DeviceHistory;
-}
+import AbstractJsonStateService from './AbstractJsonStateService';
+import {handleIpc} from '../ipc';
+import {recordDeviceHistory, type BackendData} from './backendDataTypes';
+import type {PluginDeviceHistoryData} from '../plugins/deviceHistory';
 
 @Service()
 export default class BackendDataService extends AbstractJsonStateService<BackendData> {
@@ -45,26 +31,25 @@ export default class BackendDataService extends AbstractJsonStateService<Backend
 
     async updateDeviceHistory(
         id: string,
-        intiface: IntifaceDeviceFeatureSelection,
+        data: PluginDeviceHistoryData,
     ) {
         const now = Date.now();
         await this.mutate((draft) => {
-            const previous = draft.deviceHistory[id];
-            draft.deviceHistory[id] = {
-                intiface,
-                firstSeen: previous?.firstSeen ?? now,
-                lastSeen: now,
-            };
+            recordDeviceHistory(draft.deviceHistory, id, data, now);
         });
     }
 
-    private registerIpcHandlers() {
-        handleIpc('backendData:reset', async () => {
+    private registerIpcHandlers(): void {
+        const offReset = handleIpc('backendData:reset', async () => {
             await this.resetToDefaults();
         });
 
-        handleIpc('backendData:open', async () => {
+        const offOpen = handleIpc('backendData:open', async () => {
             return await shell.openPath(this.savePath);
+        });
+        app.once('before-quit', () => {
+            offReset();
+            offOpen();
         });
     }
 

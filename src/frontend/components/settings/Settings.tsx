@@ -25,8 +25,26 @@ import typia from "typia";
 import useIpcBackedCache from "./useIpcBackedCache";
 import {SettingsStateAtomProvider} from "./SettingsStateAtomContext";
 
+const dataFiles = [
+    {
+        id: 'config',
+        label: 'config',
+        resetLabel: 'settings',
+        filename: 'config.json',
+        open: () => invokeIpc('config:open'),
+        reset: () => invokeIpc('config:reset'),
+    },
+    {
+        id: 'backendData',
+        label: 'backend data',
+        resetLabel: 'backend data',
+        filename: 'backendData.json',
+        open: () => invokeIpc('backendData:open'),
+        reset: () => invokeIpc('backendData:reset'),
+    },
+];
+
 export default function Settings() {
-    type ResetTarget = 'config' | 'backendData';
     const parseConfigResult = React.useCallback((raw: unknown) => typia.assert<Result<Config>>(raw), []);
     const parseSettingsStateResult = React.useCallback(
         (raw: unknown) => typia.assert<Result<SettingsStatePayload>>(raw),
@@ -62,7 +80,7 @@ export default function Settings() {
     const canShowUpdateAction = updateAvailable !== undefined
         && updateAvailable.status !== 'error';
     const [dismissedUpdateKey, setDismissedUpdateKey] = useState<string | undefined>(undefined);
-    const [resetTarget, setResetTarget] = useState<ResetTarget | undefined>(undefined);
+    const [resetTarget, setResetTarget] = useState<(typeof dataFiles)[number] | undefined>(undefined);
     const [devToolsUnlocked, setDevToolsUnlocked] = useState(false);
     const devSequenceRef = useRef('');
 
@@ -98,35 +116,21 @@ export default function Settings() {
         return () => window.removeEventListener('keydown', onKeyDown);
     }, []);
 
-    const openConfigFile = async () => {
-        await invokeIpc('config:open');
-    };
-
-    const openBackendDataFile = async () => {
-        await invokeIpc('backendData:open');
-    };
-
     return (
         <Box sx={{p: 2, overflowY: 'auto', height: '100%', bgcolor: 'background.default'}}>
             <Stack spacing={2}>
                 {devToolsUnlocked && (
                     <Stack direction={{xs: 'column', sm: 'row'}} spacing={1.25} sx={{alignItems: 'flex-start'}}>
-                        <Stack spacing={1}>
-                            <Button variant="outlined" onClick={openConfigFile}>
-                                Open config
-                            </Button>
-                            <Button variant="contained" color="error" onClick={() => setResetTarget('config')}>
-                                Reset config
-                            </Button>
-                        </Stack>
-                        <Stack spacing={1}>
-                            <Button variant="outlined" onClick={openBackendDataFile}>
-                                Open backend Data
-                            </Button>
-                            <Button variant="contained" color="error" onClick={() => setResetTarget('backendData')}>
-                                Reset backend Data
-                            </Button>
-                        </Stack>
+                        {dataFiles.map(file => (
+                            <Stack key={file.id} spacing={1}>
+                                <Button variant="outlined" onClick={() => file.open()}>
+                                    Open {file.label}
+                                </Button>
+                                <Button variant="contained" color="error" onClick={() => setResetTarget(file)}>
+                                    Reset {file.label}
+                                </Button>
+                            </Stack>
+                        ))}
                     </Stack>
                 )}
 
@@ -218,12 +222,10 @@ export default function Settings() {
                 aria-labelledby="reset-config-title"
                 aria-describedby="reset-config-description"
             >
-                <DialogTitle id="reset-config-title">Reset {resetTarget === 'backendData' ? 'backend data' : 'settings'}?</DialogTitle>
+                <DialogTitle id="reset-config-title">Reset {resetTarget?.resetLabel}?</DialogTitle>
                 <DialogContent>
                     <DialogContentText id="reset-config-description">
-                        {resetTarget === 'backendData'
-                            ? 'This will overwrite backendData.json with default data.'
-                            : 'This will overwrite config.json with default settings.'}
+                        {`This will overwrite ${resetTarget?.filename} with default ${resetTarget?.resetLabel}.`}
                     </DialogContentText>
                 </DialogContent>
                 <DialogActions>
@@ -232,11 +234,7 @@ export default function Settings() {
                         color="error"
                         variant="contained"
                         onClick={async () => {
-                            if (resetTarget === 'backendData') {
-                                await invokeIpc('backendData:reset');
-                            } else {
-                                await invokeIpc('config:reset');
-                            }
+                            await resetTarget?.reset();
                             setResetTarget(undefined);
                         }}
                     >
