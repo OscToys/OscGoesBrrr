@@ -7,6 +7,7 @@ import {
     Menu,
     MenuItem,
     Slider,
+    Switch,
     Stack,
     Typography,
 } from '@mui/material';
@@ -14,13 +15,17 @@ import {
     OutputLink,
     InputModifier,
     InputModifierKind,
-} from "../../../common/configTypes";
-import {ArrowDropDown as ArrowDropDownIcon, Close as CloseIcon, Waves as WavesIcon} from "@mui/icons-material";
+} from "../../../common/application/configTypes";
+import {
+    ArrowDropDown as ArrowDropDownIcon,
+    Delete as DeleteIcon,
+    Waves as WavesIcon,
+} from "@mui/icons-material";
 import MyAccordion from "../util/MyAccordion";
 import {pushItem, removeAt} from "../../../common/arrayDraft";
 import {type PrimitiveAtom, useAtom} from "jotai";
 
-import {linkDefinitionMap} from '../../plugins/plugins';
+import {findLinkDefinition} from '../../plugins/plugins';
 
 interface Props {
     linkAtom: PrimitiveAtom<OutputLink>;
@@ -32,9 +37,9 @@ function OutputLinkEditor({linkAtom, activeLevel, removeLink}: Props) {
     const [expanded, setExpanded] = useState(false);
     const [addMutatorMenuAnchor, setAddMutatorMenuAnchor] = React.useState<HTMLElement | null>(null);
     const [link, setLink] = useAtom(linkAtom);
-    const definition = linkDefinitionMap.get(link.kind);
-    const label = definition?.label ?? link.kind;
-    const summaryDetail = definition?.summary(link);
+    const definition = findLinkDefinition(link);
+    const title = definition?.title?.(link) ?? definition?.label ?? `Unknown ${link.plugin}:${link.kind}`;
+    const summaryDetail = definition ? definition.summary(link) : 'Plugin Unavailable';
     const Editor = definition?.Editor;
     const formatPercent = (fraction: number) => Math.round(fraction * 100000) / 1000;
     const getMutators = () => definition?.modifiers?.get(link) ?? [];
@@ -45,7 +50,6 @@ function OutputLinkEditor({linkAtom, activeLevel, removeLink}: Props) {
     const modifierLabels: Record<InputModifierKind, string> = {
         scale: 'Scale',
         deadZone: 'Dead Zone',
-        motionBased: 'Motion-Based',
     };
     const mutatorOptions = (definition?.modifiers?.kinds ?? []).map(kind => ({kind, label: modifierLabels[kind]}));
     const availableMutatorOptions = mutatorOptions.filter(option => !getMutators().some(mutator => mutator.kind === option.kind));
@@ -56,8 +60,6 @@ function OutputLinkEditor({linkAtom, activeLevel, removeLink}: Props) {
                 return {kind: 'scale', scale: 1};
             case 'deadZone':
                 return {kind: 'deadZone', level: 0};
-            case 'motionBased':
-                return {kind: 'motionBased'};
         }
     };
 
@@ -82,8 +84,11 @@ function OutputLinkEditor({linkAtom, activeLevel, removeLink}: Props) {
             }}
             summary={
                 <Stack direction="row" sx={{width: '100%', alignItems: 'center', justifyContent: 'space-between'}}>
-                    <Stack direction="row" spacing={1} sx={{minWidth: 0, flex: 1, alignItems: 'center'}}>
-                        <Typography variant="subtitle2">{label}</Typography>
+                    <Stack sx={{minWidth: 0, flex: 1, mr: 1}}>
+                        <Typography variant="subtitle2" sx={{lineHeight: 1.25}} noWrap>{title}</Typography>
+                        {summaryDetail && (
+                            <Typography variant="caption" color="textDisabled" sx={{fontSize: '0.65rem', lineHeight: 1.25}} noWrap>{summaryDetail}</Typography>
+                        )}
                     </Stack>
                     {activePercent > 0 && (
                         <Stack direction="row" spacing={0.25} sx={{alignItems: 'center'}}>
@@ -91,9 +96,13 @@ function OutputLinkEditor({linkAtom, activeLevel, removeLink}: Props) {
                             <Typography variant="body2" color="text.secondary">{activePercent}%</Typography>
                         </Stack>
                     )}
-                    {!expanded && summaryDetail && (
-                        <Typography variant="body2" color="text.secondary" sx={{minWidth: 0, mr: 1}} noWrap>{summaryDetail}</Typography>
-                    )}
+                    <Switch
+                        size="small"
+                        checked={link.enabled !== false}
+                        onClick={event => event.stopPropagation()}
+                        onChange={(_event, checked) => setLink({...link, enabled: checked})}
+                        slotProps={{input: {'aria-label': 'Enable link'}}}
+                    />
                     <IconButton
                         color="error"
                         size="small"
@@ -103,12 +112,17 @@ function OutputLinkEditor({linkAtom, activeLevel, removeLink}: Props) {
                             removeLink(linkAtom);
                         }}
                     >
-                        <CloseIcon fontSize="small" />
+                        <DeleteIcon fontSize="small" />
                     </IconButton>
                 </Stack>
             }
         >
             <Stack spacing={1.25}>
+                {!definition && (
+                    <Typography variant="body2" color="textSecondary">
+                        This link is inactive because no plugin handles it. Its settings are preserved.
+                    </Typography>
+                )}
                 {Editor && <Editor linkAtom={linkAtom} />}
 
                 {definition?.modifiers && (
@@ -129,11 +143,10 @@ function OutputLinkEditor({linkAtom, activeLevel, removeLink}: Props) {
                                     <Stack direction="row" sx={{justifyContent: 'space-between', alignItems: 'center'}}>
                                         <Typography variant="body2">
                                             {mutator.kind === 'scale' ? `Scale (${formatPercent(mutator.scale)}%)`
-                                                : mutator.kind === 'deadZone' ? `Dead Zone (${formatPercent(mutator.level)}%)`
-                                                    : 'Motion-Based'}
+                                                : `Dead Zone (${formatPercent(mutator.level)}%)`}
                                         </Typography>
-                                        <IconButton size="small" color="error" onClick={removeThisMutator}>
-                                            <CloseIcon fontSize="small" />
+                                        <IconButton size="small" color="error" aria-label="Remove modifier" onClick={removeThisMutator}>
+                                            <DeleteIcon fontSize="small" />
                                         </IconButton>
                                     </Stack>
                                     {mutator.kind === 'scale' && (
@@ -179,11 +192,6 @@ function OutputLinkEditor({linkAtom, activeLevel, removeLink}: Props) {
                                                 }}
                                             />
                                         </Box>
-                                    )}
-                                    {mutator.kind === 'motionBased' && (
-                                        <Typography variant="body2" color="text.secondary">
-                                            Intensity will be based on motion, rather than depth.
-                                        </Typography>
                                     )}
                                 </Stack>
                             </Box>;

@@ -1,6 +1,6 @@
 import type {OscValue} from "./OscConnection";
-import type {OutputLink} from "../../../common/configTypes";
 import type {InputSample} from '../../../main/routing';
+import type {InteractionConfig, InteractionMode, ZoneLink} from '../shared/config';
 
 type ContactName = 'TouchSelf' | 'TouchOthers' | 'FrotOthers' | 'Self' | 'Others';
 type DepthContact = 'DepthSelf' | 'DepthOthers';
@@ -170,10 +170,14 @@ export default class AvatarZone {
         return Math.max(0, Math.min(1, 1 - separation / length));
     }
 
-    private getTouchSource(contact: ContactName, requireClose = false): Omit<InputSample, 'id'> {
+    private getContactSource(
+        contact: ContactName | DepthContact,
+        mode: InteractionMode,
+        position: number,
+    ): Omit<InputSample, 'id'> {
         const proximity = this.getNumber(contact) ?? 0;
         const magnitude = this._values.get(contact + '_SenderVelocityMagnitude');
-        if (magnitude !== undefined) {
+        if (mode === 'movement' && magnitude !== undefined) {
             const speed = magnitude.get();
             // One meter/second is full intensity before scale/dead-zone controls.
             // Presence guards stale SDK velocity. Zero speed never falls back to proximity.
@@ -182,28 +186,40 @@ export default class AvatarZone {
                 kind: 'speed',
             };
         }
-        return {value: !requireClose || this.getBool(`${contact}Close` as allowedGetBools) ? proximity : 0, kind: 'position'};
+        return {value: position, kind: 'position'};
     }
 
-    getSources(link: Extract<OutputLink, {kind: 'vrchat.sps.plug' | 'vrchat.sps.socket' | 'vrchat.sps.touch'}>, includeTouch = true): InputSample[] {
+    getSources(link: ZoneLink, includeTouch = true): InputSample[] {
         const includeSet = new Set(link.filter.include.map(value => value.trim()).filter(Boolean));
         const excludeSet = new Set(link.filter.exclude.map(value => value.trim()).filter(Boolean));
         if (excludeSet.has(this.id)) return [];
         if (includeSet.size > 0 && !includeSet.has(this.id)) return [];
 
         const out: InputSample[] = [];
-        const pushIfEnabled = (enabled: boolean, sourceKey: string, source: number | Omit<InputSample, 'id'>) => {
-            if (!enabled) return;
+        const partyMode = (interaction: InteractionConfig, party: 'self' | 'others'): InteractionMode =>
+            interaction[party] ? interaction.mode : 'off';
+        const pushIfEnabled = (mode: InteractionMode, sourceKey: string, source: number | Omit<InputSample, 'id'>) => {
+            if (mode === 'off') return;
             out.push({
-                id: `${this.isTps ? 'TPS' : 'OGB'}/${this.advancedDepth ? 'advanced' : 'legacy'}/${this.type}/${this.id}/${sourceKey}`,
+                id: `${this.isTps ? 'TPS' : 'OGB'}/${this.advancedDepth ? 'advanced' : 'legacy'}/${this.type}/${this.id}/${mode}/${sourceKey}`,
                 ...(typeof source === 'number' ? {value: source, kind: 'position' as const} : source),
+                movement: mode === 'movement',
             });
+        };
+        const pushTouch = (mode: InteractionMode, sourceKey: string, contact: ContactName, requireClose = false) => {
+            const position = !requireClose || this.getBool(`${contact}Close` as allowedGetBools) ? this.getNumber(contact) ?? 0 : 0;
+            if (includeTouch) pushIfEnabled(mode, sourceKey, this.getContactSource(contact, mode, position));
+        };
+        const pushDepth = (interaction: InteractionConfig, self: boolean, position: number) => {
+            const mode = partyMode(interaction, self ? 'self' : 'others');
+            // Linear outputs still follow depth, never a velocity interpreted as position.
+            const source = this.advancedDepth && includeTouch
+                ? this.getContactSource(self ? 'DepthSelf' : 'DepthOthers', mode, position) : position;
+            pushIfEnabled(mode, self ? 'depthSelf' : 'depthOthers', source);
         };
 
         if (!this.isTps) {
             if (this.type === 'socket' && link.kind === 'vrchat.sps.socket') {
-                const touchSelf = this.getTouchSource('TouchSelf', !this.advancedDepth);
-                const touchOthers = this.getTouchSource('TouchOthers', !this.advancedDepth);
                 const selfDepthLegacy = this.getNumber('PenSelf');
                 const selfDepthRootTip = this.getRootTipDepth(true);
                 const selfDepth = this.advancedDepth ? this.getAdvancedDepth(true) : selfDepthRootTip ?? selfDepthLegacy ?? 0;
@@ -211,37 +227,31 @@ export default class AvatarZone {
                 const othersDepthLegacy = othersDepthClose ? this.getNumber('PenOthers') : undefined;
                 const othersDepthRootTip = this.getRootTipDepth(false);
                 const othersDepth = this.advancedDepth ? this.getAdvancedDepth(false) : othersDepthRootTip ?? othersDepthLegacy ?? 0;
-                const frotOthers = this.getTouchSource('FrotOthers');
-
-                pushIfEnabled(includeTouch && link.ownHands, 'touchSelf', touchSelf);
-                pushIfEnabled(includeTouch && link.otherHands, 'touchOthers', touchOthers);
-                pushIfEnabled(link.myPlugs, 'depthSelf', selfDepth);
-                pushIfEnabled(link.otherPlugs, 'depthOthers', othersDepth);
-                pushIfEnabled(includeTouch && link.otherSockets, 'frotOthers', frotOthers);
+                pushTouch(partyMode(link.hands, 'self'), 'touchSelf', 'TouchSelf', !this.advancedDepth);
+                pushTouch(partyMode(link.hands, 'others'), 'touchOthers', 'TouchOthers', !this.advancedDepth);
+                pushDepth(link.plugs, true, selfDepth);
+                pushDepth(link.plugs, false, othersDepth);
+                pushTouch(link.sockets.mode, 'frotOthers', 'FrotOthers');
             }
             if (this.type === 'plug' && link.kind === 'vrchat.sps.plug') {
-                const touchSelf = this.getTouchSource('TouchSelf', !this.advancedDepth);
-                const touchOthers = this.getTouchSource('TouchOthers', !this.advancedDepth);
                 const selfDepth = this.advancedDepth ? this.getAdvancedDepth(true) : this.getNumber('PenSelf') ?? 0;
                 const othersDepth = this.advancedDepth ? this.getAdvancedDepth(false) : this.getNumber('PenOthers') ?? 0;
-                const frotOthers = this.getTouchSource('FrotOthers', !this.advancedDepth);
-
-                pushIfEnabled(includeTouch && link.ownHands, 'touchSelf', touchSelf);
-                pushIfEnabled(includeTouch && link.otherHands, 'touchOthers', touchOthers);
-                pushIfEnabled(link.mySockets, 'depthSelf', selfDepth);
-                pushIfEnabled(link.otherSockets, 'depthOthers', othersDepth);
-                pushIfEnabled(includeTouch && link.otherPlugs, 'frotOthers', frotOthers);
+                pushTouch(partyMode(link.hands, 'self'), 'touchSelf', 'TouchSelf', !this.advancedDepth);
+                pushTouch(partyMode(link.hands, 'others'), 'touchOthers', 'TouchOthers', !this.advancedDepth);
+                pushDepth(link.sockets, true, selfDepth);
+                pushDepth(link.sockets, false, othersDepth);
+                pushTouch(link.plugs.mode, 'frotOthers', 'FrotOthers', !this.advancedDepth);
             }
             if (includeTouch && this.type === 'touch' && link.kind === 'vrchat.sps.touch') {
-                pushIfEnabled(link.ownHands, 'touchSelf', this.getTouchSource('Self'));
-                pushIfEnabled(link.otherHands, 'touchOthers', this.getTouchSource('Others'));
+                pushTouch(partyMode(link.hands, 'self'), 'touchSelf', 'Self');
+                pushTouch(partyMode(link.hands, 'others'), 'touchOthers', 'Others');
             }
         } else {
             if (this.type === 'socket' && link.kind === 'vrchat.sps.socket') {
-                pushIfEnabled(link.otherPlugs, 'depthOthers', this.getNumber('Depth_In') ?? 0);
+                pushIfEnabled(partyMode(link.plugs, 'others'), 'depthOthers', this.getNumber('Depth_In') ?? 0);
             }
             if (this.type === 'plug' && link.kind === 'vrchat.sps.plug') {
-                pushIfEnabled(link.otherSockets, 'depthOthers', this.getNumber('RootRoot') ?? 0);
+                pushIfEnabled(partyMode(link.sockets, 'others'), 'depthOthers', this.getNumber('RootRoot') ?? 0);
             }
         }
 

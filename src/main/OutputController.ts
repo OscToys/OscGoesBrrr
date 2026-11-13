@@ -1,5 +1,6 @@
 import type {OutputEndpoint} from './OutputEndpoint';
-import type {OutputConfig} from '../common/configTypes';
+import {isOutputControlType} from './OutputEndpoint';
+import type {OutputSettings} from '../common/configTypes';
 import {planPosition, type PositionPlannerState} from './positionPlanner';
 import {evaluateRoutes, type LinkResult, type ResolvedLink} from './routing';
 import clamp from '../common/clamp';
@@ -19,14 +20,24 @@ export default class OutputController {
 
     getLinkOutputs(inputs: readonly ResolvedLink[], timeDelta: number): LinkResult[] {
         const linear = this.output.type === 'linear';
-        const result = evaluateRoutes(inputs, this.lastSourceValues, timeDelta, !linear);
+        const supportedInputs = isOutputControlType(this.output.type) ? inputs : inputs.map(link => ({...link, inputs: []}));
+        const result = evaluateRoutes(supportedInputs, this.lastSourceValues, timeDelta, !linear);
         this.lastSourceValues = result.nextInputs;
         this.lastLinkValues = result.links.map(link => link.output);
         this.routedOutput = result.output;
         return result.links;
     }
 
-    update(inputs: readonly ResolvedLink[], config: OutputConfig) {
+    update(inputs: readonly ResolvedLink[], settings: OutputSettings) {
+        if (settings.enabled === false || !isOutputControlType(this.output.type)) {
+            this.getLinkOutputs(inputs.map(link => ({...link, inputs: []})), 0);
+            this.positionState = {velocity: 0, lastActiveAt: Date.now()};
+            this.lastPushTime = Date.now();
+            // Zero stops intensity/rotation. A position of zero would move a linear device, not disable it.
+            if (this.output.type === 'vibrate' || this.output.type === 'rotate') this.output.setLevel(0);
+            this.lastLevel = 0;
+            return;
+        }
         const modeChanged = this.lastMotionType !== this.output.type;
         if (modeChanged) {
             this.positionState = {...this.positionState, velocity: 0};
@@ -39,7 +50,7 @@ export default class OutputController {
 
         this.getLinkOutputs(inputs, timeDelta);
         let level = this.routedOutput.output;
-        const motionBasedBackward = this.routedOutput.backward;
+        const backward = this.routedOutput.backward;
 
         if (this.output.type == 'linear') {
             const plan = planPosition(
@@ -47,7 +58,7 @@ export default class OutputController {
                 this.output.lastLevel,
                 timeDelta,
                 now,
-                config.linear,
+                settings.linear,
                 this.positionState,
             );
             if (modeChanged || this.output.lastLevel !== plan.position) {
@@ -58,7 +69,7 @@ export default class OutputController {
             level = clamp(level, 0, 1);
 
             if (this.output.type == 'rotate') {
-                this.output.setLevel(level * (motionBasedBackward ? -1 : 1));
+                this.output.setLevel(level * (backward ? -1 : 1));
             } else {
                 this.output.setLevel(level);
             }

@@ -1,4 +1,4 @@
-import type {IntifaceDeviceHistoryData} from '../../plugins/intiface/main/deviceHistory';
-
-// Extend this union as plugins add persisted device records. Keep the schema explicit.
-export type PluginDeviceHistoryData = IntifaceDeviceHistoryData;
+/** Opaque persisted payloads; owners may augment their own optional fields. */
+export interface PluginDeviceHistoryData {
+    [key: string]: unknown;
+}

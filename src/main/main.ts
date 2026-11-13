@@ -15,7 +15,7 @@ import BackendDataService from './services/BackendDataService';
 import MainWindowService from './services/MainWindowService';
 import LoggerService from './services/LoggerService';
 import {handleIpc} from './ipc';
-import type {SettingsStatePayload} from '../common/ipcContract';
+import type {SettingsStatePayload} from '../common/application/ipcContract';
 import {configurePortableDataPaths} from './portableData';
 
 app.enableSandbox();
@@ -40,10 +40,7 @@ const bridge = Container.get(Bridge);
 const plugins = Container.getMany(Plugin.token);
 const runtime = new PluginRuntime(plugins, {
     getConfig: () => configService.getCached(),
-    getOutputs: () => Array.from(bridge.getOutputs(), ({output}) => ({
-        id: output.id,
-        config: configService.getOutput(output.id),
-    })),
+    getOutputConfigs: () => plugins.flatMap(plugin => Array.from(plugin.getOutputConfigs())),
     handleIpc,
     send: (channel, ...args) => mainWindowService.send(channel, ...args),
 });

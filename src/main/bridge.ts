@@ -1,18 +1,16 @@
 import type {OutputEndpoint} from './OutputEndpoint';
+import type {OutputFrame} from './OutputFrame';
 import OutputController from './OutputController';
-import ConfigService from "./services/ConfigService";
-import {getDefaultOutput} from "../common/configTypes";
-import {collectLinkInputs} from './sourceInputs';
-import {InjectMany, Service} from "typedi";
+import {collectLinkInputs, type LinkInputResolver, type ResolveLinks} from './plugins/linkInputs';
+import {InjectMany, Service} from 'typedi';
 import {Plugin} from './plugins/Plugin';
 
 @Service()
 export default class Bridge {
-    private outputs = new Set<OutputController>();
+    private readonly outputs = new Map<OutputEndpoint, OutputController>();
     private timer?: ReturnType<typeof setInterval>;
 
     constructor(
-        private configService: ConfigService,
         @InjectMany(Plugin.token)
         private readonly plugins: Plugin[],
     ) {}
@@ -26,44 +24,40 @@ export default class Bridge {
         this.timer = undefined;
     }
 
-    getOutputs() {
-        const endpoints = new Set<OutputEndpoint>();
+    private getFrames(): OutputFrame[] {
+        const resolvers = new Map<string, LinkInputResolver>();
         for (const plugin of this.plugins) {
-            for (const endpoint of plugin.getOutputs()) endpoints.add(endpoint);
+            const resolve = plugin.snapshot();
+            if (resolve) resolvers.set(plugin.id, resolve);
         }
-        const existing = new Set<OutputEndpoint>();
-        for (const controller of this.outputs) {
-            if (!endpoints.has(controller.output)) this.outputs.delete(controller);
-            else existing.add(controller.output);
+        const resolveLinks: ResolveLinks = (links, linear) => collectLinkInputs(links, linear, resolvers);
+        return this.plugins.flatMap(plugin => Array.from(plugin.getOutputs(resolveLinks)));
+    }
+
+    private syncOutputs(frames: readonly OutputFrame[]) {
+        const active = new Set(frames.map(frame => frame.output));
+        for (const endpoint of this.outputs.keys()) {
+            if (!active.has(endpoint)) this.outputs.delete(endpoint);
         }
-        for (const endpoint of endpoints) {
-            if (!existing.has(endpoint)) this.outputs.add(new OutputController(endpoint));
+        for (const endpoint of active) {
+            if (!this.outputs.has(endpoint)) this.outputs.set(endpoint, new OutputController(endpoint));
         }
-        return this.outputs;
+    }
+
+    getOutputs() {
+        this.syncOutputs(this.getFrames());
+        return new Set(this.outputs.values());
     }
 
     update() {
+        const frames = this.getFrames();
+        this.syncOutputs(frames);
         let maxLevel = 0;
-        const resolvers = this.plugins.flatMap(plugin => {
-            const resolve = plugin.snapshot();
-            return resolve ? [resolve] : [];
-        });
-        for (const output of this.getOutputs()) {
-            const config = {
-                ...getDefaultOutput(),
-                id: output.output.id,
-                ...this.configService.getOutput(output.output.id),
-            };
-            const inputs = collectLinkInputs(
-                config.links,
-                output.output.type === 'linear',
-                resolvers,
-            );
-            output.update(inputs, config);
-            maxLevel = Math.max(maxLevel, output.lastLevel);
+        for (const frame of frames) {
+            const controller = this.outputs.get(frame.output)!;
+            controller.update(frame.inputs, frame.settings);
+            maxLevel = Math.max(maxLevel, controller.lastLevel);
         }
-
-        for (const plugin of this.plugins) plugin.afterUpdate(maxLevel, this.configService.getCached());
+        for (const plugin of this.plugins) plugin.afterUpdate(maxLevel);
     }
-
 }

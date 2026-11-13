@@ -1,33 +1,20 @@
 import {faBarsStaggered, faCircleNodes} from '@fortawesome/free-solid-svg-icons';
 import type {FrontendPlugin, LinkDefinition} from '../../../frontend/plugins/Plugin';
-import {getDefaultLinks, type OutputLink} from '../../../common/configTypes';
 import VrchatSettingsSection from './VrchatSettingsSection';
 import VrchatLinkEditor from './VrchatLinkEditor';
 import AvatarParams from './AvatarParams';
-
-function summarizeLink(link: OutputLink): string {
-    if (link.kind === 'vrchat.avatarParameter') return link.parameter.trim() || 'Unset';
-    if (!('filter' in link)) return '';
-    const include = link.filter.include.map(value => value.trim()).filter(Boolean);
-    const exclude = link.filter.exclude.map(value => value.trim()).filter(Boolean);
-    if (include.length || exclude.length) return [...include, ...exclude.map(value => `-${value}`)].join(' ');
-    if (link.kind === 'vrchat.sps.plug') return 'All Plugs';
-    if (link.kind === 'vrchat.sps.socket') return 'All Sockets';
-    return 'All Touch Zones';
-}
-
-function isVrchatLink(link: OutputLink): link is Extract<OutputLink, {kind: `vrchat.${string}`}> {
-    return link.kind.startsWith('vrchat.');
-}
+import {summarizeLink} from './LinkSummary';
+import {getDefaultLinks, isVrchatLink, PLUGIN_ID} from '../shared/config';
 
 const modifiers: LinkDefinition['modifiers'] = {
-    kinds: ['scale', 'deadZone', 'motionBased'],
+    kinds: ['scale', 'deadZone'],
     get: link => isVrchatLink(link) ? link.mutators : [],
     set: (link, mutators) => isVrchatLink(link) ? {...link, mutators} : link,
 };
 
 const zoneLabels = ['SPS Plugs', 'SPS Sockets', 'SPS Touch Zones'];
 const links: LinkDefinition[] = getDefaultLinks().map((link, index) => ({
+    plugin: PLUGIN_ID,
     kind: link.kind,
     label: zoneLabels[index]!,
     order: index,
@@ -37,16 +24,19 @@ const links: LinkDefinition[] = getDefaultLinks().map((link, index) => ({
     modifiers,
 }));
 links.push({
+    plugin: PLUGIN_ID,
     kind: 'vrchat.avatarParameter',
     label: 'VRC Avatar Parameter',
     order: 5,
-    create: () => ({kind: 'vrchat.avatarParameter', parameter: '', mutators: []}),
+    create: () => ({plugin: PLUGIN_ID, kind: 'vrchat.avatarParameter', parameter: '', mutators: []}),
     summary: summarizeLink,
     Editor: VrchatLinkEditor,
     modifiers,
 });
 
 export default {
+    id: PLUGIN_ID,
+    name: 'VRChat',
     Settings: VrchatSettingsSection,
     links,
     pages: [

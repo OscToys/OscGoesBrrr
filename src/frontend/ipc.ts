@@ -1,4 +1,4 @@
-import {IpcEventArgs, IpcEventChannel, IpcInvokeArgs, IpcInvokeChannel, IpcInvokeResult} from "../common/ipcContract";
+import {IpcEventArgs, IpcEventChannel, IpcInvokeArgs, IpcInvokeChannel, IpcInvokeResult} from "../common/application/ipcContract";
 
 export function invokeIpc<C extends IpcInvokeChannel>(channel: C, ...args: IpcInvokeArgs<C>): Promise<IpcInvokeResult<C>> {
     return window.ogbIpc.invoke(channel, ...args) as Promise<IpcInvokeResult<C>>;

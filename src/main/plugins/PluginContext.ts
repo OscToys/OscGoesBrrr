@@ -1,16 +1,16 @@
-import type {Config, OutputConfig} from '../../common/configTypes';
+import type {Config, OutputConfig} from '../../common/application/configTypes';
 import type {
     IpcEventArgs,
     IpcEventChannel,
     IpcInvokeArgs,
     IpcInvokeChannel,
     IpcInvokeResult,
-} from '../../common/ipcContract';
+} from '../../common/application/ipcContract';
 
 export interface PluginContext {
     readonly signal: AbortSignal;
     getConfig(): Readonly<Config>;
-    getOutputs(): readonly {id: string; config: OutputConfig | undefined}[];
+    getOutputConfigs(): readonly OutputConfig[];
     handleIpc<C extends IpcInvokeChannel>(
         channel: C,
         handler: (...args: IpcInvokeArgs<C>) => IpcInvokeResult<C> | Promise<IpcInvokeResult<C>>,

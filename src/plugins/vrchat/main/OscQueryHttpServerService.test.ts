@@ -14,6 +14,7 @@ function runtimeForPort(port: number) {
         {get: () => ({log() {}})} as unknown as ConstructorParameters<typeof OscQueryHttpServerService>[1],
     );
     class HttpPlugin extends Plugin {
+    readonly id = 'test.HttpPlugin';
         override async start(context: PluginContext) { await service.start(context); }
     }
     return new PluginRuntime([new HttpPlugin()], createPluginHost().host);

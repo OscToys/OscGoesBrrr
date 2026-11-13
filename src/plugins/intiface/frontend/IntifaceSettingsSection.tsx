@@ -9,12 +9,14 @@ import {useAtom, useAtomValue} from "jotai";
 import {selectAtom} from "jotai/utils";
 
 import type {PluginSettingsProps} from '../../../frontend/plugins/Plugin';
-import {focusKeyAtom} from '../../../frontend/utils/atomUtils';
+import {focusKeyAtom, pluginConfigAtom} from '../../../frontend/utils/atomUtils';
+import {PLUGIN_ID, type IntifaceConfig} from '../shared/config';
 
 function IntifaceSettingsSection({configAtom}: PluginSettingsProps) {
+    const settingsAtom = React.useMemo(() => pluginConfigAtom<IntifaceConfig>(configAtom, PLUGIN_ID), [configAtom]);
     const [expanded, onChange] = React.useState(false);
-    const intifaceAddressAtom = React.useMemo(() => focusKeyAtom(configAtom, 'intifaceAddress'), [configAtom]);
-    const useIntifaceMdnsAtom = React.useMemo(() => focusKeyAtom(configAtom, 'useIntifaceMdns'), [configAtom]);
+    const intifaceAddressAtom = React.useMemo(() => focusKeyAtom(settingsAtom, 'intifaceAddress'), [settingsAtom]);
+    const useIntifaceMdnsAtom = React.useMemo(() => focusKeyAtom(settingsAtom, 'useIntifaceMdns'), [settingsAtom]);
     const settingsStateAtom = useSettingsStateAtom();
     const intifaceConnected = useAtomValue(
         React.useMemo(() => selectAtom(settingsStateAtom, (state) => state.intifaceConnected), [settingsStateAtom]),

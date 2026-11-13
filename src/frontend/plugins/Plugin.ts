@@ -8,8 +8,9 @@ import type {
     InputModifierKind,
     OutputLink,
     OutputLinkKind,
-} from '../../common/configTypes';
-import type {OutputDeviceInfo, SettingsStatePayload} from '../../common/ipcContract';
+    OutputConfig,
+} from '../../common/application/configTypes';
+import type {OutputDeviceInfo, SettingsStatePayload} from '../../common/application/ipcContract';
 
 export interface OutputPresentation {
     name?: string;
@@ -30,12 +31,19 @@ export interface LinkEditorProps {
     linkAtom: PrimitiveAtom<OutputLink>;
 }
 
+export interface OutputEditorProps {
+    outputAtom: PrimitiveAtom<OutputConfig>;
+    infoAtom: Atom<OutputDeviceInfo | undefined>;
+}
+
 export interface LinkDefinition {
+    plugin: string;
     kind: OutputLinkKind;
     label: string;
     order: number;
     create(): OutputLink;
-    summary(link: OutputLink): string;
+    title?(link: OutputLink): ReactNode;
+    summary(link: OutputLink): ReactNode;
     Editor?: ComponentType<LinkEditorProps>;
     modifiers?: {
         kinds: readonly InputModifierKind[];
@@ -52,6 +60,10 @@ export interface PluginPage {
 }
 
 export interface FrontendPlugin {
+    id: string;
+    name: string;
+    createOutput?(id: string): OutputConfig;
+    OutputEditor?: ComponentType<OutputEditorProps>;
     Settings?: ComponentType<PluginSettingsProps>;
     Runtime?: ComponentType;
     links?: readonly LinkDefinition[];

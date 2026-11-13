@@ -5,15 +5,17 @@ import PluginRuntime from '../../../main/plugins/PluginRuntime';
 import {createPluginHost} from '../../../main/plugins/testHost';
 import AvatarZone from './AvatarZone';
 import OutputController from '../../../main/OutputController';
-import {collectLinkInputs} from '../../../main/sourceInputs';
+import {collectLinkInputs, type LinkInputResolver} from '../../../main/plugins/linkInputs';
+import {getDefaultConfig} from '../../../common/application/configuration';
 import VrchatPlugin, {decodeZoneFormat, resolveVrchatLink} from './VrchatPlugin';
 import type OscConnection from './OscConnection';
 import type {OscValue} from './OscConnection';
 import type {OutputEndpoint} from '../../../main/OutputEndpoint';
 import TypedEventEmitter from '../../../common/TypedEventEmitter';
-import {getDefaultLinks, type OutputConfig, type OutputLink} from '../../../common/configTypes';
+import {getDefaultLinks, type OutputConfig, type OutputLink} from '../../../common/application/configTypes';
+import {createInteraction, isVrchatLink, type ZoneLink} from '../shared/config';
 
-async function createPlugin(osc: Connection, t: TestContext) {
+async function createPlugin(osc: Connection, t: TestContext, getConfig = getDefaultConfig) {
     const plugin = new VrchatPlugin(
         osc as unknown as OscConnection,
         {start() {}} as unknown as ConstructorParameters<typeof VrchatPlugin>[1],
@@ -21,13 +23,14 @@ async function createPlugin(osc: Connection, t: TestContext) {
         {start() {}} as unknown as ConstructorParameters<typeof VrchatPlugin>[3],
     );
     const {host} = createPluginHost();
+    host.getConfig = getConfig;
     const runtime = new PluginRuntime([plugin], host);
     t.after(() => runtime.stop());
     await runtime.start();
     return plugin;
 }
 
-type SpsLink = Extract<OutputLink, {kind: 'vrchat.sps.plug' | 'vrchat.sps.socket' | 'vrchat.sps.touch'}>;
+type SpsLink = ZoneLink;
 
 class Value extends TypedEventEmitter<{change: (oldValue: unknown, newValue: unknown) => void}> {
     constructor(private value: unknown) { super(); }
@@ -39,11 +42,17 @@ class Value extends TypedEventEmitter<{change: (oldValue: unknown, newValue: unk
     }
 }
 
-function link(kind: SpsLink['kind']): SpsLink {
+function link(kind: SpsLink['kind'], movement = false): SpsLink {
     const result = getDefaultLinks().find((item): item is SpsLink => item.kind === kind)!;
-    result.ownHands = result.otherHands = true;
-    if (result.kind === 'vrchat.sps.plug') result.mySockets = result.otherSockets = result.otherPlugs = true;
-    if (result.kind === 'vrchat.sps.socket') result.myPlugs = result.otherPlugs = result.otherSockets = true;
+    result.hands = createInteraction(true, true, movement ? 'movement' : 'proximity');
+    if (result.kind === 'vrchat.sps.plug') {
+        result.sockets = createInteraction(true, true, 'proximity');
+        result.plugs = createInteraction(false, true, movement ? 'movement' : 'proximity');
+    }
+    if (result.kind === 'vrchat.sps.socket') {
+        result.plugs = createInteraction(true, true, 'proximity');
+        result.sockets = createInteraction(false, true, movement ? 'movement' : 'proximity');
+    }
     return result;
 }
 
@@ -63,7 +72,7 @@ function device(type: string, initial: Record<string, unknown> = {}, isTps = fal
     for (const [key, value] of Object.entries(initial)) set(key, value);
     const source = (key: string) => {
         const kind = output.type === 'plug' ? 'vrchat.sps.plug' : output.type === 'socket' ? 'vrchat.sps.socket' : 'vrchat.sps.touch';
-        return output.getSources(link(kind)).find(item => item.id.endsWith('/' + key))!;
+        return output.getSources(link(kind, true)).find(item => item.id.endsWith('/' + key))!;
     };
     return {output, set, source};
 }
@@ -176,9 +185,15 @@ for (const [type, contact, source] of [
     ['Pen', 'TouchOthers', 'touchOthers'], ['Orf', 'TouchSelf', 'touchSelf'], ['Orf', 'FrotOthers', 'frotOthers'],
 ] as const) {
     test(`${type}/${contact} uses magnitude exclusively when present, including zero and missing contact`, () => {
-        const zone = device(type, {[contact]: 0.9, [contact + '_SenderVelocityMagnitude']: 0.4});
+        const zone = device(type, {[contact]: 0.9, [contact + 'Close']: true, [contact + '_SenderVelocityMagnitude']: 0.4});
         near(zone.source(source).value, 0.4);
         assert.equal(zone.source(source).kind, 'speed');
+        const proximity = zone.output.getSources(link(`vrchat.sps.${zone.output.type}`))
+            .find(input => input.id.endsWith('/' + source))!;
+        near(proximity.value, 0.9);
+        assert.equal(proximity.kind, 'position');
+        assert.equal(proximity.movement, false);
+        assert.equal(zone.source(source).movement, true);
         for (const speed of [0, undefined, -1, NaN, Infinity]) {
             zone.set(contact + '_SenderVelocityMagnitude', speed);
             assert.equal(zone.source(source).value, 0);
@@ -238,7 +253,6 @@ test('new contacts without magnitude can still use proximity and existing ID fil
 
 function outputFor() {
     return new OutputController({
-        id: 'Test',
         type: 'vibrate',
         lastLevel: 0,
         setLevel() {},
@@ -246,9 +260,12 @@ function outputFor() {
 }
 
 function linkResults(output: OutputController, zones: AvatarZone[], config: OutputConfig) {
-    const inputs = collectLinkInputs(config.links, output.output.type === 'linear', [
-        (link, index, linear) => resolveVrchatLink(link, index, linear, zones, new Map()),
-    ]);
+    const inputs = collectLinkInputs(config.links, output.output.type === 'linear', new Map<string, LinkInputResolver>([
+        ['vrchat', (link, index, linear) => isVrchatLink(link) ? {
+            inputs: resolveVrchatLink(link, index, linear, zones, new Map()) ?? [],
+            modifiers: link.mutators,
+        } : undefined],
+    ]));
     return output.getLinkOutputs(inputs, 100);
 }
 
@@ -326,8 +343,8 @@ for (const type of ['Pen', 'Orf']) {
         assert.equal(samples.length, 1);
         near(samples[0]!.value, type === 'Pen' ? 0.3 : 0.7);
         assert.equal(samples[0]!.kind, 'position');
-        if (selection.kind === 'vrchat.sps.plug') selection.otherSockets = false;
-        else if (selection.kind === 'vrchat.sps.socket') selection.otherPlugs = false;
+        if (selection.kind === 'vrchat.sps.plug') selection.sockets.mode = 'off';
+        else if (selection.kind === 'vrchat.sps.socket') selection.plugs.mode = 'off';
         assert.deepEqual(zone.output.getSources(selection), []);
         selection.filter.exclude = ['Test'];
         assert.deepEqual(zone.output.getSources(selection), []);
@@ -339,21 +356,30 @@ for (const type of ['Pen', 'Orf', 'Plug', 'Socket', 'Touch']) {
         const zone = device(type);
         const selection = link(type === 'Touch' ? 'vrchat.sps.touch'
             : zone.output.type === 'plug' ? 'vrchat.sps.plug' : 'vrchat.sps.socket');
-        const pairs = [['ownHands', 'touchSelf'], ['otherHands', 'touchOthers'],
-            ...(selection.kind === 'vrchat.sps.plug'
-                ? [['mySockets', 'depthSelf'], ['otherSockets', 'depthOthers'], ['otherPlugs', 'frotOthers']]
-                : selection.kind === 'vrchat.sps.socket'
-                    ? [['myPlugs', 'depthSelf'], ['otherPlugs', 'depthOthers'], ['otherSockets', 'frotOthers']] : [])];
-        for (const [option, key] of pairs as [string, string][]) {
-            const disabled = {...selection, [option]: false};
-            const sources = zone.output.getSources(disabled);
-            assert.equal(sources.length, pairs.length - 1);
-            assert.ok(sources.every(source => !source.id.endsWith('/' + key)));
+        const allSources = zone.output.getSources(selection);
+        const groups = selection.kind === 'vrchat.sps.touch' ? ['hands'] as const : ['hands', 'plugs', 'sockets'] as const;
+        for (const group of groups) {
+            const interaction = group === 'hands' ? selection.hands : 'plugs' in selection ? selection[group] : undefined;
+            if (!interaction) throw new Error('Missing interaction');
+            const matching = group !== 'hands' && selection.kind === `vrchat.sps.${group === 'plugs' ? 'plug' : 'socket'}`;
+            const keys = group === 'hands' ? ['touchSelf', 'touchOthers']
+                : matching ? ['frotOthers'] : ['depthSelf', 'depthOthers'];
+            const disabled = {...selection, [group]: {...interaction, mode: 'off'}};
+            assert.equal(zone.output.getSources(disabled).length, allSources.length - keys.length);
+            for (const [party, key] of [['self', keys[0]], ['others', keys[1]]] as const) {
+                const withoutParty = {...selection, [group]: {...interaction, [party]: false}};
+                const sources = zone.output.getSources(withoutParty);
+                if (matching) assert.deepEqual(sources, allSources, 'Matching types ignore party flags');
+                else {
+                    assert.equal(sources.length, allSources.length - 1);
+                    assert.ok(sources.every(source => !source.id.endsWith('/' + key)));
+                }
+            }
         }
         selection.filter.include = ['Other'];
         assert.deepEqual(zone.output.getSources(selection), []);
         selection.filter.include = [' Test '];
-        assert.equal(zone.output.getSources(selection).length, pairs.length);
+        assert.equal(zone.output.getSources(selection).length, allSources.length);
         selection.filter.exclude = [' Test '];
         assert.deepEqual(zone.output.getSources(selection), []);
     });
@@ -371,9 +397,8 @@ for (const type of ['Plug', 'Socket', 'Pen', 'Orf', 'Touch']) {
             const zone = device(type, initial);
             const selection = link(type === 'Touch' ? 'vrchat.sps.touch'
                 : zone.output.type === 'plug' ? 'vrchat.sps.plug' : 'vrchat.sps.socket');
-            const config: OutputConfig = {id: 'Test', links: [selection]};
+            const config: OutputConfig = {plugin: 'intiface', id: 'Test', links: [selection]};
             const linear = new OutputController({
-        id: 'Test',
         type: 'linear',
         lastLevel: 0,
         setLevel() {},
@@ -394,26 +419,118 @@ for (const type of ['Plug', 'Socket', 'Pen', 'Orf', 'Touch']) {
     }
 }
 
-test('velocity-based sources bypass only motion mutation while preserving scale and dead zone', () => {
+test('movement velocity sources preserve scale and dead zone', () => {
     const plug = device('Plug', {TouchOthers: 1, TouchOthers_SenderVelocityMagnitude: 0.4});
-    const selection = link('vrchat.sps.plug');
-    selection.mutators = [{kind: 'motionBased'}, {kind: 'deadZone', level: 0.2}, {kind: 'scale', scale: 2}];
-    const config: OutputConfig = {id: 'Test', links: [selection]};
+    const selection = link('vrchat.sps.plug', true);
+    selection.mutators = [{kind: 'deadZone', level: 0.2}, {kind: 'scale', scale: 2}];
+    const config: OutputConfig = {plugin: 'intiface', id: 'Test', links: [selection]};
     const output = outputFor();
     for (let i = 0; i < 4; i++) near(linkResults(output, [plug.output], config)[0]!.output, 0.5);
     plug.set('TouchOthers_SenderVelocityMagnitude', 0);
     assert.equal(linkResults(output, [plug.output], config)[0]!.output, 0);
 });
 
-test('motion mutation still differentiates penetration on the same new-format link', () => {
+test('movement mode differentiates penetration without a link-wide motion modifier', () => {
     const plug = device('Plug', {LengthMult1: 0.01, LengthMult2: 40, DepthOthers: 1, DepthOthers_PointSeparation: 0.2});
     const selection = link('vrchat.sps.plug');
-    selection.mutators = [{kind: 'motionBased'}];
-    const config: OutputConfig = {id: 'Test', links: [selection]};
+    if (selection.kind !== 'vrchat.sps.plug') throw new Error('Expected plug link');
+    selection.sockets.mode = 'movement';
+    const config: OutputConfig = {plugin: 'intiface', id: 'Test', links: [selection]};
     const output = outputFor();
     near(linkResults(output, [plug.output], config)[0]!.output, 0);
     plug.set('DepthOthers_PointSeparation', 0.1);
     near(linkResults(output, [plug.output], config)[0]!.output, 0.5);
+});
+
+for (const type of ['Plug', 'Socket']) {
+    for (const self of [false, true]) {
+        test(`${type} ${self ? 'self' : 'others'} depth Movement uses native velocity, not depth changes`, () => {
+            const contact = self ? 'DepthSelf' : 'DepthOthers';
+            const zone = device(type, {
+                LengthMult1: 1,
+                LengthMult2: 0.4,
+                [contact]: 1,
+                [contact + '_PointSeparation']: 0.3,
+                [contact + '_SenderLossyScaleZ']: 0.4,
+                [contact + '_CollisionTag_SPS/Plug/test']: true,
+                [contact + '_SenderVelocityMagnitude']: 0.6,
+            });
+            const selection = link(`vrchat.sps.${zone.output.type}`);
+            if (selection.kind === 'vrchat.sps.touch') throw new Error('Expected depth link');
+            const interaction = createInteraction(self, !self, 'movement');
+            selection.hands.mode = 'off';
+            if (selection.kind === 'vrchat.sps.plug') {
+                selection.sockets = interaction;
+                selection.plugs.mode = 'off';
+            } else {
+                selection.plugs = interaction;
+                selection.sockets.mode = 'off';
+            }
+            const config: OutputConfig = {plugin: 'intiface', id: 'Test', links: [selection]};
+            const output = outputFor();
+            const read = () => linkResults(output, [zone.output], config)[0]!.output;
+            near(read(), 0.6);
+            near(read(), 0.6);
+            const linear = new OutputController({type: 'linear', lastLevel: 0, setLevel() {}});
+            near(linkResults(linear, [zone.output], config)[0]!.output, 0.25);
+            interaction.mode = 'proximity';
+            near(read(), 0.25);
+            interaction.mode = 'movement';
+            for (const velocity of [0, undefined, -1, NaN, Infinity]) {
+                zone.set(contact + '_SenderVelocityMagnitude', velocity);
+                zone.set(contact + '_PointSeparation', 0.1);
+                near(read(), 0);
+                assert.equal(zone.output.getSources(selection)[0]!.kind, 'speed');
+            }
+            zone.set(contact + '_SenderVelocityMagnitude', 0.8);
+            zone.set(contact, 0);
+            near(read(), 0);
+            zone.set(contact, 1);
+            near(read(), 0.8);
+            interaction.mode = 'off';
+            near(read(), 0);
+        });
+    }
+}
+
+for (const type of ['Pen', 'Orf', 'Plug', 'Socket', 'Touch']) {
+    test(`${type} movement falls back to proximity derivatives and mode changes do not spike`, () => {
+        const contact = type === 'Touch' ? 'Others' : 'TouchOthers';
+        const zone = device(type, {[contact]: 0.4, [contact + 'Close']: true});
+        const selection = link(`vrchat.sps.${zone.output.type}`, true);
+        const config: OutputConfig = {plugin: 'intiface', id: 'Test', links: [selection]};
+        const output = outputFor();
+        const read = () => linkResults(output, [zone.output], config)[0]!.output;
+        near(read(), 0);
+        zone.set(contact, 0.65);
+        near(read(), 0.5);
+        near(read(), 0);
+        selection.hands.mode = 'proximity';
+        near(read(), 0.65);
+        near(read(), 0.65);
+        selection.hands.mode = 'off';
+        near(read(), 0);
+        selection.hands.mode = 'movement';
+        near(read(), 0);
+    });
+}
+
+test('movement hands and proximity penetration coexist on a single link', () => {
+    const zone = device('Pen', {
+        TouchOthers: 0.9,
+        TouchOthersClose: true,
+        TouchOthers_SenderVelocityMagnitude: 0.4,
+        PenOthers: 0.6,
+    });
+    const selection = link('vrchat.sps.plug', true);
+    if (selection.kind !== 'vrchat.sps.plug') throw new Error('Expected plug link');
+    const config: OutputConfig = {plugin: 'intiface', id: 'Test', links: [selection]};
+    const output = outputFor();
+    near(linkResults(output, [zone.output], config)[0]!.output, 0.6);
+    selection.sockets.mode = 'movement';
+    near(linkResults(output, [zone.output], config)[0]!.output, 0.4);
+    selection.hands.mode = 'proximity';
+    near(linkResults(output, [zone.output], config)[0]!.output, 0.9);
 });
 
 class Connection extends TypedEventEmitter<{add: (key: string, value: OscValue) => void; clear: () => void}> {
@@ -432,18 +549,78 @@ class Connection extends TypedEventEmitter<{add: (key: string, value: OscValue) 
     clear() { this.values.clear(); this.emit('clear'); }
 }
 
+for (const [type, contact, key] of [
+    ['Plug', 'TouchOthers', 'touchOthers'],
+    ['Socket', 'FrotOthers', 'frotOthers'],
+    ['Touch', 'Others', 'touchOthers'],
+    ['Plug', 'DepthOthers', 'depthOthers'],
+    ['Socket', 'DepthSelf', 'depthSelf'],
+] as const) {
+    test(`${type}/${contact} native velocity is normalized to 1.5 m eye height`, () => {
+        const zone = device(type, {
+            [contact]: 1,
+            [contact + '_SenderVelocityMagnitude']: 0.4,
+            [contact + '_PointSeparation']: 0.2,
+            [contact + '_SenderLossyScaleZ']: 0.4,
+            [contact + '_CollisionTag_SPS/Plug/test']: true,
+            LengthMult1: 1,
+            LengthMult2: 0.4,
+        });
+        const selection = link(`vrchat.sps.${zone.output.type}`, true);
+        if (selection.kind === 'vrchat.sps.plug') selection.sockets.mode = 'movement';
+        if (selection.kind === 'vrchat.sps.socket') selection.plugs.mode = 'movement';
+        const read = (height: unknown) => resolveVrchatLink(
+            selection,
+            0,
+            false,
+            [zone.output],
+            new Map([['EyeHeightAsMeters', height]]),
+        )!.find(source => source.id.endsWith('/' + key))!;
+        for (const [height, expected] of [[0.75, 0.8], [1.5, 0.4], [3, 0.2]] as const) {
+            const sample = read(height);
+            assert.equal(sample.kind, 'speed');
+            near(sample.value, expected);
+        }
+        for (const invalid of [undefined, 0, -1, NaN, Infinity, '3']) near(read(invalid).value, 0.4);
+        selection.hands.mode = 'proximity';
+        if (selection.kind !== 'vrchat.sps.touch') selection.plugs.mode = selection.sockets.mode = 'proximity';
+        const expectedPosition = contact.startsWith('Depth') ? 0.5 : 1;
+        near(read(0.75).value, expectedPosition);
+        near(read(3).value, expectedPosition);
+    });
+}
+
+test('eye-height updates are live, snapshot-consistent, and reset on avatar change', async t => {
+    const osc = new Connection();
+    const adapter = await createPlugin(osc, t);
+    const selection = link('vrchat.sps.touch', true);
+    const read = (snapshot = adapter.snapshot()) => snapshot(selection, 0, false)!.inputs[1]!.value;
+    osc.set('OGB/Touch/Test/Others', 1);
+    osc.set('OGB/Touch/Test/Others_SenderVelocityMagnitude', 0.4);
+    near(read(), 0.4);
+    osc.set('EyeHeightAsMeters', 1.5);
+    const snapshot = adapter.snapshot();
+    osc.set('EyeHeightAsMeters', 3);
+    near(read(), 0.2);
+    near(read(snapshot), 0.4);
+    osc.clear();
+    osc.set('OGB/Touch/Test/Others', 1);
+    osc.set('OGB/Touch/Test/Others_SenderVelocityMagnitude', 0.4);
+    near(read(), 0.4);
+});
+
 test('VRChat adapter snapshots arbitrary parameters independently of subsequent OSC changes', async t => {
     const osc = new Connection();
     const adapter = await createPlugin(osc, t);
     osc.set('custom', 0.4);
-    const parameter: OutputLink = {kind: 'vrchat.avatarParameter', parameter: ' custom ', mutators: []};
+    const parameter: OutputLink = {plugin: 'vrchat', kind: 'vrchat.avatarParameter', parameter: ' custom ', mutators: []};
     const snapshot = adapter.snapshot();
     osc.set('custom', true);
-    assert.equal(snapshot(parameter, 0, false)?.[0]?.value, 0.4);
-    assert.equal(adapter.snapshot()(parameter, 0, false)?.[0]?.value, 1);
+    assert.equal(snapshot(parameter, 0, false)?.inputs[0]?.value, 0.4);
+    assert.equal(adapter.snapshot()(parameter, 0, false)?.inputs[0]?.value, 1);
     osc.clear();
-    assert.equal(adapter.snapshot()(parameter, 0, false)?.[0]?.value, 0);
-    assert.equal(snapshot({kind: 'constant', level: 1}, 0, false), undefined);
+    assert.equal(adapter.snapshot()(parameter, 0, false)?.inputs[0]?.value, 0);
+    assert.equal(snapshot({plugin: 'constant', kind: 'constant', level: 1}, 0, false), undefined);
 });
 
 test('VRChat startup is explicit and shutdown detaches discovery, contact listeners and IPC', async () => {
@@ -483,17 +660,12 @@ test('VRChat plugin reports combined level only to the configured avatar paramet
         clearDeltas: () => { clears++; },
         send: (parameter: string, value: number) => { sent.push([parameter, value]); },
     });
-    const plugin = await createPlugin(osc, t);
-    const config = {
-        version: 4,
-        useIntifaceMdns: true,
-        useOscQuery: true,
-        oscProxy: [],
-        outputs: [],
-    };
-    plugin.afterUpdate(0.4, config);
+    const config = getDefaultConfig();
+    const plugin = await createPlugin(osc, t, () => config);
+    plugin.afterUpdate(0.4);
     assert.deepEqual(sent, []);
-    plugin.afterUpdate(0.6, {...config, maxLevelParam: 'AvatarLevel'});
+    config.plugins['vrchat']!['maxLevelParam'] = 'AvatarLevel';
+    plugin.afterUpdate(0.6);
     assert.deepEqual(sent, [['AvatarLevel', 0.6]]);
     assert.equal(clears, 2);
 });
@@ -560,27 +732,27 @@ test('VRChat adapter accepts both namespace generations, preserves slash-contain
 });
 
 for (const format of [
-    {prefix: 'TPS_Internal/Pen', fields: {RootRoot: 0.4}, kind: 'vrchat.sps.plug'},
-    {prefix: 'TPS_Internal/Orf', fields: {Depth_In: 0.4}, kind: 'vrchat.sps.socket'},
-    {prefix: 'OGB/Pen', fields: {PenOthers: 0.4}, kind: 'vrchat.sps.plug'},
-    {prefix: 'OGB/Orf', fields: {PenOthers: 0.4, PenOthersClose: true}, kind: 'vrchat.sps.socket'},
+    {prefix: 'TPS_Internal/Pen', fields: {RootRoot: 0.4}, plugin: 'vrchat', kind: 'vrchat.sps.plug'},
+    {prefix: 'TPS_Internal/Orf', fields: {Depth_In: 0.4}, plugin: 'vrchat', kind: 'vrchat.sps.socket'},
+    {prefix: 'OGB/Pen', fields: {PenOthers: 0.4}, plugin: 'vrchat', kind: 'vrchat.sps.plug'},
+    {prefix: 'OGB/Orf', fields: {PenOthers: 0.4, PenOthersClose: true}, plugin: 'vrchat', kind: 'vrchat.sps.socket'},
     {prefix: 'OGB/Plug', fields: {DepthOthers: 1, DepthOthers_PointSeparation: 0.6,
-        LengthMult1: 0.01, LengthMult2: 100}, kind: 'vrchat.sps.plug'},
+        LengthMult1: 0.01, LengthMult2: 100}, plugin: 'vrchat', kind: 'vrchat.sps.plug'},
     {prefix: 'OGB/Socket', fields: {DepthOthers: 1, DepthOthers_PointSeparation: 0.6,
-        DepthOthers_SenderLossyScaleZ: 1, 'DepthOthers_CollisionTag_SPS/Plug/channel/with/slashes': true}, kind: 'vrchat.sps.socket'},
-    {prefix: 'OGB/Touch', fields: {Others: 0.4}, kind: 'vrchat.sps.touch'},
-    {prefix: 'VFH/Zone/Touch', fields: {Others: 0.4}, kind: 'vrchat.sps.touch'},
-    {prefix: 'OGB/Touch', fields: {Others: 1, Others_SenderVelocityMagnitude: 0.4}, kind: 'vrchat.sps.touch'},
-] satisfies {prefix: string; fields: Record<string, unknown>; kind: SpsLink['kind']}[]) {
+        DepthOthers_SenderLossyScaleZ: 1, 'DepthOthers_CollisionTag_SPS/Plug/channel/with/slashes': true}, plugin: 'vrchat', kind: 'vrchat.sps.socket'},
+    {prefix: 'OGB/Touch', fields: {Others: 0.4}, plugin: 'vrchat', kind: 'vrchat.sps.touch'},
+    {prefix: 'VFH/Zone/Touch', fields: {Others: 0.4}, plugin: 'vrchat', kind: 'vrchat.sps.touch'},
+    {prefix: 'OGB/Touch', fields: {Others: 1, Others_SenderVelocityMagnitude: 0.4}, plugin: 'vrchat', kind: 'vrchat.sps.touch'},
+] satisfies {plugin: string; prefix: string; fields: Record<string, unknown>; kind: SpsLink['kind']}[]) {
     test(`${format.prefix} OSC ingress through routing, updates, and avatar clear`, async t => {
         const osc = new Connection();
         const bridge = await createPlugin(osc, t);
         for (const [key, value] of Object.entries(format.fields)) osc.set(`${format.prefix}/Test/${key}`, value);
-        const selection = link(format.kind);
-        const config: OutputConfig = {id: 'Test', links: [selection]};
+        const selection = link(format.kind, Object.keys(format.fields).some(key => key.endsWith('_SenderVelocityMagnitude')));
+        const config: OutputConfig = {plugin: 'intiface', id: 'Test', links: [selection]};
         const output = outputFor();
         const read = () => output.getLinkOutputs(
-            collectLinkInputs(config.links, false, [bridge.snapshot()]), 100)[0]!.output;
+            collectLinkInputs(config.links, false, new Map([['vrchat', bridge.snapshot()]])), 100)[0]!.output;
         near(read(), 0.4);
         // Modify an existing OSC entry, rather than merely constructing initial samples.
         const [firstKey, firstValue] = Object.entries(format.fields)[0]!;

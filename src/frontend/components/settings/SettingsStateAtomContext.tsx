@@ -1,6 +1,6 @@
 import React from "react";
 import type {PrimitiveAtom} from "jotai";
-import type {SettingsStatePayload} from "../../../common/ipcContract";
+import type {SettingsStatePayload} from "../../../common/application/ipcContract";
 
 const SettingsStateAtomContext = React.createContext<PrimitiveAtom<SettingsStatePayload> | null>(null);
 

@@ -6,7 +6,7 @@ import {Service} from "typedi";
 import got from "got";
 import typia from "typia";
 import VrchatLogFinder from "./VrchatLogFinder";
-import {OscqueryStatus} from "../../../common/ipcContract";
+import type {OscqueryStatus} from '../shared/ipc';
 import MdnsRegistryService from "../../../main/services/MdnsRegistryService";
 import type {PluginContext} from '../../../main/plugins/PluginContext';
 import {poll} from '../../../main/plugins/poll';

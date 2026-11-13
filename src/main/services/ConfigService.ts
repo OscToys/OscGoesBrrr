@@ -1,44 +1,43 @@
 import {Service} from "typedi";
-import {Config, OutputConfig} from "../../common/configTypes";
+import '../../common/application/registerPlugins';
+import {Config} from "../../common/application/configTypes";
 import path from 'path';
 import {app, shell} from 'electron';
-import typia from "typia";
 import {freeze, type Draft} from "immer";
 import AbstractJsonStateService, {type NormalizeSource} from "./AbstractJsonStateService";
 import MainWindowService from "./MainWindowService";
 import {handleIpc} from "../ipc";
-import LegacyTxtConfigImportService from "../plugins/LegacyTxtConfigImportService";
-import {normalizeConfigDraft} from "./configNormalization";
-import {getDefaultConfig, upgradeConfig} from "../../common/plugins/configuration";
+import {getDefaultConfig, normalizePluginConfig, upgradeConfig} from "../../common/application/configuration";
+import {parseConfig} from '../plugins/configValidation';
 
 @Service()
 export default class ConfigService extends AbstractJsonStateService<Config> {
     private static readonly DEFAULT_CONFIG = freeze(getDefaultConfig(), true);
 
     constructor(
-        private readonly legacyTxtConfigImportService: LegacyTxtConfigImportService,
         private readonly mainWindowService: MainWindowService,
     ) {
         super(
             path.join(app.getPath('userData'), 'config.json'),
             ConfigService.DEFAULT_CONFIG,
-            (raw) => typia.assert<Config>(raw),
+            parseConfig,
             upgradeConfig,
         );
         this.on('changed', () => this.sendCurrentConfig());
         this.registerIpcHandlers();
     }
 
-    getOutput(id: string): OutputConfig | undefined {
-        return this.getCached().outputs.find(t => t.id === id);
-    }
-
     protected override normalizeDraft(draft: Draft<Config>, source: NormalizeSource): void {
-        normalizeConfigDraft(draft, source);
+        normalizePluginConfig(draft, source);
     }
 
-    protected override async handleMissingFile(): Promise<Config | undefined> {
-        return await this.legacyTxtConfigImportService.migrateFromLegacy();
+    protected override getVersionKey(raw: unknown): string | undefined {
+        if (raw === null || typeof raw !== 'object') return undefined;
+        const config = raw as Partial<Config>;
+        return JSON.stringify({
+            version: config.version,
+            plugins: Object.keys(config.plugins ?? {}).sort().map(id => [id, config.plugins?.[id]?.version]),
+        });
     }
 
     private sendCurrentConfig() {
@@ -53,7 +52,7 @@ export default class ConfigService extends AbstractJsonStateService<Config> {
         });
 
         handleIpc('config:set', async (newConfig) => {
-            const validatedConfig = typia.assert<Config>(newConfig);
+            const validatedConfig = parseConfig(newConfig);
             await this.mutate(validatedConfig);
         });
 

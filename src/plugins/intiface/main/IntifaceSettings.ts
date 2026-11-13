@@ -8,10 +8,10 @@ import {
 import ConfigService from '../../../main/services/ConfigService';
 import BackendDataService from '../../../main/services/BackendDataService';
 import {isIntifaceDeviceHistory} from './deviceHistory';
-import ImportedOutputPromotionService from './ImportedOutputPromotionService';
 import MyAddressesService from '../../../main/services/MyAddressesService';
 import type OutputController from '../../../main/OutputController';
-import type {SettingsStatePayload} from '../../../common/ipcContract';
+import type {SettingsStatePayload} from '../../../common/application/ipcContract';
+import {getOutput, getSettings, PLUGIN_ID} from '../shared/config';
 
 @Service()
 export default class IntifaceSettings {
@@ -19,7 +19,6 @@ export default class IntifaceSettings {
         private readonly intiface: Intiface,
         private readonly configService: ConfigService,
         private readonly backendDataService: BackendDataService,
-        private readonly importedOutputPromotionService: ImportedOutputPromotionService,
         private readonly myAddressesService: MyAddressesService,
     ) {}
 
@@ -28,18 +27,16 @@ export default class IntifaceSettings {
             intiface,
             configService,
             backendDataService,
-            importedOutputPromotionService,
             myAddressesService,
         } = this;
         const intifaceConnected = intiface.wsReady();
         const intifaceAddressOffSubnet = isFixedIntifaceAddressOffSubnet(
-            configService.getCached().intifaceAddress,
+            getSettings(configService.getCached()).intifaceAddress,
             myAddressesService,
         );
         const history = await backendDataService.getAllDeviceHistory();
-        await importedOutputPromotionService.cleanupExpiredImportedOutputs();
-        const importedDeletesAt = await importedOutputPromotionService.getImportedDeletesAt();
         const result = new Map<string, {
+            plugin: string,
             id: string,
             name: string,
             connected: boolean,
@@ -61,7 +58,7 @@ export default class IntifaceSettings {
             return trimmed.length > 0 ? trimmed : undefined;
         };
 
-        const configuredOutputIds = new Set(configService.getCached().outputs.map(output => output.id));
+        const configuredOutputIds = new Set(configService.getCached().outputs.filter(output => output.plugin === PLUGIN_ID).map(output => output.id));
 
         // Add configured history first as disconnected.
         const getNaming = (feature: IntifaceDeviceFeatureSelection, id: string) => {
@@ -78,11 +75,12 @@ export default class IntifaceSettings {
             if (!isIntifaceDeviceHistory(id, item)) continue;
             if (!configuredOutputIds.has(id)) continue;
             result.set(id, {
+                plugin: PLUGIN_ID,
                 id,
                 name: id,
                 connected: false,
                 showLinearActuatorOptions: ['Position', 'HwPositionWithDuration'].includes(
-                    selectIntifaceOutput(item.intiface.feature, configService.getOutput(id)?.preferLinear) ?? '',
+                    selectIntifaceOutput(item.intiface.feature, getOutput(configService.getCached(), id)?.preferLinear) ?? '',
                 ),
                 supportsLinearPreference: supportsLinearPreference(item.intiface.feature),
                 currentLevel: 0,
@@ -96,6 +94,7 @@ export default class IntifaceSettings {
             const id = endpoint.id;
             const intifaceFeature = endpoint.intiface;
             result.set(id, {
+                plugin: PLUGIN_ID,
                 id,
                 name: id,
                 connected: true,
@@ -151,7 +150,6 @@ export default class IntifaceSettings {
             intifaceConnected,
             intifaceConnectedAddress: intiface.getConnectedAddress(),
             intifaceAddressOffSubnet,
-            importedDeletesAt,
         };
     }
 }

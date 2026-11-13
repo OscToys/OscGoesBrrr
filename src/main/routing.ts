@@ -6,6 +6,8 @@ export interface InputSample {
     id: string;
     value: number;
     kind: 'position' | 'intensity' | 'speed';
+    /** Differentiate this position when Movement is selected. */
+    movement?: boolean;
 }
 
 export interface ResolvedLink {
@@ -23,7 +25,7 @@ export function evaluateRoutes(
     links: readonly ResolvedLink[],
     previousInputs: ReadonlyMap<string, number>,
     elapsedMs: number,
-    allowMotionBased: boolean,
+    allowMovement: boolean,
 ) {
     const nextInputs = new Map<string, number>();
     const results = links.map(link => {
@@ -33,10 +35,7 @@ export function evaluateRoutes(
             nextInputs.set(input.id, input.value);
             let value = input.value;
             let backward = false;
-            // Keep existing intensity differentiation (e.g. arbitrary OSC parameters)
-            // until a separate policy for these inputs is introduced.
-            if (allowMotionBased && input.kind !== 'speed'
-                && link.modifiers.some(modifier => modifier.kind === 'motionBased')) {
+            if (allowMovement && input.kind !== 'speed' && input.movement) {
                 const velocity = elapsedMs === 0 ? 0 : (value - previous) / elapsedMs * 1000;
                 value = Math.abs(velocity) / 5;
                 backward = velocity < 0;

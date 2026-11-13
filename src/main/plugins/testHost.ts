@@ -1,19 +1,19 @@
-import {getDefaultConfig} from '../../common/plugins/configuration';
+import {getDefaultConfig} from '../../common/application/configuration';
 import type {PluginContext} from './PluginContext';
 import type {
     IpcEventChannel,
     IpcInvokeArgs,
     IpcInvokeChannel,
     IpcInvokeResult,
-} from '../../common/ipcContract';
+} from '../../common/application/ipcContract';
 
 export function createPluginHost() {
-    const outputs: {id: string; config: ReturnType<PluginContext['getOutputs']>[number]['config']}[] = [];
+    const outputs: {id: string; config: ReturnType<PluginContext['getOutputConfigs']>[number] | undefined}[] = [];
     const events: IpcEventChannel[] = [];
     const handlers = new Map<IpcInvokeChannel, unknown>();
     const host: Omit<PluginContext, 'onCleanup' | 'signal'> = {
         getConfig: getDefaultConfig,
-        getOutputs: () => outputs,
+        getOutputConfigs: () => outputs.flatMap(output => output.config ? [output.config] : []),
         send: (channel, ...args) => { events.push(channel); return true; },
         handleIpc: (channel, handler) => {
             if (handlers.has(channel)) throw new Error(`Duplicate handler: ${channel}`);

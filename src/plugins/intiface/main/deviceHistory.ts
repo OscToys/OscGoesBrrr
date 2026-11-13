@@ -5,6 +5,12 @@ export interface IntifaceDeviceHistoryData {
     intiface: IntifaceDeviceFeatureSelection;
 }
 
+declare module '../../../main/plugins/deviceHistory' {
+    interface PluginDeviceHistoryData {
+        intiface?: IntifaceDeviceFeatureSelection;
+    }
+}
+
 export function isIntifaceDeviceHistory(
     id: string,
     item: DeviceHistoryItem,

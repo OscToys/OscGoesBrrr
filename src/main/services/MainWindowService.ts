@@ -1,7 +1,7 @@
 import {app, BrowserWindow, nativeImage, shell} from "electron";
 import path from "path";
 import {Service} from "typedi";
-import {IpcEventArgs, IpcEventChannel} from "../../common/ipcContract";
+import {IpcEventArgs, IpcEventChannel} from "../../common/application/ipcContract";
 import iconDataUrl from '../../icons/ogb-logo.png?inline';
 
 @Service()

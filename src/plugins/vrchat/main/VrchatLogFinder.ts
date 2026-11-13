@@ -8,6 +8,7 @@ import LoggerService from "../../../main/services/LoggerService";
 import ConfigService from "../../../main/services/ConfigService";
 import VdfParser from "vdf-parser";
 import typia from "typia";
+import {getSettings} from '../shared/config';
 
 interface SteamLibraryFolders {
     libraryfolders: {
@@ -35,7 +36,7 @@ export default class VrchatLogFinder {
     private locatedVrcConfigDir: undefined | Promise<string[]>;
     private async getVrcConfigDir() {
         // if a config value is set, use that instead
-        const configVrcConfigDir = (await this.configService.get()).vrcConfigDir;
+        const configVrcConfigDir = getSettings(await this.configService.get()).vrcConfigDir;
         if(configVrcConfigDir) {
             return [configVrcConfigDir];
         }

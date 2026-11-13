@@ -7,10 +7,11 @@ import ConfigService from "../../../main/services/ConfigService";
 import LoggerService from "../../../main/services/LoggerService";
 import VrchatOscqueryService from "./VrchatOscqueryService";
 import TypedEventEmitter from "../../../common/TypedEventEmitter";
-import {OscStatus} from "../../../common/ipcContract";
+import type {OscStatus} from '../shared/ipc';
 import OscQueryPortService from "./OscQueryPortService";
 import type {PluginContext} from '../../../main/plugins/PluginContext';
 import {setTimeout as delay} from 'node:timers/promises';
+import {getSettings} from '../shared/config';
 
 type MyEvents = {
     add: (key: string, value: OscValue) => void,
@@ -57,7 +58,7 @@ export default class OscConnection extends TypedEventEmitter<MyEvents> {
         this.signal = context.signal;
         void this.openSocket();
         const onConfigChanged = (config: ReturnType<PluginContext['getConfig']>) => {
-            if (config.useOscQuery === this.socketUsesOscQuery) return;
+            if (getSettings(config).useOscQuery === this.socketUsesOscQuery) return;
             void this.openSocket();
         };
         this.configService.on('changed', onConfigChanged);
@@ -157,7 +158,7 @@ export default class OscConnection extends TypedEventEmitter<MyEvents> {
         this.shutdown.length = 0;
         this.recomputeEntriesVisibility();
 
-        const useOscQuery = this.configService.getCached().useOscQuery;
+        const useOscQuery = getSettings(this.configService.getCached()).useOscQuery;
         let port = 9001;
         if (useOscQuery) {
             port = await this.oscQueryPortService.get();
@@ -194,7 +195,7 @@ export default class OscConnection extends TypedEventEmitter<MyEvents> {
             // that otherwise shouldn't be fatal to the socket. Just ignore them.
         });
         oscSocket.on('data', (msg: Buffer) => {
-            const proxyTargets = this.configService.getCached().oscProxy;
+            const proxyTargets = getSettings(this.configService.getCached()).oscProxy;
             for (const target of proxyTargets) {
                 const [address, port] = OscConnection.parsePort(target, '127.0.0.1', 0);
                 if (port <= 0) continue;

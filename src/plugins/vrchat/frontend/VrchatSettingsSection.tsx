@@ -1,6 +1,6 @@
 import React, {ReactNode} from "react";
 import {Alert, AlertColor, Box, Button, FormControl, FormControlLabel, FormHelperText, IconButton, InputAdornment, Stack, Switch, TextField, Typography} from "@mui/material";
-import {Close as CloseIcon} from "@mui/icons-material";
+import {Delete as DeleteIcon} from "@mui/icons-material";
 import {pushItem, removeAt, replaceAt} from "../../../common/arrayDraft";
 import {produce} from "immer";
 import TextCommitInput from "../../../frontend/components/util/TextCommitInput";
@@ -13,14 +13,16 @@ import {useSettingsStateAtom} from "../../../frontend/components/settings/Settin
 import {selectAtom} from "jotai/utils";
 
 import type {PluginSettingsProps} from '../../../frontend/plugins/Plugin';
-import {focusKeyAtom} from '../../../frontend/utils/atomUtils';
+import {focusKeyAtom, pluginConfigAtom} from '../../../frontend/utils/atomUtils';
+import {PLUGIN_ID, type VrchatConfig} from '../shared/config';
 
 function VrchatSettingsSection({configAtom}: PluginSettingsProps) {
+    const settingsAtom = React.useMemo(() => pluginConfigAtom<VrchatConfig>(configAtom, PLUGIN_ID), [configAtom]);
     const [expanded, onChange] = React.useState(false);
-    const useOscQueryAtom = React.useMemo(() => focusKeyAtom(configAtom, 'useOscQuery'), [configAtom]);
-    const maxLevelParamAtom = React.useMemo(() => focusKeyAtom(configAtom, 'maxLevelParam'), [configAtom]);
-    const vrcConfigDirAtom = React.useMemo(() => focusKeyAtom(configAtom, 'vrcConfigDir'), [configAtom]);
-    const oscProxyAtom = React.useMemo(() => focusKeyAtom(configAtom, 'oscProxy'), [configAtom]);
+    const useOscQueryAtom = React.useMemo(() => focusKeyAtom(settingsAtom, 'useOscQuery'), [settingsAtom]);
+    const maxLevelParamAtom = React.useMemo(() => focusKeyAtom(settingsAtom, 'maxLevelParam'), [settingsAtom]);
+    const vrcConfigDirAtom = React.useMemo(() => focusKeyAtom(settingsAtom, 'vrcConfigDir'), [settingsAtom]);
+    const oscProxyAtom = React.useMemo(() => focusKeyAtom(settingsAtom, 'oscProxy'), [settingsAtom]);
     const [advancedExpanded, setAdvancedExpanded] = React.useState(false);
     const [diagnosticsExpanded, setDiagnosticsExpanded] = React.useState(false);
     const settingsStateAtom = useSettingsStateAtom();
@@ -263,7 +265,7 @@ function VrchatSettingsSection({configAtom}: PluginSettingsProps) {
                                                             borderRadius: '50%',
                                                         }}
                                                     >
-                                                        <CloseIcon fontSize="small" />
+                                                        <DeleteIcon fontSize="small" />
                                                     </IconButton>
                                                 </InputAdornment>
                                             }

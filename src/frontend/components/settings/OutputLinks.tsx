@@ -1,6 +1,6 @@
 import React, {useCallback, useMemo, useState} from 'react';
 import {produce} from 'immer';
-import {OutputLink} from '../../../common/configTypes';
+import {OutputLink} from '../../../common/application/configTypes';
 import {Menu, MenuItem, Stack, Typography} from '@mui/material';
 import {pushItem} from "../../../common/arrayDraft";
 import {Add as AddIcon} from "@mui/icons-material";
@@ -67,7 +67,7 @@ function OutputLinks({linksAtom, linkLevelsAtom}: Props) {
                 onClose={() => setAddLinkMenuAnchor(null)}
             >
                 {linkDefinitions.map(opt => (
-                    <MenuItem key={opt.kind} onClick={() => addLink(opt)}>
+                    <MenuItem key={JSON.stringify([opt.plugin, opt.kind])} onClick={() => addLink(opt)}>
                         {opt.label}
                     </MenuItem>
                 ))}

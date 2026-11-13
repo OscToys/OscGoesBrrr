@@ -1,8 +1,10 @@
-import type {PluginConfig, PluginLink} from './plugins/contracts';
-export type * from './plugins/contracts';
-export {getDefaultLinks} from './plugins/configuration';
-
-export type OutputLink = PluginLink;
+/** Shared plugin-link envelope. The engine receives resolved samples, not this payload. */
+export interface OutputLink {
+    [key: string]: unknown;
+    kind: string;
+    plugin: string;
+    enabled?: boolean;
+}
 
 export interface OutputLinkFilter {
     include: string[];
@@ -43,30 +45,12 @@ export interface InputDeadZoneModifier {
     level: number;
 }
 
-export interface InputMotionBasedModifier {
-    kind: 'motionBased';
-}
 export type InputModifier =
     | InputScaleModifier
-    | InputDeadZoneModifier
-    | InputMotionBasedModifier;
+    | InputDeadZoneModifier;
 export type InputModifierKind = InputModifier['kind'];
 
-export interface OutputConfig {
-    id: string;
-    links: OutputLink[];
-    updatesPerSecond?: number; // Now unused
+export interface OutputSettings {
+    enabled?: boolean;
     linear?: Partial<OutputLinearActuatorConfig>;
-    preferLinear?: boolean;
-}
-
-export function getDefaultOutput(): Omit<OutputConfig, 'id'> {
-    return {
-        links: [],
-    };
-}
-
-export interface Config extends PluginConfig {
-    version: number;
-    outputs: OutputConfig[];
 }

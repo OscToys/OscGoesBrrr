@@ -1,5 +1,5 @@
 import {contextBridge, ipcRenderer} from 'electron';
-import type {IpcEventArgs, IpcEventChannel, IpcInvokeArgs, IpcInvokeChannel, IpcInvokeResult} from '../common/ipcContract';
+import type {IpcEventArgs, IpcEventChannel, IpcInvokeArgs, IpcInvokeChannel, IpcInvokeResult} from '../common/application/ipcContract';
 
 contextBridge.exposeInMainWorld('ogbIpc', {
     invoke<C extends IpcInvokeChannel>(channel: C, ...args: IpcInvokeArgs<C>): Promise<IpcInvokeResult<C>> {

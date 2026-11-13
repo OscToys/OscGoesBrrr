@@ -6,9 +6,9 @@ import type {PluginContext} from '../../../main/plugins/PluginContext';
 import OscConnection, {type OscValue} from './OscConnection';
 import AvatarZone, {type AvatarZoneType} from './AvatarZone';
 import type {OutputLink} from '../../../common/configTypes';
-import type {Config} from '../../../common/configTypes';
+import {getSettings, isVrchatLink, PLUGIN_ID} from '../shared/config';
 import type {InputSample} from '../../../main/routing';
-import type {LinkInputResolver} from '../../../main/sourceInputs';
+import type {LinkInputResolver} from '../../../main/plugins/linkInputs';
 
 /** Resolve only VRChat links; unknown integrations are left to other adapters. */
 export function resolveVrchatLink(
@@ -18,6 +18,7 @@ export function resolveVrchatLink(
     zones: readonly AvatarZone[],
     parameters: ReadonlyMap<string, unknown>,
 ): InputSample[] | undefined {
+    if (!isVrchatLink(link)) return undefined;
     if (link.kind === 'vrchat.avatarParameter') {
         const parameter = link.parameter.trim();
         if (!parameter) return [];
@@ -26,9 +27,14 @@ export function resolveVrchatLink(
         return [{id: `${index}/${parameter}`, value, kind: 'intensity'}];
     }
     if (link.kind !== 'vrchat.sps.plug' && link.kind !== 'vrchat.sps.socket' && link.kind !== 'vrchat.sps.touch') return undefined;
+    const eyeHeight = parameters.get('EyeHeightAsMeters');
+    // Native contact velocity is world-space. Preserve the old sensitivity at 1.5 m.
+    const velocityScale = typeof eyeHeight === 'number' && Number.isFinite(eyeHeight) && eyeHeight > 0
+        ? 1.5 / eyeHeight : 1;
     return zones.flatMap(zone => zone.getSources(link, !linear).map(source => ({
         ...source,
         id: `${index}/${source.id}`,
+        value: source.kind === 'speed' ? source.value * velocityScale : source.value,
     })));
 }
 
@@ -47,10 +53,14 @@ export function decodeZoneFormat(wireType: string): {type: AvatarZoneType; advan
 /** Owns discovery and compatibility decoding for avatar contact inputs. */
 @PluginService()
 export default class VrchatPlugin extends Plugin {
+    readonly id = PLUGIN_ID;
+    private context?: PluginContext;
     override async start(context: PluginContext) {
+        this.context = context;
         this.osc.on('add', this.onParameterAdded);
         this.osc.on('clear', this.onAvatarCleared);
         context.onCleanup(() => {
+            this.context = undefined;
             this.osc.off('add', this.onParameterAdded);
             this.osc.off('clear', this.onAvatarCleared);
             this.onAvatarCleared();
@@ -136,11 +146,15 @@ export default class VrchatPlugin extends Plugin {
     override snapshot(): LinkInputResolver {
         const zones = this.getAvatarZones();
         const parameters = new Map(Array.from(this.osc.entries(), ([key, value]) => [key, value.get()]));
-        return (link, index, linear) => resolveVrchatLink(link, index, linear, zones, parameters);
+        return (link, index, linear) => isVrchatLink(link) ? {
+            inputs: resolveVrchatLink(link, index, linear, zones, parameters) ?? [],
+            modifiers: link.mutators,
+        } : undefined;
     }
 
-    override afterUpdate(outputLevel: number, config: Readonly<Config>) {
+    override afterUpdate(outputLevel: number) {
         this.osc.clearDeltas();
-        if (config.maxLevelParam) this.osc.send(config.maxLevelParam, outputLevel);
+        const parameter = this.context ? getSettings(this.context.getConfig()).maxLevelParam : undefined;
+        if (parameter) this.osc.send(parameter, outputLevel);
     }
 }

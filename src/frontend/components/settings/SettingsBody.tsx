@@ -1,6 +1,6 @@
 import React, {useCallback, useMemo, useState} from 'react';
 import {produce} from 'immer';
-import {Config, getDefaultLinks, getDefaultOutput, type OutputConfig} from '../../../common/configTypes';
+import {Config, type OutputConfig} from '../../../common/application/configTypes';
 import {pushItem, removeAt} from "../../../common/arrayDraft";
 import {
     Button,
@@ -11,7 +11,7 @@ import {
     DialogTitle,
     Stack,
 } from "@mui/material";
-import {SettingsStatePayload} from "../../../common/ipcContract";
+import {SettingsStatePayload} from "../../../common/application/ipcContract";
 import ConfiguredOutputRow from "./ConfiguredOutputRow";
 import UnconfiguredOutputRow from "./UnconfiguredOutputRow";
 import {atom, type PrimitiveAtom, useAtomValue, useSetAtom} from "jotai";
@@ -20,6 +20,8 @@ import {atomFamily} from "jotai-family";
 import {focusKeyAtom} from "../../utils/atomUtils";
 
 import {PluginSettings} from '../../plugins/PluginComponents';
+import {pluginsById} from '../../plugins/plugins';
+import {outputKey, type OutputIdentity} from '../../../common/application/outputIdentity';
 
 interface Props {
     configAtom: PrimitiveAtom<Config>;
@@ -30,11 +32,11 @@ function SettingsBody({
     configAtom,
     settingsStateAtom,
 }: Props) {
-    const [pendingDeleteOutputId, setPendingDeleteOutputId] = useState<string | null>(null);
+    const [pendingDeleteOutput, setPendingDeleteOutput] = useState<OutputIdentity | null>(null);
     const configuredOutputsAtom = useMemo(() => focusKeyAtom(configAtom, 'outputs'), [configAtom]);
     const outputInfosAtom = useMemo(() => selectAtom(settingsStateAtom, (state) => state.outputs), [settingsStateAtom]);
-    const configuredOutputIdSetAtom = useMemo(
-        () => atom((get) => new Set(get(configuredOutputsAtom).map(output => output.id))),
+    const configuredOutputKeySetAtom = useMemo(
+        () => atom((get) => new Set(get(configuredOutputsAtom).map(outputKey))),
         [configuredOutputsAtom],
     );
     const configuredOutputAtomsAtom = useMemo(() => splitAtom(configuredOutputsAtom), [configuredOutputsAtom]);
@@ -42,10 +44,10 @@ function SettingsBody({
         () => atom<PrimitiveAtom<OutputConfig>[]>((get) => {
             const outputAtoms = get(configuredOutputAtomsAtom);
             const outputInfos = get(outputInfosAtom);
-            const connectedById = new Map(outputInfos.map(info => [info.id, info.connected]));
+            const connectedByKey = new Map(outputInfos.map(info => [outputKey(info), info.connected]));
             return [...outputAtoms].sort((a, b) => {
-                const aConnected = Boolean(connectedById.get(get(a).id));
-                const bConnected = Boolean(connectedById.get(get(b).id));
+                const aConnected = Boolean(connectedByKey.get(outputKey(get(a))));
+                const bConnected = Boolean(connectedByKey.get(outputKey(get(b))));
                 if (aConnected === bConnected) return 0;
                 return aConnected ? -1 : 1;
             });
@@ -55,33 +57,35 @@ function SettingsBody({
     const unconfiguredOutputsAtom = useMemo(
         () => atom((get) => {
             const allOutputs = get(outputInfosAtom);
-            const configuredOutputIds = get(configuredOutputIdSetAtom);
+            const configuredOutputKeys = get(configuredOutputKeySetAtom);
             return allOutputs
                 .filter(output => output.connected)
-                .filter(output => !configuredOutputIds.has(output.id))
+                .filter(output => !configuredOutputKeys.has(outputKey(output)))
                 .sort((a, b) => a.name.localeCompare(b.name));
         }),
-        [configuredOutputIdSetAtom, outputInfosAtom],
+        [configuredOutputKeySetAtom, outputInfosAtom],
     );
     const outputInfoAtomFamily = useMemo(
-        () => atomFamily((outputId: string) => atom((get) => get(outputInfosAtom).find(info => info.id === outputId))),
+        () => atomFamily((key: string) => atom((get) => get(outputInfosAtom).find(info => outputKey(info) === key))),
         [outputInfosAtom],
     );
     const configuredOutputInfoAtomFamily = useMemo(
         () => atomFamily((outputAtom: PrimitiveAtom<OutputConfig>) => atom((get) => {
-            const outputId = get(outputAtom).id;
-            return get(outputInfosAtom).find(info => info.id === outputId);
+            const key = outputKey(get(outputAtom));
+            return get(outputInfosAtom).find(info => outputKey(info) === key);
         })),
         [outputInfosAtom],
     );
     const linkOutputAtom = useMemo(
         () => atom(
             null,
-            (get, set, outputId: string) => {
+            (get, set, output: OutputIdentity) => {
                 const current = get(configuredOutputsAtom);
-                if (current.some(output => output.id === outputId)) return;
+                if (current.some(config => outputKey(config) === outputKey(output))) return;
+                const config = pluginsById.get(output.plugin)?.createOutput?.(output.id);
+                if (!config) return;
                 set(configuredOutputsAtom, produce(current, (draft) => {
-                    pushItem(draft, {id: outputId, ...getDefaultOutput(), links: getDefaultLinks()});
+                    pushItem(draft, config);
                 }));
             },
         ),
@@ -90,20 +94,20 @@ function SettingsBody({
     const configuredSortedOutputs = useAtomValue(configuredSortedOutputsAtom);
     const unconfiguredOutputs = useAtomValue(unconfiguredOutputsAtom);
     const setConfiguredOutputs = useSetAtom(configuredOutputsAtom);
-    const requestDeleteOutput = useCallback((outputId: string) => {
-        setPendingDeleteOutputId(outputId);
-    }, [setPendingDeleteOutputId]);
+    const requestDeleteOutput = useCallback((output: OutputIdentity) => {
+        setPendingDeleteOutput(output);
+    }, [setPendingDeleteOutput]);
     const cancelDeleteOutput = useCallback(() => {
-        setPendingDeleteOutputId(null);
+        setPendingDeleteOutput(null);
     }, []);
     const confirmDeleteOutput = useCallback(() => {
-        if (!pendingDeleteOutputId) return;
+        if (!pendingDeleteOutput) return;
         setConfiguredOutputs((configuredOutputs) => produce(configuredOutputs, (draft) => {
-            const index = draft.findIndex(output => output.id === pendingDeleteOutputId);
+            const index = draft.findIndex(output => outputKey(output) === outputKey(pendingDeleteOutput));
             if (index >= 0) removeAt(draft, index);
         }));
-        setPendingDeleteOutputId(null);
-    }, [pendingDeleteOutputId, setConfiguredOutputs]);
+        setPendingDeleteOutput(null);
+    }, [pendingDeleteOutput, setConfiguredOutputs]);
 
     return (
         <Stack spacing={0}>
@@ -122,14 +126,14 @@ function SettingsBody({
 
             {unconfiguredOutputs.map((output) => (
                 <UnconfiguredOutputRow
-                    key={output.id}
-                    outputAtom={outputInfoAtomFamily(output.id)}
+                    key={outputKey(output)}
+                    outputAtom={outputInfoAtomFamily(outputKey(output))}
                     linkOutputAtom={linkOutputAtom}
                 />
             ))}
 
             <Dialog
-                open={pendingDeleteOutputId !== null}
+                open={pendingDeleteOutput !== null}
                 onClose={cancelDeleteOutput}
                 aria-labelledby="unlink-output-title"
                 aria-describedby="unlink-output-description"

@@ -2,10 +2,11 @@ import React from 'react';
 import {Box, Slider, Typography} from '@mui/material';
 import {useAtom} from 'jotai';
 import type {LinkEditorProps} from '../../../frontend/plugins/Plugin';
+import {isConstantLink} from '../shared/config';
 
 export default function ConstantLinkEditor({linkAtom}: LinkEditorProps) {
     const [link, setLink] = useAtom(linkAtom);
-    if (link.kind !== 'constant') return null;
+    if (!isConstantLink(link)) return null;
     const updateConstant = (value: number) => setLink({...link, level: value / 100});
     return (
         <Box>

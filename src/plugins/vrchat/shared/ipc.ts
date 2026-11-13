@@ -46,3 +46,8 @@ export interface VrchatIpcInvokeMap {
     'oscStatus:get': {args: []; result: string};
     'avatarParams:get': {args: []; result: Map<string, unknown>};
 }
+
+declare module '../../../common/application/ipcContract' {
+    interface SettingsStatePayload extends VrchatSettingsState {}
+    interface IpcInvokeMap extends VrchatIpcInvokeMap {}
+}

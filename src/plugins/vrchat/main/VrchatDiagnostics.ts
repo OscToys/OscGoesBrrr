@@ -7,8 +7,9 @@ import VrchatOscqueryService from './VrchatOscqueryService';
 import VrchatLogScanner from './VrchatLogScanner';
 import VrchatLogFinder from './VrchatLogFinder';
 import OscQueryPortService from './OscQueryPortService';
-import type {SettingsStatePayload} from '../../../common/ipcContract';
+import type {SettingsStatePayload} from '../../../common/application/ipcContract';
 import type {PluginContext} from '../../../main/plugins/PluginContext';
+import {getSettings} from '../shared/config';
 
 @Service()
 export default class VrchatDiagnostics {
@@ -47,7 +48,7 @@ export default class VrchatDiagnostics {
         const detectedSpsTouchZoneIds = Array.from(new Set(avatarZones.filter(device => device.type === 'touch').map(device => device.id))).sort();
         const oscStatusSnapshot = oscConnection.getStatusSnapshot();
         const oscqueryStatus = vrchatOscqueryService.getStatus();
-        const useOscQuery = configService.getCached().useOscQuery;
+        const useOscQuery = getSettings(configService.getCached()).useOscQuery;
         const oscQueryPort = useOscQuery ? await oscQueryPortService.get() : undefined;
         const ogbOscPort = oscConnection.socketopen ? (useOscQuery ? oscQueryPort : 9001) : undefined;
         const ogbOscqueryPort = oscQueryPort;

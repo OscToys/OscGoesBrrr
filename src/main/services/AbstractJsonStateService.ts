@@ -22,11 +22,11 @@ export type NormalizeSource = 'load' | 'mutate';
  * - Initial-load gating: `get` and `mutate` wait for the initial load attempt to complete.
  * - Load-error gating for mutation: if the current state has a load error, `mutate` rejects until a successful load clears it.
  * - Durable-before-publish for local mutation: successful `mutate` writes to disk before emitting `changed`.
- * - Canonical persistence on load: when loaded JSON is upgraded/normalized/imported, the canonical normalized form is persisted.
+ * - Canonical persistence on load: when loaded JSON is upgraded/normalized, the canonical normalized form is persisted.
+ * - Opt-in upgrade backups: version changes rotate .bak.1.json to .bak.2.json before copying the original.
  * - Last-known-good retention: on load failure, in-memory data is preserved and only `loadError` is updated.
  * - Runtime immutability of committed state: committed `data` snapshots are deep-frozen via Immer.
- * - Reset behavior: `resetToDefaults` deletes the backing file and then reloads, producing either imported data
- *   (from `handleMissingFile`) or the configured default snapshot.
+ * - Reset behavior: `resetToDefaults` deletes the backing file and reloads the configured default snapshot.
  * - External file watch debounce: watcher events are debounced and routed through the same serialized queue.
  * - Self-save suppression: watcher reloads are suppressed for a short window after local writes.
  * - Self-write echo skipping: delayed watcher reloads are skipped when file bytes still match the last local write.
@@ -34,7 +34,6 @@ export type NormalizeSource = 'load' | 'mutate';
  *
  * Notes:
  * - `upgradeRawData` may mutate the provided raw object and should return a parseable shape for `parseDataFn`.
- * - `handleMissingFile` should not call methods that enqueue commands on this service (`mutate`, `resetToDefaults`, etc.).
  */
 export abstract class AbstractJsonStateService<TData> extends TypedEventEmitter<JsonStateEvents<TData>> {
     private static readonly EXTERNAL_RELOAD_DEBOUNCE_MS = 200;
@@ -257,8 +256,7 @@ export abstract class AbstractJsonStateService<TData> extends TypedEventEmitter<
                 parsedJson = JSON.parse(sourceText) as unknown;
             } catch (error) {
                 if (!isFileMissingError(error)) throw error;
-                this.log(`Attempting to import legacy file`);
-                parsedJson = await this.handleMissingFile() ?? this.defaultData;
+                parsedJson = this.defaultData;
                 loadedFromMissingFile = true;
             }
         }
@@ -277,6 +275,7 @@ export abstract class AbstractJsonStateService<TData> extends TypedEventEmitter<
     private async writeDataToDisk(data: TData): Promise<void> {
         this.log(`Saving`);
         const serialized = JSON.stringify(data, null, 2);
+        await this.backupIfVersionChanged(data);
         const saveDir = path.dirname(this.savePath);
         const tempPath = path.join(
             saveDir,
@@ -303,6 +302,30 @@ export abstract class AbstractJsonStateService<TData> extends TypedEventEmitter<
         this.log(`Saved`);
     }
 
+    private async backupIfVersionChanged(data: TData): Promise<void> {
+        const nextVersion = this.getVersionKey(data);
+        if (nextVersion === undefined) return;
+        let previous: unknown;
+        try {
+            previous = JSON.parse(await fs.readFile(this.savePath, 'utf8')) as unknown;
+        } catch (error) {
+            if (isFileMissingError(error)) return;
+            throw error;
+        }
+        if (this.getVersionKey(previous) === nextVersion) return;
+
+        const {dir, name, ext} = path.parse(this.savePath);
+        const backupPath = path.join(dir, `${name}.bak.1${ext}`);
+        const olderBackupPath = path.join(dir, `${name}.bak.2${ext}`);
+        try {
+            await fs.rename(backupPath, olderBackupPath);
+        } catch (error) {
+            if (!isFileMissingError(error)) throw error;
+        }
+        // Copy before replacing the config; a backup failure must abort the upgrade.
+        await fs.copyFile(this.savePath, backupPath);
+    }
+
     private ensureInitialLoad(): Promise<void> {
         return this.initialLoadPromise;
     }
@@ -325,9 +348,11 @@ export abstract class AbstractJsonStateService<TData> extends TypedEventEmitter<
         return this.upgradeRawDataFn ? this.upgradeRawDataFn(raw) : raw;
     }
 
-    protected async handleMissingFile(): Promise<TData | undefined> {
+    /** Opt into upgrade backups by identifying the versions persisted by this service. */
+    protected getVersionKey(_raw: unknown): string | undefined {
         return undefined;
     }
+
 }
 
 export default AbstractJsonStateService;

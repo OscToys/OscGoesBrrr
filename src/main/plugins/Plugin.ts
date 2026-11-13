@@ -1,19 +1,21 @@
 import {Container, Service, Token} from 'typedi';
 import type {Constructable, ContainerInstance} from 'typedi';
-import type {LinkInputResolver} from '../sourceInputs';
-import type {OutputEndpoint} from '../OutputEndpoint';
-import type {Config} from '../../common/configTypes';
-import type {SettingsStatePayload} from '../../common/ipcContract';
+import type {LinkInputResolver, ResolveLinks} from './linkInputs';
+import type {OutputFrame} from '../OutputFrame';
+import type {OutputConfig} from '../../common/application/configTypes';
+import type {SettingsStatePayload} from '../../common/application/ipcContract';
 import type OutputController from '../OutputController';
 import type {PluginContext} from './PluginContext';
 
 export abstract class Plugin {
+    abstract readonly id: string;
     static readonly token = new Token<Plugin>('Plugin');
     async start(context: PluginContext): Promise<void> {}
     async settingsState(outputs: readonly OutputController[]): Promise<Partial<SettingsStatePayload>> { return {}; }
     snapshot(): LinkInputResolver | undefined { return undefined; }
-    getOutputs(): Iterable<OutputEndpoint> { return []; }
-    afterUpdate(outputLevel: number, config: Readonly<Config>): void {}
+    getOutputs(resolve: ResolveLinks): Iterable<OutputFrame> { return []; }
+    getOutputConfigs(): Iterable<OutputConfig> { return []; }
+    afterUpdate(outputLevel: number): void {}
 }
 
 /** Register a concrete singleton and expose that same instance in the plugin collection. */

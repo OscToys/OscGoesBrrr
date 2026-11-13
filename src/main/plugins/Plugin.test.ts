@@ -5,10 +5,11 @@ import {Container, InjectMany, Service} from 'typedi';
 import {Plugin, PluginService} from './Plugin';
 import AudioPlugin from '../../plugins/audio/main/AudioPlugin';
 import ConstantPlugin from '../../plugins/constant/main/ConstantPlugin';
-import type {LinkInputResolver} from '../sourceInputs';
+import type {LinkInputResolver} from './linkInputs';
 
 @PluginService()
 class ExtraPlugin extends Plugin {
+    readonly id = 'test.ExtraPlugin';
     override snapshot(): LinkInputResolver {
         return () => undefined;
     }
@@ -33,7 +34,7 @@ test('adapter collection automatically includes implementations and shares concr
     assert.ok(consumer.adapters.includes(consumer.audio));
     consumer.audio.receivedFft(0.4);
     const registeredAudio = consumer.adapters.find(adapter => adapter === consumer.audio)!;
-    const value = registeredAudio.snapshot()?.({kind: 'systemAudio', mutators: []}, 0, false)?.[0]?.value;
+    const value = registeredAudio.snapshot()?.({plugin: 'audio', kind: 'systemAudio', mutators: []}, 0, false)?.inputs[0]?.value;
     assert.equal(value, 0.4);
     const secondCollection = Container.getMany(Plugin.token);
     assert.deepEqual(secondCollection, consumer.adapters);

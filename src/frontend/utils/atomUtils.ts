@@ -1,4 +1,19 @@
 import {atom, type PrimitiveAtom} from "jotai";
+import type {Config, PluginConfig} from '../../common/application/configTypes';
+
+/** The owner supplies its type; core stores the plugin's opaque, versioned section. */
+export function pluginConfigAtom<T extends PluginConfig>(baseAtom: PrimitiveAtom<Config>, id: string): PrimitiveAtom<T> {
+    return atom(
+        get => get(baseAtom).plugins[id] as T,
+        (get, set, update) => {
+            const previous = get(baseAtom);
+            const section = previous.plugins[id] as T;
+            const next = typeof update === 'function' ? update(section) : update;
+            if (Object.is(section, next)) return;
+            set(baseAtom, {...previous, plugins: {...previous.plugins, [id]: next}});
+        },
+    );
+}
 
 /**
  * A minimal, type-safe "focus one object key" helper for Jotai.

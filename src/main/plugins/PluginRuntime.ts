@@ -11,7 +11,13 @@ export default class PluginRuntime {
     constructor(
         private readonly plugins: readonly Plugin[],
         private readonly host: Omit<PluginContext, 'onCleanup' | 'signal'>,
-    ) {}
+    ) {
+        const ids = new Set<string>();
+        for (const plugin of plugins) {
+            if (!plugin.id || ids.has(plugin.id)) throw new Error(`Invalid or duplicate plugin ID: ${plugin.id}`);
+            ids.add(plugin.id);
+        }
+    }
 
     start(): Promise<boolean> {
         return this.startup ??= this.startPlugins();

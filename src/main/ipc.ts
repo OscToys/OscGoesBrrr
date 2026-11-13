@@ -1,5 +1,5 @@
 import {ipcMain} from "electron";
-import {IpcInvokeArgs, IpcInvokeChannel, IpcInvokeResult} from "../common/ipcContract";
+import {IpcInvokeArgs, IpcInvokeChannel, IpcInvokeResult} from "../common/application/ipcContract";
 
 export function handleIpc<C extends IpcInvokeChannel>(
     channel: C,

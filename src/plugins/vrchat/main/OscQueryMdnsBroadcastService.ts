@@ -7,6 +7,7 @@ import ConfigService from "../../../main/services/ConfigService";
 import OscQueryPortService from "./OscQueryPortService";
 import type {PluginContext} from '../../../main/plugins/PluginContext';
 import {poll} from '../../../main/plugins/poll';
+import {getSettings} from '../shared/config';
 
 @Service()
 export default class OscQueryMdnsBroadcastService {
@@ -35,7 +36,7 @@ export default class OscQueryMdnsBroadcastService {
     }
 
     private async broadcastOnce(signal: AbortSignal) {
-        const useOscQuery = this.configService.getCached().useOscQuery;
+        const useOscQuery = getSettings(this.configService.getCached()).useOscQuery;
         if (!useOscQuery) {
             return;
         }

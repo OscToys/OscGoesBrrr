@@ -10,9 +10,9 @@ import {
 import LoggerService, {SubLogger} from "../../../main/services/LoggerService";
 import ConfigService from "../../../main/services/ConfigService";
 import {Service} from "typedi";
+import {getOutput, getSettings} from '../shared/config';
 import BackendDataService from '../../../main/services/BackendDataService';
 import MdnsRegistryService from "../../../main/services/MdnsRegistryService";
-import ImportedOutputPromotionService from "./ImportedOutputPromotionService";
 import TypedEventEmitter from "../../../common/TypedEventEmitter";
 import clamp from "../../../common/clamp";
 import IntifaceSession from "./IntifaceSession";
@@ -43,25 +43,24 @@ export default class Intiface extends TypedEventEmitter<MyEvents> {
 
     constructor(
         private configService: ConfigService,
-        private importedOutputPromotionService: ImportedOutputPromotionService,
         private backendDataService: BackendDataService,
         private mdnsRegistryService: MdnsRegistryService,
         loggerService: LoggerService,
     ) {
         super();
         this.logger = loggerService.get('intifaceLog');
-        this.lastIntifaceAddress = this.configService.getCached().intifaceAddress;
-        this.lastUseIntifaceMdns = this.configService.getCached().useIntifaceMdns;
+        this.lastIntifaceAddress = getSettings(this.configService.getCached()).intifaceAddress;
+        this.lastUseIntifaceMdns = getSettings(this.configService.getCached()).useIntifaceMdns;
     }
 
     start(context: PluginContext): void {
         this.signal = context.signal;
         const onConfigChanged = (nextConfig: ReturnType<PluginContext['getConfig']>) => {
             for (const feature of this.features) {
-                feature.setPreferLinear(this.configService.getOutput(feature.id)?.preferLinear ?? false);
+                feature.setPreferLinear(getOutput(nextConfig, feature.id)?.preferLinear ?? false);
             }
-            const nextIntifaceAddress = nextConfig.intifaceAddress;
-            const nextUseIntifaceMdns = nextConfig.useIntifaceMdns;
+            const nextIntifaceAddress = getSettings(nextConfig).intifaceAddress;
+            const nextUseIntifaceMdns = getSettings(nextConfig).useIntifaceMdns;
             if (this.lastIntifaceAddress !== nextIntifaceAddress || this.lastUseIntifaceMdns !== nextUseIntifaceMdns) {
                 this.requestReconnect(0);
             }
@@ -104,7 +103,7 @@ export default class Intiface extends TypedEventEmitter<MyEvents> {
     private async connect(signal: AbortSignal) {
         if (signal.aborted) return;
 
-        const config = await this.configService.get();
+        const config = getSettings(await this.configService.get());
         if (signal.aborted) return;
         const uris = config.useIntifaceMdns
             ? [...this.getMdnsUris(), 'ws://127.0.0.1:12345']
@@ -198,16 +197,8 @@ export default class Intiface extends TypedEventEmitter<MyEvents> {
         for (const rawFeature of features) {
             const featureIndex = rawFeature.FeatureIndex;
             const configOutputId = `intiface.${d.DeviceIndex}.${featureIndex}`;
-            const selected = selectIntifaceOutput(rawFeature, this.configService.getOutput(configOutputId)?.preferLinear);
+            const selected = selectIntifaceOutput(rawFeature, getOutput(this.configService.getCached(), configOutputId)?.preferLinear);
             if (!selected) continue;
-
-            void this.importedOutputPromotionService.promoteImportedOutputForDeviceFeature(
-                d,
-                configOutputId,
-                rawFeature,
-            ).catch((error) => {
-                this.logger.log('Failed to persist imported output promotion', error);
-            });
 
             const intifaceSelection: IntifaceDeviceFeatureSelection = {
                 device: d,

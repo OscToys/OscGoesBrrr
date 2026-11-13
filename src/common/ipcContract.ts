@@ -1,9 +1,7 @@
-import {Config} from "./configTypes";
 import {Result} from "./result";
-import type {PluginIpcEventMap, PluginIpcInvokeMap, PluginSettingsState} from './plugins/contracts';
-export type * from './plugins/contracts';
 
 export interface OutputDeviceInfo {
+    plugin: string;
     id: string;
     name: string;
     connected: boolean;
@@ -13,7 +11,7 @@ export interface OutputDeviceInfo {
     lastLinkValues: number[];
 }
 
-export interface SettingsStatePayload extends PluginSettingsState {
+export interface SettingsStatePayload {
     outputs: OutputDeviceInfo[];
     updateAvailable?: {
         version?: string;
@@ -22,7 +20,7 @@ export interface SettingsStatePayload extends PluginSettingsState {
     };
 }
 
-export interface IpcInvokeMap extends PluginIpcInvokeMap {
+export interface IpcInvokeMap<TConfig = unknown> {
     'updater:install': {args: []; result: void};
     'config:request': {args: []; result: void};
     'config:reset': {args: []; result: void};
@@ -30,14 +28,14 @@ export interface IpcInvokeMap extends PluginIpcInvokeMap {
     'backendData:reset': {args: []; result: void};
     'backendData:open': {args: []; result: string};
     'settings-state:request': {args: []; result: void};
-    'config:set': {args: [Config]; result: void};
+    'config:set': {args: [TConfig]; result: void};
     'log:history': {args: []; result: string[]};
 }
 
-export interface IpcEventMap extends PluginIpcEventMap {
+export interface IpcEventMap<TConfig = unknown, TSettings extends SettingsStatePayload = SettingsStatePayload> {
     'log:line': [string];
-    'config:changed': [Result<Config>];
-    'settings-state:changed': [Result<SettingsStatePayload>];
+    'config:changed': [Result<TConfig>];
+    'settings-state:changed': [Result<TSettings>];
 }
 
 export type IpcInvokeChannel = keyof IpcInvokeMap;

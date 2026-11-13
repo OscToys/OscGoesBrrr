@@ -1,9 +1,9 @@
 import React from "react";
 import {produce} from "immer";
 import {Button, IconButton, InputAdornment, Stack, TextField, Typography} from "@mui/material";
-import {Add as AddIcon, Close as CloseIcon, Remove as RemoveIcon} from "@mui/icons-material";
+import {Add as AddIcon, Delete as DeleteIcon, Remove as RemoveIcon} from "@mui/icons-material";
 import TextCommitInput from "./util/TextCommitInput";
-import {OutputLinkFilter} from "../../common/configTypes";
+import {OutputLinkFilter} from "../../common/application/configTypes";
 import {pushItem, removeAt, replaceAt} from "../../common/arrayDraft";
 
 interface Props {
@@ -68,7 +68,7 @@ export default function Filter({filter, itemLabel, suggestions, onChange}: Props
                                     size="small"
                                     sx={{width: 28, height: 28, borderRadius: '50%'}}
                                 >
-                                    <CloseIcon fontSize="small" />
+                                    <DeleteIcon fontSize="small" />
                                 </IconButton>
                             </InputAdornment>
                         }
@@ -97,7 +97,7 @@ export default function Filter({filter, itemLabel, suggestions, onChange}: Props
                                     size="small"
                                     sx={{width: 28, height: 28, borderRadius: '50%'}}
                                 >
-                                    <CloseIcon fontSize="small" />
+                                    <DeleteIcon fontSize="small" />
                                 </IconButton>
                             </InputAdornment>
                         }

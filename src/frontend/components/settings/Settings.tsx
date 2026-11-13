@@ -16,9 +16,9 @@ import {
 } from "@mui/material";
 import {Close as CloseIcon} from "@mui/icons-material";
 import {invokeIpc} from "../../ipc";
-import {SettingsStatePayload} from "../../../common/ipcContract";
+import {SettingsStatePayload} from "../../../common/application/ipcContract";
 import {Result} from "../../../common/result";
-import {Config} from "../../../common/configTypes";
+import {Config} from "../../../common/application/configTypes";
 import {type PrimitiveAtom, useAtomValue} from "jotai";
 import {selectAtom} from "jotai/utils";
 import typia from "typia";

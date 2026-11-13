@@ -1,6 +1,6 @@
 import type {Plugin} from './Plugin';
 import type OutputController from '../OutputController';
-import type {OutputDeviceInfo, SettingsStatePayload} from '../../common/ipcContract';
+import type {OutputDeviceInfo, SettingsStatePayload} from '../../common/application/ipcContract';
 
 export async function collectPluginSettings(
     plugins: readonly Plugin[],

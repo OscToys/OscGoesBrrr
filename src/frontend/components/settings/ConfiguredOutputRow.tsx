@@ -1,98 +1,68 @@
 import React, {useMemo, useState} from "react";
-import {OutputConfig} from "../../../common/configTypes";
-import {OutputDeviceInfo} from "../../../common/ipcContract";
+import {OutputConfig} from "../../../common/application/configTypes";
+import {OutputDeviceInfo} from "../../../common/application/ipcContract";
 import {Alert, IconButton, Stack, Switch, Typography} from "@mui/material";
-import {Close as CloseIcon, Label as LabelIcon, Waves as WavesIcon} from "@mui/icons-material";
-import TextCommitInput from "../util/TextCommitInput";
+import {Delete as DeleteIcon, Label as LabelIcon, Waves as WavesIcon} from "@mui/icons-material";
 import MyAccordion from "../util/MyAccordion";
-import OutputLinks from "./OutputLinks";
 import ConnectionBubble from "./ConnectionBubble";
-import {atom, type Atom, type PrimitiveAtom, useAtom, useAtomValue, type WritableAtom} from "jotai";
+import OutputLinks from "./OutputLinks";
+import {atom, type Atom, type PrimitiveAtom, useAtom, useAtomValue} from "jotai";
 import {selectAtom} from "jotai/utils";
-import {focusKeyAtom, focusOptionalKeyAtom} from "../../utils/atomUtils";
+import {focusKeyAtom} from "../../utils/atomUtils";
 import {getConnectionBubbleColor} from "../../utils/connectionBubbleColor";
 import {useSettingsStateAtom} from "./SettingsStateAtomContext";
 
-import {plugins} from '../../plugins/plugins';
+import {pluginsById} from '../../plugins/plugins';
+import type {OutputIdentity} from '../../../common/application/outputIdentity';
+
+const inactiveLinkLevelsAtom = atom<number[]>(() => []);
 
 interface Props {
     outputAtom: PrimitiveAtom<OutputConfig>;
     infoAtom: Atom<OutputDeviceInfo | undefined>;
-    onDelete: (outputId: string) => void;
-}
-
-function NumberField({label, valueAtom, placeholder}: {label: string, valueAtom: WritableAtom<number | undefined, [number | undefined], void>, placeholder?: string}) {
-    const [value, setValue] = useAtom(valueAtom);
-    return (
-        <TextCommitInput
-            label={label}
-            value={value === undefined ? '' : String(value)}
-            placeholder={placeholder}
-            onCommit={nextValue => {
-                const next = nextValue.trim();
-                if (!next) {
-                    setValue(undefined);
-                    return;
-                }
-                const parsed = Number(next);
-                if (Number.isFinite(parsed)) setValue(parsed);
-            }}
-        />
-    );
+    onDelete: (output: OutputIdentity) => void;
 }
 
 function ConfiguredOutputRow({outputAtom, infoAtom, onDelete}: Props) {
     const [expanded, setExpanded] = useState(false);
-    const [advancedExpanded, setAdvancedExpanded] = useState(false);
-    const outputLinksAtom = useMemo(() => focusKeyAtom(outputAtom, 'links'), [outputAtom]);
-    const preferLinearAtom = useMemo(() => focusKeyAtom(outputAtom, 'preferLinear'), [outputAtom]);
-    const [preferLinear, setPreferLinear] = useAtom(preferLinearAtom);
-    const linearAtom = useMemo(() => focusKeyAtom(outputAtom, 'linear'), [outputAtom]);
-    const linearMaxvAtom = useMemo(() => focusOptionalKeyAtom(linearAtom, 'maxv'), [linearAtom]);
-    const linearMaxaAtom = useMemo(() => focusOptionalKeyAtom(linearAtom, 'maxa'), [linearAtom]);
-    const linearDurationMultAtom = useMemo(() => focusOptionalKeyAtom(linearAtom, 'durationMult'), [linearAtom]);
-    const linearMinAtom = useMemo(() => focusOptionalKeyAtom(linearAtom, 'min'), [linearAtom]);
-    const linearMaxAtom = useMemo(() => focusOptionalKeyAtom(linearAtom, 'max'), [linearAtom]);
-    const linearRestingPosAtom = useMemo(() => focusOptionalKeyAtom(linearAtom, 'restingPos'), [linearAtom]);
-    const linearRestingTimeAtom = useMemo(() => focusOptionalKeyAtom(linearAtom, 'restingTime'), [linearAtom]);
-    const linkLevelsAtom = useMemo(
-        () => selectAtom(
-            infoAtom,
-            (info) => info?.lastLinkValues ?? [],
-            (a, b) => a.length === b.length && a.every((value, index) => value === b[index]),
-        ),
-        [infoAtom],
-    );
+    const linksAtom = useMemo(() => focusKeyAtom(outputAtom, 'links'), [outputAtom]);
+    const enabledAtom = useMemo(() => focusKeyAtom(outputAtom, 'enabled'), [outputAtom]);
+    const [enabled, setEnabled] = useAtom(enabledAtom);
     const outputIdAtom = useMemo(() => selectAtom(outputAtom, (output) => output.id), [outputAtom]);
     const outputId = useAtomValue(outputIdAtom);
+    const outputPluginAtom = useMemo(() => selectAtom(outputAtom, output => output.plugin), [outputAtom]);
+    const outputPlugin = useAtomValue(outputPluginAtom);
+    const plugin = pluginsById.get(outputPlugin);
     const info = useAtomValue(infoAtom);
     const settingsStateAtom = useSettingsStateAtom();
-    const presentationAtom = useMemo(() => {
-        const contributions = plugins.flatMap(plugin => plugin.outputPresentation
-            ? [plugin.outputPresentation({outputId: outputIdAtom, info: infoAtom, settings: settingsStateAtom})]
-            : []);
-        return atom(get => {
-            const presentations = contributions.map(contribution => get(contribution));
-            return {
-                name: presentations.find(presentation => presentation?.name)?.name,
-                alerts: presentations.flatMap(presentation => presentation?.alerts ?? []),
-            };
-        });
-    }, [outputIdAtom, infoAtom, settingsStateAtom]);
+    const presentationAtom = useMemo(
+        () => plugin?.outputPresentation?.({
+            outputId: outputIdAtom,
+            info: infoAtom,
+            settings: settingsStateAtom,
+        }) ?? atom(undefined),
+        [plugin, outputIdAtom, infoAtom, settingsStateAtom],
+    );
     const presentation = useAtomValue(presentationAtom);
-    const displayName = presentation.name ?? info?.name ?? outputId;
-    const alerts = presentation.alerts;
+    const Editor = plugin?.OutputEditor;
+    const unknown = !Editor;
+    const displayName = presentation?.name ?? info?.name ?? (unknown ? `Unknown output ${outputPlugin}:${outputId}` : outputId);
+    const alerts = presentation?.alerts ?? [];
     const outputPercent = info && info.currentLevel > 0 ? Math.round(info.currentLevel * 100) : 0;
-    const showLinearActuatorOptions = Boolean(info?.showLinearActuatorOptions);
     return (
         <MyAccordion
             expanded={expanded}
             onChange={setExpanded}
             summary={
                 <Stack direction="row" sx={{width: '100%', alignItems: 'center', justifyContent: 'space-between'}}>
-                    <Stack direction="row" spacing={1} sx={{alignItems: 'center'}}>
-                        <ConnectionBubble color={getConnectionBubbleColor(alerts)} />
-                        <Typography variant="h6">{displayName}</Typography>
+                    <Stack direction="row" spacing={1} sx={{alignItems: 'center', minWidth: 0, flex: 1, mr: 1}}>
+                        <ConnectionBubble color={unknown ? 'warning.main' : getConnectionBubbleColor(alerts)} />
+                        <Stack sx={{minWidth: 0}}>
+                            <Typography variant="h6" sx={{lineHeight: 1.25}} noWrap>{displayName}</Typography>
+                            <Typography variant="caption" color="textDisabled" sx={{fontSize: '0.65rem', lineHeight: 1.25}} noWrap>
+                                {plugin?.name ?? 'Plugin Unavailable'}
+                            </Typography>
+                        </Stack>
                     </Stack>
                     <Stack direction="row" spacing={1} sx={{alignItems: 'center'}}>
                         {outputPercent > 0 && (
@@ -105,6 +75,13 @@ function ConfiguredOutputRow({outputAtom, infoAtom, onDelete}: Props) {
                             <LabelIcon sx={{fontSize: 14, color: 'text.secondary'}} />
                             <Typography variant="body2" color="text.secondary">{outputId}</Typography>
                         </Stack>
+                        <Switch
+                            size="small"
+                            checked={enabled !== false}
+                            onClick={event => event.stopPropagation()}
+                            onChange={(_event, checked) => setEnabled(checked)}
+                            slotProps={{input: {'aria-label': 'Enable device'}}}
+                        />
                         <IconButton
                             component="span"
                             color="error"
@@ -112,70 +89,25 @@ function ConfiguredOutputRow({outputAtom, infoAtom, onDelete}: Props) {
                             aria-label="Unlink output"
                             onClick={e => {
                                 e.stopPropagation();
-                                onDelete(outputId);
+                                onDelete({plugin: outputPlugin, id: outputId});
                             }}
                         >
-                            <CloseIcon fontSize="small" />
+                            <DeleteIcon fontSize="small" />
                         </IconButton>
                     </Stack>
                 </Stack>
             }
         >
             <Stack spacing={2}>
+                {unknown && (
+                    <Alert severity="warning">No plugin handles this output. Its settings are preserved.</Alert>
+                )}
                 {alerts.map((alert, index) => (
                     <Alert key={index} severity={alert.severity}>{alert.content}</Alert>
                 ))}
-                <OutputLinks
-                    linksAtom={outputLinksAtom}
-                    linkLevelsAtom={linkLevelsAtom}
-                />
-                {(info?.supportsLinearPreference || showLinearActuatorOptions) && (
-                    <Stack spacing={0}>
-                        {info?.supportsLinearPreference && (
-                        <MyAccordion
-                            expanded={false}
-                            onChange={() => {}}
-                            sx={{bgcolor: 'action.hover'}}
-                            summary={
-                                <Stack direction="row" spacing={1} sx={{alignItems: 'center'}}>
-                                    <Typography variant="subtitle2">Oscillation</Typography>
-                                    <Switch
-                                        size="small"
-                                        sx={{my: '-4px'}}
-                                        checked={preferLinear ?? false}
-                                        onChange={(_e, checked) => setPreferLinear(checked)}
-                                        slotProps={{input: {'aria-label': 'Prefer absolute position over oscillation'}}}
-                                    />
-                                    <Typography variant="subtitle2">Absolute Position</Typography>
-                                </Stack>
-                            }
-                        />
-                        )}
-                        {showLinearActuatorOptions && (
-                        <MyAccordion
-                            expanded={advancedExpanded}
-                            onChange={setAdvancedExpanded}
-                            sx={{bgcolor: 'action.hover'}}
-                            summary={<Typography variant="subtitle2">Advanced Linear Actuator Settings</Typography>}
-                        >
-                            <Stack spacing={2}>
-                                <Typography variant="subtitle2">Linear Actuator</Typography>
-                                <Stack direction={{xs: 'column', md: 'row'}} spacing={1.5}>
-                                    <NumberField label="Max Velocity (Units / Second)" valueAtom={linearMaxvAtom} placeholder="3" />
-                                    <NumberField label="Max Acceleration (Units / Second^2)" valueAtom={linearMaxaAtom} placeholder="20" />
-                                    <NumberField label="Duration Multiplier" valueAtom={linearDurationMultAtom} placeholder="1" />
-                                </Stack>
-                                <Stack direction={{xs: 'column', md: 'row'}} spacing={1.5}>
-                                    <NumberField label="Min Position" valueAtom={linearMinAtom} placeholder="0" />
-                                    <NumberField label="Max Position" valueAtom={linearMaxAtom} placeholder="1" />
-                                    <NumberField label="Resting Position" valueAtom={linearRestingPosAtom} placeholder="0" />
-                                    <NumberField label="Resting Time (seconds)" valueAtom={linearRestingTimeAtom} placeholder="3" />
-                                </Stack>
-                            </Stack>
-                        </MyAccordion>
-                        )}
-                    </Stack>
-                )}
+                {Editor
+                    ? <Editor outputAtom={outputAtom} infoAtom={infoAtom} />
+                    : <OutputLinks linksAtom={linksAtom} linkLevelsAtom={inactiveLinkLevelsAtom} />}
             </Stack>
         </MyAccordion>
     );
