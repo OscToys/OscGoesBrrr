@@ -45,7 +45,7 @@ jobs:
 
   build_win:
     needs: [version]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     container:
       image: electronuserland/builder:wine
     steps:

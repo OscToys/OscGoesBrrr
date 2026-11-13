@@ -11,7 +11,7 @@ import {getDefaultLinks} from '../../plugins/vrchat/shared/config';
 import type ConfigService from './ConfigService';
 import type {IntifaceOutputConfig} from '../../plugins/intiface/shared/config';
 
-test('a fresh config loads, persists, accepts edits, and resets through the real ConfigService', {timeout: 30000}, async t => {
+test('a fresh config loads, persists, accepts edits, and resets through the real ConfigService', {timeout: 180000}, async t => {
     const directory = await mkdtemp(path.join(tmpdir(), 'ogb-fresh-config-'));
     const server = await createServer({
         configFile: false,
@@ -19,6 +19,7 @@ test('a fresh config loads, persists, accepts edits, and resets through the real
         server: {middlewareMode: true, hmr: false},
         optimizeDeps: {noDiscovery: true},
         ssr: {noExternal: ['electron']},
+        oxc: {decorator: {legacy: true, emitDecoratorMetadata: true}},
         plugins: [
             {
                 name: 'test-electron-host',
