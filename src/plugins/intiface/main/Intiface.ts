@@ -225,6 +225,8 @@ export default class Intiface extends TypedEventEmitter<MyEvents> {
 }
 
 export class IntifaceOutput implements OutputEndpoint {
+    // Position devices handle motion themselves; keep linear semantics without software interpolation.
+    get disableInterpolation(): boolean { return this.intiface.selectedOutput === 'Position'; }
     get type(): OutputControlType { return getDeviceMotionTypeFromOutputType(this.intiface.selectedOutput); }
     private get range() { return this.intiface.feature.Output?.[this.intiface.selectedOutput]?.Value; }
     get intiface() { return this.selection; }

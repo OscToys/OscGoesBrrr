@@ -14,6 +14,7 @@ export function planPosition(
     now: number,
     settings: Partial<OutputLinearActuatorConfig> | undefined,
     previous: Readonly<PositionPlannerState>,
+    disableInterpolation = false,
 ) {
     const config = {...getDefaultLinearActuatorConfig(), ...settings};
     const seconds = elapsedMs / 1000;
@@ -28,6 +29,7 @@ export function planPosition(
     }
     target = clamp(target, 0, 1);
     const duration = Math.round(elapsedMs * config.durationMult);
+    if (disableInterpolation) return {position: target, duration: 0, nextState: {velocity: 0, lastActiveAt}};
     if (seconds <= 0) return {position: currentPosition, duration, nextState: {...previous, lastActiveAt}};
 
     const stoppingDistance = previous.velocity ** 2 / (2 * maxAcceleration);

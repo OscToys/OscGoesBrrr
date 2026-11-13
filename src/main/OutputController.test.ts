@@ -9,7 +9,7 @@ class RecordingOutput implements OutputEndpoint {
     lastLevel = 0;
     readonly commands: {value: number; duration?: number}[] = [];
 
-    constructor(public type: OutputControlType) {}
+    constructor(public type: OutputControlType, public disableInterpolation = false) {}
 
     setLevel(value: number, duration?: number) {
         this.commands.push({value, duration});
@@ -112,4 +112,27 @@ test('disabled linear devices do not receive position-zero or rest movements', t
     assert.equal(endpoint.commands.length, 0);
     assert.equal(endpoint.lastLevel, 0.5);
     assert.equal(controller.getCurrentLevel(), 0);
+});
+
+test('immediate linear targets retain inversion, range, resting and disabled behavior', t => {
+    t.mock.timers.enable({apis: ['Date'], now: 1000});
+    const endpoint = new RecordingOutput('linear', true);
+    const controller = new OutputController(endpoint);
+    const settings = {linear: {min: 0.2, max: 0.8, maxv: 0.001, maxa: 0.001, restingPos: 0.1, restingTime: 3}};
+    const movement = input(0.25);
+    movement[0]!.inputs = [{...movement[0]!.inputs[0]!, movement: true}];
+    controller.update(movement, settings);
+    assert.ok(Math.abs(endpoint.lastLevel - 0.65) < 1e-9);
+    const count = endpoint.commands.length;
+    controller.update(movement, settings);
+    assert.equal(endpoint.commands.length, count, 'No differentiation or interpolation on repeated targets');
+    assert.equal(endpoint.commands[0]!.duration, 0);
+    controller.update(input(0), settings);
+    assert.equal(endpoint.lastLevel, 0.8);
+    t.mock.timers.tick(3001);
+    controller.update(input(0), settings);
+    assert.equal(endpoint.lastLevel, 0.1);
+    const beforeDisable = endpoint.commands.length;
+    controller.update(input(1), {...settings, enabled: false});
+    assert.equal(endpoint.commands.length, beforeDisable);
 });

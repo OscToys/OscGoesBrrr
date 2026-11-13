@@ -60,6 +60,7 @@ export default class OutputController {
                 now,
                 settings.linear,
                 this.positionState,
+                this.output.disableInterpolation,
             );
             if (modeChanged || this.output.lastLevel !== plan.position) {
                 this.output.setLevel(plan.position, plan.duration);
