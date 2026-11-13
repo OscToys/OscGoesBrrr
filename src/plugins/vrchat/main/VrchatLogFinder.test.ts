@@ -13,6 +13,7 @@ test('Linux discovery checks the actual Flatpak Steam directory', async t => {
         server: {middlewareMode: true, hmr: false},
         optimizeDeps: {noDiscovery: true},
         ssr: {noExternal: ['electron']},
+        oxc: {decorator: {legacy: true, emitDecoratorMetadata: true}},
         plugins: [
             {
                 name: 'test-electron-host',

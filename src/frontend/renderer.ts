@@ -7,8 +7,9 @@ import createCache from "@emotion/cache";
 import {CacheProvider} from "@emotion/react";
 import {createTheme, CssBaseline, ThemeProvider} from "@mui/material";
 import {Provider as JotaiProvider} from "jotai";
+import onDocumentReady from './utils/onDocumentReady';
 
-window.addEventListener('DOMContentLoaded', () => {
+onDocumentReady(() => {
   const div = document.querySelector<HTMLDivElement>('#maindiv');
   if (!div) throw new Error('Missing renderer mount point');
   const cache = createCache({
