@@ -30,13 +30,17 @@ jobs:
         run: |
           pnpm install --frozen-lockfile
           VERSION="$(pnpm exec release-it --release-version)"
+          if [ -z "$VERSION" ]; then
+            # Release ordinary commits too, even without a conventional bump recommendation.
+            VERSION="$(pnpm exec release-it patch --release-version)"
+          fi
           TAG_NAME="v${VERSION}"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "tagName=$TAG_NAME" >> "$GITHUB_OUTPUT"
       - name: Validate Version Outputs
         run: |
           if [ -z "${{ steps.determine_version.outputs.version }}" ] || [ -z "${{ steps.determine_version.outputs.tagName }}" ]; then
-            echo "No new release version was produced (likely already released)."
+            echo "release-it did not produce a release version, including with an explicit patch increment."
             exit 1
           fi
     outputs:
