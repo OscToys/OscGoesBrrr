@@ -2,6 +2,9 @@ import type {OscValue} from "./OscConnection";
 import type {InputSample} from '../../../main/routing';
 import type {InteractionConfig, InteractionMode, ZoneLink} from '../shared/config';
 
+// Temporary workaround due to https://feedback.vrchat.com/bug-reports/p/advanced-parameters-shows-0-velocity-if-sender-is-0-radius-and-has-any-angular-r
+const USE_ADVANCED_PLUG_DEPTH_DELTA = true;
+
 type ContactName = 'TouchSelf' | 'TouchOthers' | 'FrotOthers' | 'Self' | 'Others';
 type DepthContact = 'DepthSelf' | 'DepthOthers';
 export type AvatarZoneType = 'plug' | 'socket' | 'touch';
@@ -213,7 +216,9 @@ export default class AvatarZone {
         const pushDepth = (interaction: InteractionConfig, self: boolean, position: number) => {
             const mode = partyMode(interaction, self ? 'self' : 'others');
             // Linear outputs still follow depth, never a velocity interpreted as position.
-            const source = this.advancedDepth && includeTouch
+            const useNativeVelocity = this.advancedDepth && includeTouch
+                && !(USE_ADVANCED_PLUG_DEPTH_DELTA && this.type === 'plug');
+            const source = useNativeVelocity
                 ? this.getContactSource(self ? 'DepthSelf' : 'DepthOthers', mode, position) : position;
             pushIfEnabled(mode, self ? 'depthSelf' : 'depthOthers', source);
         };

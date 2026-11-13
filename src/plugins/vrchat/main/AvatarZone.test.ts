@@ -444,7 +444,7 @@ test('movement mode differentiates penetration without a link-wide motion modifi
 
 for (const type of ['Plug', 'Socket']) {
     for (const self of [false, true]) {
-        test(`${type} ${self ? 'self' : 'others'} depth Movement uses native velocity, not depth changes`, () => {
+        test(`${type} ${self ? 'self' : 'others'} depth Movement uses ${type === 'Plug' ? 'depth deltas temporarily' : 'native velocity'}`, () => {
             const contact = self ? 'DepthSelf' : 'DepthOthers';
             const zone = device(type, {
                 LengthMult1: 1,
@@ -469,6 +469,28 @@ for (const type of ['Plug', 'Socket']) {
             const config: OutputConfig = {plugin: 'intiface', id: 'Test', links: [selection]};
             const output = outputFor();
             const read = () => linkResults(output, [zone.output], config)[0]!.output;
+            if (type === 'Plug') {
+                near(read(), 0);
+                assert.equal(zone.output.getSources(selection)[0]!.kind, 'position');
+                zone.set(contact + '_SenderVelocityMagnitude', 100);
+                near(read(), 0);
+                zone.set(contact + '_PointSeparation', 0.2);
+                near(read(), 0.5);
+                near(read(), 0);
+                zone.set(contact + '_SenderVelocityMagnitude', 0);
+                zone.set(contact + '_PointSeparation', 0.3);
+                near(read(), 0.5);
+                near(read(), 0);
+                const linear = new OutputController({type: 'linear', lastLevel: 0, setLevel() {}});
+                near(linkResults(linear, [zone.output], config)[0]!.output, 0.25);
+                interaction.mode = 'proximity';
+                near(read(), 0.25);
+                interaction.mode = 'movement';
+                near(read(), 0);
+                interaction.mode = 'off';
+                near(read(), 0);
+                return;
+            }
             near(read(), 0.6);
             near(read(), 0.6);
             const linear = new OutputController({type: 'linear', lastLevel: 0, setLevel() {}});
@@ -553,7 +575,6 @@ for (const [type, contact, key] of [
     ['Plug', 'TouchOthers', 'touchOthers'],
     ['Socket', 'FrotOthers', 'frotOthers'],
     ['Touch', 'Others', 'touchOthers'],
-    ['Plug', 'DepthOthers', 'depthOthers'],
     ['Socket', 'DepthSelf', 'depthSelf'],
 ] as const) {
     test(`${type}/${contact} native velocity is normalized to 1.5 m eye height`, () => {
