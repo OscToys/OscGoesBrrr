@@ -46,7 +46,6 @@
     "@swc/core": "^1.16.22",
     "@tanstack/query-core": "^5.107.0",
     "@tsconfig/strictest": "^2.0.8",
-    "@ttsc/unplugin": "0.37.1",
     "@types/lodash": "^4.17.27",
     "@types/node": "^26.6.6",
     "@types/react": "^19.3.0",
@@ -119,4 +118,3 @@
     ]
   }
 }
-

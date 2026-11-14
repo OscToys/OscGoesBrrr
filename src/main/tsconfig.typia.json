@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.json",
+  "include": [
+    "./**/*",
+    "../common/**/*",
+    "../plugins/*/main/**/*",
+    "../plugins/*/shared/**/*"
+  ],
+  "exclude": ["**/*.test.ts", "**/*.test.tsx"]
+}

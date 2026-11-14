@@ -1,0 +1,6 @@
+{
+  "extends": "./tsconfig.json",
+  "files": ["./settingsValidation.ts"],
+  "include": ["../plugins/*/shared/ipc.ts"],
+  "exclude": ["**/*.test.ts", "**/*.test.tsx"]
+}

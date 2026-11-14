@@ -5,7 +5,7 @@ import fs, {mkdir, mkdtemp, readFile, rm, writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {createServer} from 'vite';
-import ttsc from '@ttsc/unplugin/vite';
+import typiaPlugin from '../../../scripts/typiaPlugin.js';
 import type * as Configuration from '../../common/application/configuration';
 import {getDefaultLinks} from '../../plugins/vrchat/shared/config';
 import type ConfigService from './ConfigService';
@@ -38,7 +38,7 @@ test('a fresh config loads, persists, accepts edits, and resets through the real
                     `;
                 },
             },
-            ttsc({project: path.resolve('src/tsconfig.typia.json')}),
+            typiaPlugin(path.resolve('src/main/tsconfig.typia.json')),
         ],
     });
     let store: ConfigService | undefined;

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import {test} from 'node:test';
 import {createServer} from 'vite';
-import ttsc from '@ttsc/unplugin/vite';
+import typiaPlugin from '../../../../scripts/typiaPlugin.js';
 
 test('Linux discovery checks the actual Flatpak Steam directory', async t => {
     const directory = path.resolve('test-home');
@@ -24,7 +24,7 @@ test('Linux discovery checks the actual Flatpak Steam directory', async t => {
                     return `export const app = {getPath: () => ${JSON.stringify(directory)}};`;
                 },
             },
-            ttsc({project: path.resolve('src/tsconfig.typia.json')}),
+            typiaPlugin(path.resolve('src/main/tsconfig.typia.json')),
         ],
     });
     t.after(() => server.close());

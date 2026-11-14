@@ -17,11 +17,10 @@ import {
 import {Close as CloseIcon} from "@mui/icons-material";
 import {invokeIpc} from "../../ipc";
 import {SettingsStatePayload} from "../../../common/application/ipcContract";
-import {Result} from "../../../common/result";
 import {Config} from "../../../common/application/configTypes";
 import {type PrimitiveAtom, useAtomValue} from "jotai";
 import {selectAtom} from "jotai/utils";
-import typia from "typia";
+import {parseConfigResult, parseSettingsStateResult} from '../../settingsValidation';
 import useIpcBackedCache from "./useIpcBackedCache";
 import {SettingsStateAtomProvider} from "./SettingsStateAtomContext";
 
@@ -45,11 +44,6 @@ const dataFiles = [
 ];
 
 export default function Settings() {
-    const parseConfigResult = React.useCallback((raw: unknown) => typia.assert<Result<Config>>(raw), []);
-    const parseSettingsStateResult = React.useCallback(
-        (raw: unknown) => typia.assert<Result<SettingsStatePayload>>(raw),
-        [],
-    );
     const {
         dataAtom: configAtom,
         loadError,
