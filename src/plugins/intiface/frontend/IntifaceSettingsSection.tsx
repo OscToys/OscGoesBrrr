@@ -1,5 +1,5 @@
 import React from "react";
-import {Alert, AlertColor, Box, Checkbox, FormControlLabel, Stack, Typography} from "@mui/material";
+import {Alert, AlertColor, Box, FormControlLabel, Stack, Switch, Typography} from "@mui/material";
 import TextCommitInput from "../../../frontend/components/util/TextCommitInput";
 import MyAccordion from "../../../frontend/components/util/MyAccordion";
 import ConnectionBubble from "../../../frontend/components/settings/ConnectionBubble";
@@ -70,7 +70,7 @@ function IntifaceSettingsSection({configAtom}: PluginSettingsProps) {
                 ))}
                 <FormControlLabel
                     control={
-                        <Checkbox
+                        <Switch
                             checked={useIntifaceMdns}
                             onChange={(_, checked) => setUseIntifaceMdns(checked)}
                         />
