@@ -1,6 +1,6 @@
 import fs from "fs/promises";
 import path from "path";
-import chokidar, {type FSWatcher} from "chokidar";
+import {watch} from 'node:fs';
 import {freeze, produce, type Draft} from "immer";
 import TypedEventEmitter from "../../common/TypedEventEmitter";
 import isFileMissingError from "../../common/isFileMissingError";
@@ -43,7 +43,7 @@ export abstract class AbstractJsonStateService<TData> extends TypedEventEmitter<
     private commandQueue: Promise<void> = Promise.resolve();
     private inCommand = false;
     private externalWatchStarted = false;
-    private externalWatcher?: FSWatcher;
+    private stopExternalWatch?: () => void;
     private externalReloadTimer?: NodeJS.Timeout;
     private lastWrittenAtMs = 0;
     private lastKnownFileText?: string;
@@ -111,6 +111,7 @@ export abstract class AbstractJsonStateService<TData> extends TypedEventEmitter<
     }
 
     async startExternalWatch() {
+        await this.ensureInitialLoad();
         if (this.externalWatchStarted) return;
         const runReload = () => {
             const remainingSuppressMs = AbstractJsonStateService.SELF_SAVE_SUPPRESS_MS - (Date.now() - this.lastWrittenAtMs);
@@ -127,17 +128,16 @@ export abstract class AbstractJsonStateService<TData> extends TypedEventEmitter<
             this.externalReloadTimer = setTimeout(runReload, AbstractJsonStateService.EXTERNAL_RELOAD_DEBOUNCE_MS);
         };
 
-        this.externalWatcher = chokidar.watch(this.savePath, {
-            ignoreInitial: true,
-            awaitWriteFinish: {
-                stabilityThreshold: 100,
-                pollInterval: 25,
-            },
-        }) as FSWatcher;
+        // Watch the parent nonrecursively so atomic saves don't leave us watching
+        // an obsolete file handle. Unrelated files must not schedule a reload.
+        const filename = path.basename(this.savePath);
+        const watcher = watch(path.dirname(this.savePath), {recursive: false}, (_event, changed) => {
+            // Some platforms omit the filename; conservatively recheck our file.
+            if (changed === null || changed === filename) scheduleExternalReload();
+        });
+        watcher.on('error', error => this.logAndError('Config file watch failed', error));
+        this.stopExternalWatch = () => watcher.close();
         this.externalWatchStarted = true;
-        this.externalWatcher.on('add', scheduleExternalReload);
-        this.externalWatcher.on('change', scheduleExternalReload);
-        this.externalWatcher.on('unlink', scheduleExternalReload);
     }
 
     protected emitChanged(data: TData, loadError: string | undefined = undefined): void {
@@ -152,10 +152,8 @@ export abstract class AbstractJsonStateService<TData> extends TypedEventEmitter<
             this.externalReloadTimer = undefined;
         }
         this.externalWatchStarted = false;
-        if (!this.externalWatcher) return;
-        const watcher = this.externalWatcher;
-        this.externalWatcher = undefined;
-        await watcher.close();
+        this.stopExternalWatch?.();
+        this.stopExternalWatch = undefined;
     }
 
     protected async resetToDefaults() {

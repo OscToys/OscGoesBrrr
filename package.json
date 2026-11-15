@@ -55,7 +55,6 @@
     "@vitejs/plugin-react": "^6.2.1",
     "bonjour-service": "^1.4.4",
     "bootstrap": "^5.3.8",
-    "chokidar": "^6.0.0",
     "classnames": "^2.5.1",
     "dns-packet": "^5.6.1",
     "electron": "^45.2.3",
