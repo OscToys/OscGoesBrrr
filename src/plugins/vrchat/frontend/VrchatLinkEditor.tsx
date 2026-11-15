@@ -1,5 +1,5 @@
 import React from 'react';
-import {Box, Stack, ToggleButton, ToggleButtonGroup, Typography} from '@mui/material';
+import {Box, Stack, Switch, ToggleButton, ToggleButtonGroup, Typography} from '@mui/material';
 import {useAtom, useAtomValue} from 'jotai';
 import {selectAtom} from 'jotai/utils';
 import type {OutputLinkFilter} from '../../../common/application/configTypes';
@@ -8,10 +8,12 @@ import TextCommitInput from '../../../frontend/components/util/TextCommitInput';
 import Filter from '../../../frontend/components/Filter';
 import {useSettingsStateAtom} from '../../../frontend/components/settings/SettingsStateAtomContext';
 import type {LinkEditorProps} from '../../../frontend/plugins/Plugin';
+import {LinearOutputContext} from '../../../frontend/components/settings/LinkOutputContext';
 
 type InteractionFeature = 'hands' | 'sockets' | 'plugs';
 
 export default function VrchatLinkEditor({linkAtom}: LinkEditorProps) {
+    const linear = useAtomValue(React.useContext(LinearOutputContext));
     const [link, setLink] = useAtom(linkAtom);
     const settingsStateAtom = useSettingsStateAtom();
     const suggestionsAtom = React.useMemo(
@@ -58,7 +60,15 @@ export default function VrchatLinkEditor({linkAtom}: LinkEditorProps) {
                     return <Box key={feature} sx={{'& .MuiToggleButton-root': {py: '3px', px: '9px'}}}>
                         <Typography variant="body2" sx={{mb: 0.5}}>{label}</Typography>
                         <Stack direction="row" spacing={1} useFlexGap sx={{flexWrap: 'wrap'}}>
-                            <ToggleButtonGroup
+                            {linear ? <Switch
+                                size="small"
+                                checked={interaction.mode !== 'off'}
+                                onChange={(_event, checked) => updateFeature(feature, {
+                                    ...interaction,
+                                    mode: checked ? 'proximity' : 'off',
+                                })}
+                                slotProps={{input: {'aria-label': label}}}
+                            /> : <ToggleButtonGroup
                                 exclusive
                                 size="small"
                                 color="primary"
@@ -71,7 +81,7 @@ export default function VrchatLinkEditor({linkAtom}: LinkEditorProps) {
                                 <ToggleButton value="off" color="standard">Off</ToggleButton>
                                 <ToggleButton value="movement">Movement</ToggleButton>
                                 <ToggleButton value="proximity">Proximity</ToggleButton>
-                            </ToggleButtonGroup>
+                            </ToggleButtonGroup>}
                             <ToggleButtonGroup
                                 size="small"
                                 color="primary"

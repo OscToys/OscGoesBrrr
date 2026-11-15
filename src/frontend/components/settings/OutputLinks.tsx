@@ -6,18 +6,22 @@ import {pushItem} from "../../../common/arrayDraft";
 import {Add as AddIcon} from "@mui/icons-material";
 import OutputLinkEditor from "./OutputLinkEditor";
 import MyAccordion from "../util/MyAccordion";
-import {type Atom, type PrimitiveAtom, useAtomValue, useSetAtom} from "jotai";
+import {atom, type Atom, type PrimitiveAtom, useAtomValue, useSetAtom} from "jotai";
 import {splitAtom} from "jotai/utils";
 
 interface Props {
     linksAtom: PrimitiveAtom<OutputLink[]>;
     linkLevelsAtom: Atom<number[]>;
+    linearAtom?: Atom<boolean>;
 }
+
+const defaultLinearAtom = atom(false);
 
 import {linkDefinitions} from '../../plugins/plugins';
 import type {LinkDefinition} from '../../plugins/Plugin';
+import {LinearOutputContext} from './LinkOutputContext';
 
-function OutputLinks({linksAtom, linkLevelsAtom}: Props) {
+function OutputLinks({linksAtom, linkLevelsAtom, linearAtom}: Props) {
     const [addLinkMenuAnchor, setAddLinkMenuAnchor] = useState<HTMLElement | null>(null);
     const linkAtomsAtom = useMemo(
         () => splitAtom(linksAtom),
@@ -36,6 +40,7 @@ function OutputLinks({linksAtom, linkLevelsAtom}: Props) {
     };
 
     return (
+        <LinearOutputContext.Provider value={linearAtom ?? defaultLinearAtom}>
         <Stack spacing={0}>
             {linkAtoms.map((linkAtom, index) => {
                 return (
@@ -73,6 +78,7 @@ function OutputLinks({linksAtom, linkLevelsAtom}: Props) {
                 ))}
             </Menu>
         </Stack>
+        </LinearOutputContext.Provider>
     );
 }
 

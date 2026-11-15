@@ -1,6 +1,6 @@
 import React, {useMemo, useState} from 'react';
 import {Stack, Switch, Typography} from '@mui/material';
-import {type PrimitiveAtom, type WritableAtom, useAtom, useAtomValue} from 'jotai';
+import {atom, type PrimitiveAtom, type WritableAtom, useAtom, useAtomValue} from 'jotai';
 import {selectAtom} from 'jotai/utils';
 import type {OutputEditorProps} from '../../../frontend/plugins/Plugin';
 import type {IntifaceOutputConfig} from '../shared/config';
@@ -42,6 +42,14 @@ export default function IntifaceOutputEditor({outputAtom: opaqueOutputAtom, info
     const outputLinksAtom = useMemo(() => focusKeyAtom(outputAtom, 'links'), [outputAtom]);
     const preferLinearAtom = useMemo(() => focusKeyAtom(outputAtom, 'preferLinear'), [outputAtom]);
     const [preferLinear, setPreferLinear] = useAtom(preferLinearAtom);
+    const linearOutputAtom = useMemo(
+        () => atom(get => {
+            const info = get(infoAtom);
+            return info?.supportsLinearPreference
+                ? get(preferLinearAtom) ?? false : Boolean(info?.showLinearActuatorOptions);
+        }),
+        [infoAtom, preferLinearAtom],
+    );
     const linearAtom = useMemo(() => focusKeyAtom(outputAtom, 'linear'), [outputAtom]);
     const linearMaxvAtom = useMemo(() => focusOptionalKeyAtom(linearAtom, 'maxv'), [linearAtom]);
     const linearMaxaAtom = useMemo(() => focusOptionalKeyAtom(linearAtom, 'maxa'), [linearAtom]);
@@ -65,6 +73,7 @@ export default function IntifaceOutputEditor({outputAtom: opaqueOutputAtom, info
             <OutputLinks
                 linksAtom={outputLinksAtom}
                 linkLevelsAtom={linkLevelsAtom}
+                linearAtom={linearOutputAtom}
             />
             {(info?.supportsLinearPreference || showLinearActuatorOptions) && (
                 <Stack spacing={0}>
