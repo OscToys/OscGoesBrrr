@@ -67,7 +67,7 @@ for (const selectedOutput of ['Position', 'HwPositionWithDuration'] as const) {
         });
         const controller = new OutputController(output);
         controller.update(
-            [{inputs: [{id: 'depth', kind: 'position', value: 0.2, movement: true}], modifiers: []}],
+            [{inputs: [{id: 'depth', value: 0.2, differentiate: true}], modifiers: []}],
             {linear: {maxv: 0.01, maxa: 0.01}},
         );
         assert.equal(output.type, 'linear');

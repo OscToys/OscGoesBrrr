@@ -10,7 +10,7 @@ test('engine operates on a handle, resolved inputs and settings without plugin I
         setLevel(value) { commanded = value; },
     });
     controller.update([
-        {inputs: [{id: 'history-key', value: 0.4, kind: 'intensity'}], modifiers: []},
+        {inputs: [{id: 'history-key', value: 0.4}], modifiers: []},
     ], {});
     assert.equal(commanded, 0.4);
     assert.deepEqual(controller.getLastLinkValues(), [0.4]);

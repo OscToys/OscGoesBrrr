@@ -35,7 +35,7 @@ export default class AudioPlugin extends Plugin {
         return (link, index, linear) => {
             if (!isAudioLink(link)) return undefined;
             return {
-                inputs: linear ? [] : [{id: String(index), value, kind: 'intensity'}],
+                inputs: linear ? [] : [{id: String(index), value}],
                 modifiers: link.mutators,
             };
         };

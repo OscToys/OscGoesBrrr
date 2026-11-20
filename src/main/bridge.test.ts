@@ -15,7 +15,7 @@ test('coordinator uses stable handles and plugin-prepared frames without output 
     class Source extends Plugin {
         readonly id = 'input';
         override snapshot(): LinkInputResolver {
-            return () => ({inputs: [{id: 'sample', value: 0.6, kind: 'intensity'}], modifiers: []});
+            return () => ({inputs: [{id: 'sample', value: 0.6}], modifiers: []});
         }
     }
     class Integration extends Plugin {
@@ -82,9 +82,8 @@ test('fresh frames preserve movement history while distinct handles with identic
                 inputs: [{
                     inputs: [{
                         id: 'sample',
-                        kind: 'position' as const,
                         value: index === 0 ? this.value : 0.5,
-                        movement: true,
+                        differentiate: true,
                     }],
                     modifiers: [],
                 }],

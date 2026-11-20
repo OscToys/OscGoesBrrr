@@ -5,10 +5,10 @@ import {evaluateRoutes, type ResolvedLink} from './routing';
 test('routing distinguishes speed from level derivatives and does not mutate caller history', () => {
     const history = new Map([['depth', 0.5], ['removed', 1]]);
     const links: ResolvedLink[] = [{
-        inputs: [{id: 'depth', value: 0.25, kind: 'position', movement: true}],
+        inputs: [{id: 'depth', value: 0.25, differentiate: true}],
         modifiers: [],
     }, {
-        inputs: [{id: 'touch', value: 0.6, kind: 'speed'}],
+        inputs: [{id: 'touch', value: 0.6}],
         modifiers: [{kind: 'deadZone', level: 0.2}],
     }];
     const first = evaluateRoutes(links, history, 100, true);
@@ -26,8 +26,8 @@ test('routing distinguishes speed from level derivatives and does not mutate cal
 test('routing preserves strongest-input direction, disables differentiation for position, and clamps only final output', () => {
     const links: ResolvedLink[] = [{
         inputs: [
-            {id: 'a', value: 0, kind: 'position', movement: true},
-            {id: 'b', value: 0.5, kind: 'position', movement: true},
+            {id: 'a', value: 0, differentiate: true},
+            {id: 'b', value: 0.5, differentiate: true},
         ],
         modifiers: [{kind: 'scale', scale: 2}],
     }];
@@ -42,8 +42,8 @@ test('routing preserves strongest-input direction, disables differentiation for 
 test('per-input movement and proximity selections work independently', () => {
     const links: ResolvedLink[] = [{
         inputs: [
-            {id: 'movement', value: 0.5, kind: 'position', movement: true},
-            {id: 'proximity', value: 0.7, kind: 'position', movement: false},
+            {id: 'movement', value: 0.5, differentiate: true},
+            {id: 'proximity', value: 0.7},
         ],
         modifiers: [],
     }];
@@ -56,7 +56,7 @@ test('per-input movement and proximity selections work independently', () => {
 
 test('arbitrary intensity inputs are not differentiated', () => {
     const result = evaluateRoutes(
-        [{inputs: [{id: 'parameter', value: 0.4, kind: 'intensity'}], modifiers: []}],
+        [{inputs: [{id: 'parameter', value: 0.4}], modifiers: []}],
         new Map([['parameter', 1]]),
         100,
         true,

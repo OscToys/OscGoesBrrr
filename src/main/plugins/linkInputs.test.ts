@@ -9,7 +9,7 @@ test('each link is sent only to its plugin, including identical kind strings', (
     const called: string[] = [];
     const resolver = (owner: string, value: number): LinkInputResolver => (_link, index) => {
         called.push(owner);
-        return {inputs: [{id: String(index), value, kind: 'intensity'}], modifiers: []};
+        return {inputs: [{id: String(index), value}], modifiers: []};
     };
     const resolvers = new Map<string, LinkInputResolver>([
         ['a', resolver('a', 0.3)],
@@ -70,7 +70,7 @@ test('unhandled payloads stay opaque and only the owner supplies engine modifier
         ['example', link => {
             assert.deepEqual(link['mutators'], {private: true});
             return {
-                inputs: [{id: 'one', value: 0.3, kind: 'intensity'}],
+                inputs: [{id: 'one', value: 0.3}],
                 modifiers: [{kind: 'scale', scale: 2}],
             };
         }],

@@ -173,26 +173,14 @@ export default class AvatarZone {
         return Math.max(0, Math.min(1, 1 - separation / length));
     }
 
-    private getContactSource(
-        contact: ContactName | DepthContact,
-        mode: InteractionMode,
-        position: number,
-    ): Omit<InputSample, 'id'> {
-        const proximity = this.getNumber(contact) ?? 0;
+    private getSpeed(contact: ContactName | DepthContact): number | undefined {
         const magnitude = this._values.get(contact + '_SenderVelocityMagnitude');
-        if (mode === 'movement' && magnitude !== undefined) {
-            const speed = magnitude.get();
-            // One meter/second is full intensity before scale/dead-zone controls.
-            // Presence guards stale SDK velocity. Zero speed never falls back to proximity.
-            return {
-                value: proximity > 0 && typeof speed === 'number' && Number.isFinite(speed) ? Math.max(0, speed) : 0,
-                kind: 'speed',
-            };
-        }
-        return {value: position, kind: 'position'};
+        if (!magnitude) return undefined;
+        const speed = magnitude.get();
+        return typeof speed === 'number' && Number.isFinite(speed) ? Math.max(0, speed) : 0;
     }
 
-    getSources(link: ZoneLink, includeTouch = true): InputSample[] {
+    getSources(link: ZoneLink, linearOutput = false, velocityScale = 1): InputSample[] {
         const includeSet = new Set(link.filter.include.map(value => value.trim()).filter(Boolean));
         const excludeSet = new Set(link.filter.exclude.map(value => value.trim()).filter(Boolean));
         if (excludeSet.has(this.id)) return [];
@@ -201,26 +189,33 @@ export default class AvatarZone {
         const out: InputSample[] = [];
         const partyMode = (interaction: InteractionConfig, party: 'self' | 'others'): InteractionMode =>
             interaction[party] ? interaction.mode : 'off';
-        const pushIfEnabled = (mode: InteractionMode, sourceKey: string, source: number | Omit<InputSample, 'id'>) => {
+        const pushIfEnabled = (
+            mode: InteractionMode,
+            sourceKey: string,
+            position: number,
+            speed?: number,
+        ) => {
             if (mode === 'off') return;
+            const movement = !linearOutput && mode === 'movement' && position > 0;
             out.push({
                 id: `${this.isTps ? 'TPS' : 'OGB'}/${this.advancedDepth ? 'advanced' : 'legacy'}/${this.type}/${this.id}/${mode}/${sourceKey}`,
-                ...(typeof source === 'number' ? {value: source, kind: 'position' as const} : source),
-                movement: mode === 'movement',
+                value: movement && speed !== undefined ? speed * velocityScale : Math.max(0, position),
+                differentiate: movement && speed === undefined,
             });
         };
         const pushTouch = (mode: InteractionMode, sourceKey: string, contact: ContactName, requireClose = false) => {
-            const position = !requireClose || this.getBool(`${contact}Close` as allowedGetBools) ? this.getNumber(contact) ?? 0 : 0;
-            if (includeTouch) pushIfEnabled(mode, sourceKey, this.getContactSource(contact, mode, position));
+            if (linearOutput) return;
+            const proximity = requireClose && !this.getBool(`${contact}Close` as allowedGetBools)
+                ? 0 : this.getNumber(contact) ?? 0;
+            pushIfEnabled(mode, sourceKey, proximity, this.getSpeed(contact));
         };
-        const pushDepth = (interaction: InteractionConfig, self: boolean, position: number) => {
+        const pushDepth = (interaction: InteractionConfig, self: boolean, depth: number) => {
             const mode = partyMode(interaction, self ? 'self' : 'others');
             // Linear outputs still follow depth, never a velocity interpreted as position.
-            const useNativeVelocity = this.advancedDepth && includeTouch
+            const useNativeVelocity = this.advancedDepth && !linearOutput
                 && !(USE_ADVANCED_PLUG_DEPTH_DELTA && this.type === 'plug');
-            const source = useNativeVelocity
-                ? this.getContactSource(self ? 'DepthSelf' : 'DepthOthers', mode, position) : position;
-            pushIfEnabled(mode, self ? 'depthSelf' : 'depthOthers', source);
+            const speed = useNativeVelocity ? this.getSpeed(self ? 'DepthSelf' : 'DepthOthers') : undefined;
+            pushIfEnabled(mode, self ? 'depthSelf' : 'depthOthers', depth, speed);
         };
 
         if (!this.isTps) {
@@ -247,7 +242,7 @@ export default class AvatarZone {
                 pushDepth(link.sockets, false, othersDepth);
                 pushTouch(link.plugs.mode, 'frotOthers', 'FrotOthers', !this.advancedDepth);
             }
-            if (includeTouch && this.type === 'touch' && link.kind === 'vrchat.sps.touch') {
+            if (this.type === 'touch' && link.kind === 'vrchat.sps.touch') {
                 pushTouch(partyMode(link.hands, 'self'), 'touchSelf', 'Self');
                 pushTouch(partyMode(link.hands, 'others'), 'touchOthers', 'Others');
             }

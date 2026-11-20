@@ -187,21 +187,21 @@ for (const [type, contact, source] of [
     test(`${type}/${contact} uses magnitude exclusively when present, including zero and missing contact`, () => {
         const zone = device(type, {[contact]: 0.9, [contact + 'Close']: true, [contact + '_SenderVelocityMagnitude']: 0.4});
         near(zone.source(source).value, 0.4);
-        assert.equal(zone.source(source).kind, 'speed');
+        assert.equal(zone.source(source).differentiate, false);
         const proximity = zone.output.getSources(link(`vrchat.sps.${zone.output.type}`))
             .find(input => input.id.endsWith('/' + source))!;
         near(proximity.value, 0.9);
-        assert.equal(proximity.kind, 'position');
-        assert.equal(proximity.movement, false);
-        assert.equal(zone.source(source).movement, true);
+        assert.equal(proximity.differentiate, false);
         for (const speed of [0, undefined, -1, NaN, Infinity]) {
             zone.set(contact + '_SenderVelocityMagnitude', speed);
             assert.equal(zone.source(source).value, 0);
-            assert.equal(zone.source(source).kind, 'speed');
+            assert.equal(zone.source(source).differentiate, false);
         }
         zone.set(contact + '_SenderVelocityMagnitude', 8);
         zone.set(contact, 0);
-        assert.equal(zone.source(source).value, 0);
+        const released = zone.source(source);
+        assert.equal(released.differentiate, false);
+        assert.equal(released.value, 0);
     });
 }
 
@@ -215,7 +215,7 @@ test('old Pen/Orf/Touch outputs retain proximity, close gating and penetration b
     near(plug.source('frotOthers').value, 0.4);
     near(plug.source('depthSelf').value, 0.6);
     near(plug.source('depthOthers').value, 0.5);
-    assert.notEqual(plug.source('touchSelf').kind, 'speed');
+    assert.equal(plug.source('touchSelf').differentiate, true);
     const socket = device('Orf', {PenSelf: 0.6, PenOthers: 0.5, FrotOthers: 0.4});
     near(socket.source('depthSelf').value, 0.6);
     near(socket.source('depthOthers').value, 0.5);
@@ -279,7 +279,7 @@ for (const type of ['Pen', 'Orf', 'Plug', 'Socket', 'Touch']) {
             const zone = device(type, {[contact]: 0.7});
             const needsClose = type === 'Pen' || type === 'Orf' && contact !== 'FrotOthers';
             near(zone.source(key).value, needsClose ? 0 : 0.7);
-            assert.equal(zone.source(key).kind, 'position');
+            assert.equal(zone.source(key).differentiate, !needsClose);
             zone.set(contact + 'Close', false);
             near(zone.source(key).value, needsClose ? 0 : 0.7);
             zone.set(contact + 'Close', true);
@@ -342,7 +342,7 @@ for (const type of ['Pen', 'Orf']) {
         const samples = zone.output.getSources(selection);
         assert.equal(samples.length, 1);
         near(samples[0]!.value, type === 'Pen' ? 0.3 : 0.7);
-        assert.equal(samples[0]!.kind, 'position');
+        assert.equal(samples[0]!.differentiate, false);
         if (selection.kind === 'vrchat.sps.plug') selection.sockets.mode = 'off';
         else if (selection.kind === 'vrchat.sps.socket') selection.plugs.mode = 'off';
         assert.deepEqual(zone.output.getSources(selection), []);
@@ -419,6 +419,88 @@ for (const type of ['Plug', 'Socket', 'Pen', 'Orf', 'Touch']) {
     }
 }
 
+for (const type of ['Plug', 'Socket']) {
+    for (const self of [true, false]) {
+        test(`${type} movement requires penetration for ${self ? 'self' : 'others'}, including exit and re-entry`, () => {
+            const contact = self ? 'DepthSelf' : 'DepthOthers';
+            const key = self ? 'depthSelf' : 'depthOthers';
+            const zone = device(type, {
+                LengthMult1: 1,
+                LengthMult2: 0.4,
+                [contact]: 1,
+                [contact + '_PointSeparation']: 0.8,
+                [contact + '_SenderLossyScaleZ']: 0.4,
+                [contact + '_CollisionTag_SPS/Plug/test']: true,
+                [contact + '_SenderVelocityMagnitude']: 0.6,
+            });
+            const selection = link(`vrchat.sps.${zone.output.type}`);
+            if (selection.kind === 'vrchat.sps.touch') throw new Error('Expected depth link');
+            const interaction = createInteraction(self, !self, 'movement');
+            selection.hands.mode = 'off';
+            selection.plugs.mode = 'off';
+            selection.sockets.mode = 'off';
+            if (selection.kind === 'vrchat.sps.plug') selection.sockets = interaction;
+            else selection.plugs = interaction;
+            const config: OutputConfig = {plugin: 'intiface', id: 'Test', links: [selection]};
+            const output = outputFor();
+            const read = () => linkResults(output, [zone.output], config)[0]!.output;
+            // The broad receiver still sees the sender outside the plug's length.
+            for (const distance of [0.8, 0.5, 0.4]) {
+                zone.set(contact + '_PointSeparation', distance);
+                near(read(), 0);
+            }
+            zone.set(contact + '_PointSeparation', 0.2);
+            assert.ok(read() > 0);
+            zone.set(contact + '_PointSeparation', 0.4);
+            near(read(), 0);
+            zone.set(contact + '_PointSeparation', 0.6);
+            near(read(), 0);
+            zone.set(contact + '_PointSeparation', 0.1);
+            assert.ok(read() > 0);
+            zone.set(contact, 0);
+            near(read(), 0);
+            zone.set(contact, 1);
+            zone.set(contact + '_PointSeparation', -1);
+            near(read(), 0);
+            // Missing geometric data must not let a stale native speed through.
+            zone.set(contact + '_PointSeparation', undefined);
+            near(read(), 0);
+            assert.equal(zone.output.getSources(selection).find(input => input.id.endsWith('/' + key))!.value, 0);
+        });
+    }
+}
+
+for (const type of ['Pen', 'Orf', 'Plug', 'Socket', 'Touch']) {
+    for (const nativeVelocity of [false, true]) {
+        test(`${type} touch stops on contact loss without a derivative pulse (${nativeVelocity ? 'velocity' : 'delta'})`, () => {
+            const contact = type === 'Touch' ? 'Others' : 'TouchOthers';
+            const zone = device(type, {
+                [contact]: 0.4,
+                [contact + 'Close']: true,
+                ...(nativeVelocity ? {[contact + '_SenderVelocityMagnitude']: 0.6} : {}),
+            });
+            const selection = link(`vrchat.sps.${zone.output.type}`, true);
+            const config: OutputConfig = {plugin: 'intiface', id: 'Test', links: [selection]};
+            const output = outputFor();
+            const read = () => linkResults(output, [zone.output], config)[0]!.output;
+            read();
+            zone.set(contact, 0.6);
+            assert.ok(read() > 0);
+            if (type === 'Pen' || type === 'Orf') {
+                zone.set(contact + 'Close', false);
+                near(read(), 0);
+                zone.set(contact, 0.8);
+                near(read(), 0);
+                zone.set(contact + 'Close', true);
+                assert.ok(read() > 0);
+            }
+            zone.set(contact, 0);
+            near(read(), 0);
+            near(read(), 0);
+        });
+    }
+}
+
 test('movement velocity sources preserve scale and dead zone', () => {
     const plug = device('Plug', {TouchOthers: 1, TouchOthers_SenderVelocityMagnitude: 0.4});
     const selection = link('vrchat.sps.plug', true);
@@ -471,7 +553,7 @@ for (const type of ['Plug', 'Socket']) {
             const read = () => linkResults(output, [zone.output], config)[0]!.output;
             if (type === 'Plug') {
                 near(read(), 0);
-                assert.equal(zone.output.getSources(selection)[0]!.kind, 'position');
+                assert.equal(zone.output.getSources(selection)[0]!.differentiate, true);
                 zone.set(contact + '_SenderVelocityMagnitude', 100);
                 near(read(), 0);
                 zone.set(contact + '_PointSeparation', 0.2);
@@ -502,7 +584,7 @@ for (const type of ['Plug', 'Socket']) {
                 zone.set(contact + '_SenderVelocityMagnitude', velocity);
                 zone.set(contact + '_PointSeparation', 0.1);
                 near(read(), 0);
-                assert.equal(zone.output.getSources(selection)[0]!.kind, 'speed');
+                assert.equal(zone.output.getSources(selection)[0]!.differentiate, false);
             }
             zone.set(contact + '_SenderVelocityMagnitude', 0.8);
             zone.set(contact, 0);
@@ -599,7 +681,7 @@ for (const [type, contact, key] of [
         )!.find(source => source.id.endsWith('/' + key))!;
         for (const [height, expected] of [[0.75, 0.8], [1.5, 0.4], [3, 0.2]] as const) {
             const sample = read(height);
-            assert.equal(sample.kind, 'speed');
+            assert.equal(sample.differentiate, false);
             near(sample.value, expected);
         }
         for (const invalid of [undefined, 0, -1, NaN, Infinity, '3']) near(read(invalid).value, 0.4);

@@ -11,7 +11,7 @@ test('audio expires exactly one second after receipt and resumes on a new sample
     t.mock.timers.enable({apis: ['Date'], now: 1000});
     const audio = new AudioPlugin();
     const read = () => audio.snapshot()(audioLink, 2, false)?.inputs[0];
-    assert.deepEqual(read(), {id: '2', value: 0, kind: 'intensity'});
+    assert.deepEqual(read(), {id: '2', value: 0});
     audio.receivedFft(0.6);
     const frozen = audio.snapshot();
     t.mock.timers.tick(999);

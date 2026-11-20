@@ -9,7 +9,7 @@ export default class ConstantPlugin extends Plugin {
         return (link, index, linear) => {
             if (!isConstantLink(link)) return undefined;
             return {
-                inputs: linear ? [] : [{id: String(index), value: link.level, kind: 'intensity'}],
+                inputs: linear ? [] : [{id: String(index), value: link.level}],
                 modifiers: [],
             };
         };

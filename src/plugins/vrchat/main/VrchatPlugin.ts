@@ -24,17 +24,16 @@ export function resolveVrchatLink(
         if (!parameter) return [];
         const raw = parameters.get(parameter);
         const value = typeof raw === 'number' ? raw : raw === true ? 1 : 0;
-        return [{id: `${index}/${parameter}`, value, kind: 'intensity'}];
+        return [{id: `${index}/${parameter}`, value}];
     }
     if (link.kind !== 'vrchat.sps.plug' && link.kind !== 'vrchat.sps.socket' && link.kind !== 'vrchat.sps.touch') return undefined;
     const eyeHeight = parameters.get('EyeHeightAsMeters');
     // Native contact velocity is world-space. Preserve the old sensitivity at 1.5 m.
     const velocityScale = typeof eyeHeight === 'number' && Number.isFinite(eyeHeight) && eyeHeight > 0
         ? 1.5 / eyeHeight : 1;
-    return zones.flatMap(zone => zone.getSources(link, !linear).map(source => ({
+    return zones.flatMap(zone => zone.getSources(link, linear, velocityScale).map(source => ({
         ...source,
         id: `${index}/${source.id}`,
-        value: source.kind === 'speed' ? source.value * velocityScale : source.value,
     })));
 }
 

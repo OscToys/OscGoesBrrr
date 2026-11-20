@@ -18,7 +18,7 @@ class RecordingOutput implements OutputEndpoint {
 }
 
 function input(value: number): ResolvedLink[] {
-    return [{inputs: [{id: 'input', value, kind: 'position'}], modifiers: []}];
+    return [{inputs: [{id: 'input', value}], modifiers: []}];
 }
 
 test('unknown output control modes contribute nothing and never send commands, even when disabled', () => {
@@ -54,10 +54,10 @@ test('controller sends signed rotation derived from motion to a generic endpoint
     t.mock.timers.enable({apis: ['Date'], now: 1000});
     const endpoint = new RecordingOutput('rotate');
     const controller = new OutputController(endpoint);
-    const links: ResolvedLink[] = [{inputs: [{id: 'input', value: 0.5, kind: 'position', movement: true}], modifiers: []}];
+    const links: ResolvedLink[] = [{inputs: [{id: 'input', value: 0.5, differentiate: true}], modifiers: []}];
     controller.update(links, {});
     t.mock.timers.tick(100);
-    links[0] = {...links[0]!, inputs: [{id: 'input', value: 0.25, kind: 'position', movement: true}]};
+    links[0] = {...links[0]!, inputs: [{id: 'input', value: 0.25, differentiate: true}]};
     controller.update(links, {});
     assert.equal(endpoint.lastLevel, -0.5);
 });
@@ -120,7 +120,7 @@ test('immediate linear targets retain inversion, range, resting and disabled beh
     const controller = new OutputController(endpoint);
     const settings = {linear: {min: 0.2, max: 0.8, maxv: 0.001, maxa: 0.001, restingPos: 0.1, restingTime: 3}};
     const movement = input(0.25);
-    movement[0]!.inputs = [{...movement[0]!.inputs[0]!, movement: true}];
+    movement[0]!.inputs = [{...movement[0]!.inputs[0]!, differentiate: true}];
     controller.update(movement, settings);
     assert.ok(Math.abs(endpoint.lastLevel - 0.65) < 1e-9);
     const count = endpoint.commands.length;

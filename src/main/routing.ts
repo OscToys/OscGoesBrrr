@@ -1,13 +1,11 @@
 import type {InputModifier} from '../common/configTypes';
 import clamp from '../common/clamp';
 
-/** Positions and intensities are normalized; speed is measured in meters/second. */
 export interface InputSample {
     id: string;
     value: number;
-    kind: 'position' | 'intensity' | 'speed';
-    /** Differentiate this position when Movement is selected. */
-    movement?: boolean;
+    /** Use the change in value over time instead of the value itself. */
+    differentiate?: boolean;
 }
 
 export interface ResolvedLink {
@@ -35,7 +33,7 @@ export function evaluateRoutes(
             nextInputs.set(input.id, input.value);
             let value = input.value;
             let backward = false;
-            if (allowMovement && input.kind !== 'speed' && input.movement) {
+            if (allowMovement && input.differentiate) {
                 const velocity = elapsedMs === 0 ? 0 : (value - previous) / elapsedMs * 1000;
                 value = Math.abs(velocity) / 5;
                 backward = velocity < 0;
